@@ -1,0 +1,119 @@
+import pytest
+from sqlalchemy import select
+
+from app.models import Event
+from tests.conftest import SAFARI_IPHONE
+
+
+def _payload(**overrides):
+    payload = {
+        "site_id": "blue-mug.example",
+        "url": "https://blue-mug.example/products/blue-mug",
+        "referrer": "https://www.google.com/search?q=blue+mugs",
+        "screen_width": 1280,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_health_reports_ok(client):
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_records_an_enriched_pageview(client, db_session):
+    response = client.post("/api/event", json=_payload())
+
+    assert response.status_code == 202
+
+    event = db_session.scalars(select(Event)).one()
+    assert event.site_id == "blue-mug.example"
+    assert event.name == "pageview"
+    assert event.pathname == "/products/blue-mug"
+    assert event.source == "Google"
+    assert event.referrer_host == "google.com"
+    assert event.browser == "Chrome"
+    assert event.os == "Mac OS X"
+    assert event.device == "desktop"
+    assert event.screen_width == 1280
+    assert len(event.visitor_id) == 32
+
+
+def test_records_device_class_from_the_user_agent(client, db_session):
+    client.post("/api/event", json=_payload(), headers={"user-agent": SAFARI_IPHONE})
+
+    event = db_session.scalars(select(Event)).one()
+    assert event.device == "mobile"
+    assert event.browser == "Mobile Safari"
+
+
+def test_repeat_visits_share_one_visitor_id(client, db_session):
+    client.post("/api/event", json=_payload())
+    client.post("/api/event", json=_payload(url="https://blue-mug.example/about"))
+
+    first, second = db_session.scalars(select(Event).order_by(Event.id)).all()
+    assert first.visitor_id == second.visitor_id
+
+
+def test_a_different_browser_is_a_different_visitor(client, db_session):
+    client.post("/api/event", json=_payload())
+    client.post("/api/event", json=_payload(), headers={"user-agent": SAFARI_IPHONE})
+
+    first, second = db_session.scalars(select(Event).order_by(Event.id)).all()
+    assert first.visitor_id != second.visitor_id
+
+
+def test_discards_query_strings(client, db_session):
+    """Query strings routinely carry personal data and must never be stored."""
+    response = client.post(
+        "/api/event",
+        json=_payload(url="https://blue-mug.example/welcome?email=a@b.com&token=abc123"),
+    )
+
+    assert response.status_code == 202
+    assert db_session.scalars(select(Event)).one().pathname == "/welcome"
+
+
+def test_root_path_is_normalised(client, db_session):
+    client.post("/api/event", json=_payload(url="https://blue-mug.example"))
+
+    assert db_session.scalars(select(Event)).one().pathname == "/"
+
+
+def test_internal_navigation_is_not_credited_to_a_source(client, db_session):
+    client.post("/api/event", json=_payload(referrer="https://blue-mug.example/"))
+
+    event = db_session.scalars(select(Event)).one()
+    assert event.source == "Direct"
+    assert event.referrer_host is None
+
+
+@pytest.mark.parametrize(
+    "user_agent",
+    ["Googlebot/2.1 (+http://www.google.com/bot.html)", "curl/8.4.0"],
+)
+def test_automated_traffic_is_not_recorded(client, db_session, user_agent):
+    response = client.post("/api/event", json=_payload(), headers={"user-agent": user_agent})
+
+    # Answered exactly like a real browser, so crawlers learn nothing.
+    assert response.status_code == 202
+    assert db_session.scalars(select(Event)).all() == []
+
+
+def test_rejects_relative_url(client, db_session):
+    response = client.post("/api/event", json=_payload(url="/products/blue-mug"))
+
+    assert response.status_code == 422
+    assert db_session.scalars(select(Event)).all() == []
+
+
+def test_rejects_missing_site_id(client, db_session):
+    payload = _payload()
+    del payload["site_id"]
+
+    response = client.post("/api/event", json=payload)
+
+    assert response.status_code == 422
+    assert db_session.scalars(select(Event)).all() == []

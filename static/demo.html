@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Blue Mug Co.</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 4rem auto;
+        padding: 0 1.5rem;
+        line-height: 1.6;
+        color: #1a1a1a;
+      }
+      nav a { margin-right: 1rem; }
+      .note {
+        margin-top: 3rem;
+        padding: 1rem;
+        background: #f4f4f5;
+        border-radius: 0.5rem;
+        font-size: 0.9rem;
+      }
+    </style>
+
+    <!-- This is the entire integration a customer performs. -->
+    <script src="/static/beacon.js" data-site-id="demo.example" defer></script>
+  </head>
+  <body>
+    <h1>Blue Mug Co.</h1>
+    <nav>
+      <a href="/static/demo.html">Home</a>
+      <a href="/static/demo.html?page=products">Products</a>
+      <a href="/static/demo.html?page=about">About</a>
+    </nav>
+    <p>
+      Handmade ceramic mugs, fired in small batches. Every mug is a slightly
+      different blue, which we insist is a feature.
+    </p>
+    <div class="note">
+      This page is instrumented with Beacon. Every view sends one event to
+      <code>/api/event</code>. No cookies are set and no personal data leaves
+      your browser.
+    </div>
+  </body>
+</html>
