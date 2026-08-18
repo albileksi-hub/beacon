@@ -54,8 +54,15 @@ python -m venv .venv
 .venv/Scripts/python.exe run.py
 ```
 
-Then open http://localhost:8100/static/demo.html — an instrumented sample page.
+Then open http://localhost:8100 for the dashboard, or
+http://localhost:8100/static/demo.html for an instrumented sample page.
 Interactive API docs are at http://localhost:8100/docs.
+
+To fill the dashboard with plausible traffic:
+
+```bash
+.venv/Scripts/python.exe seed.py --days 30 --site demo.example
+```
 
 Tests:
 
@@ -101,6 +108,20 @@ Every setting is an environment variable prefixed `BEACON_`:
 | `BEACON_TRUST_PROXY_HEADERS` | `false` | Enable only behind a proxy that overwrites `X-Forwarded-For` |
 | `BEACON_DEBUG` | `false` | Verbose errors |
 
+## The dashboard
+
+Server-rendered Jinja2 at `/sites/{site_id}`: headline tiles, a visitors
+chart, and top-N panels for pages, sources, countries and devices.
+
+The chart is inline SVG whose geometry is computed in Python, so the page
+renders without JavaScript and the project needs no charting library — and no
+Node toolchain to build one. The only script on the page keeps the live
+visitor count fresh, and it pauses while the tab is hidden rather than polling
+a page nobody is reading.
+
+Light and dark themes follow the system preference. The layout collapses to a
+single column on a phone.
+
 ## The API
 
 | Endpoint | Returns |
@@ -131,6 +152,6 @@ so a dialect typo cannot reach production unnoticed.
 
 ## Status
 
-Ingestion, enrichment and the stats API are complete and tested (96 tests,
-100% coverage of `app/`). Still to come: the dashboard, multi-tenant accounts,
-the rollup pipeline, and deployment.
+Ingestion, enrichment, the stats API and the dashboard are complete and
+tested (112 tests, 100% coverage of `app/`). Still to come: multi-tenant
+accounts, the rollup pipeline, and deployment.

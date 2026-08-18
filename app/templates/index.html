@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Beacon{% endblock %}
+
+{% block content %}
+<section class="stack">
+  <h1>Sites</h1>
+  {% if sites %}
+    <ul class="site-list">
+      {% for site in sites %}
+        <li><a href="/sites/{{ site }}">{{ site }}</a></li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="card empty-state">
+      <p>No traffic recorded yet.</p>
+      <p class="muted">Add this to any page to start collecting:</p>
+      <pre><code>&lt;script src="/static/beacon.js" data-site-id="yoursite.com" defer&gt;&lt;/script&gt;</code></pre>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

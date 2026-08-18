@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import ingest, stats
+from app.routers import dashboard, ingest, stats
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -27,6 +27,7 @@ def create_app() -> FastAPI:
 
     app.include_router(ingest.router)
     app.include_router(stats.router)
+    app.include_router(dashboard.router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     @app.get("/health", tags=["ops"])

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ site_id }} — Beacon{% endblock %}
+
+{% block topbar %}
+<nav class="periods">
+  {% for value, label in period_labels.items() %}
+    <a href="/sites/{{ site_id }}?period={{ value }}"
+       class="{% if value == period %}current{% endif %}">{{ label }}</a>
+  {% endfor %}
+</nav>
+{% endblock %}
+
+{% block content %}
+<section class="stack">
+  <h1>{{ site_id }}</h1>
+
+  <div class="tiles">
+    <div class="card tile">
+      <span class="tile-label">Visitors</span>
+      <span class="tile-value">{{ summary.visitors | comma }}</span>
+    </div>
+    <div class="card tile">
+      <span class="tile-label">Pageviews</span>
+      <span class="tile-value">{{ summary.pageviews | comma }}</span>
+    </div>
+    <div class="card tile">
+      <span class="tile-label">Views per visitor</span>
+      <span class="tile-value">{{ summary.views_per_visitor }}</span>
+    </div>
+    <div class="card tile">
+      <span class="tile-label"><span class="pulse"></span>Live now</span>
+      <span class="tile-value" id="live-count" data-site-id="{{ site_id }}">{{ live.visitors }}</span>
+    </div>
+  </div>
+
+  <div class="card chart-card">
+    <div class="chart-head">
+      <h2>Visitors</h2>
+      <span class="muted">peak {{ chart.peak | comma }}</span>
+    </div>
+
+    {# A flat line along the baseline reads worse than saying so plainly. #}
+    {% if not chart.is_empty %}
+      <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}"
+           role="img" aria-label="Visitors over time">
+        <defs>
+          <linearGradient id="fade" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.30" />
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0" />
+          </linearGradient>
+        </defs>
+        <path d="{{ chart.area }}" fill="url(#fade)" />
+        <polyline points="{{ chart.line }}" fill="none" stroke="var(--accent)"
+                  stroke-width="2" stroke-linejoin="round" />
+        {% for point in chart.points %}
+          <circle class="dot" cx="{{ point.x }}" cy="{{ point.y }}" r="4">
+            <title>{{ point.label }} — {{ point.value | comma }} visitors</title>
+          </circle>
+        {% endfor %}
+      </svg>
+      <div class="axis">
+        <span>{{ chart.points[0].label }}</span>
+        <span>{{ chart.points[-1].label }}</span>
+      </div>
+    {% else %}
+      <p class="empty">No data for this period.</p>
+    {% endif %}
+  </div>
+
+  <div class="panels">
+    {% for title, rows in panels %}
+      <div class="card panel">
+        <h2>{{ title }}</h2>
+        {% if rows %}
+          {% set top = rows[0].visitors or 1 %}
+          <ul class="rows">
+            {% for row in rows %}
+              <li>
+                <span class="bar" style="width: {{ (row.visitors / top * 100) | round(1) }}%"></span>
+                <span class="label">{{ row.value }}</span>
+                <span class="count">{{ row.visitors | comma }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="empty">Nothing yet.</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/dashboard.js" defer></script>
+{% endblock %}
