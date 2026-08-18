@@ -23,7 +23,7 @@ def test_health_reports_ok(client):
     assert response.json() == {"status": "ok"}
 
 
-def test_records_an_enriched_pageview(client, db_session):
+def test_records_an_enriched_pageview(client, db_session, site):
     response = client.post("/api/event", json=_payload())
 
     assert response.status_code == 202
@@ -41,7 +41,7 @@ def test_records_an_enriched_pageview(client, db_session):
     assert len(event.visitor_id) == 32
 
 
-def test_records_device_class_from_the_user_agent(client, db_session):
+def test_records_device_class_from_the_user_agent(client, db_session, site):
     client.post("/api/event", json=_payload(), headers={"user-agent": SAFARI_IPHONE})
 
     event = db_session.scalars(select(Event)).one()
@@ -49,7 +49,7 @@ def test_records_device_class_from_the_user_agent(client, db_session):
     assert event.browser == "Mobile Safari"
 
 
-def test_repeat_visits_share_one_visitor_id(client, db_session):
+def test_repeat_visits_share_one_visitor_id(client, db_session, site):
     client.post("/api/event", json=_payload())
     client.post("/api/event", json=_payload(url="https://blue-mug.example/about"))
 
@@ -57,7 +57,7 @@ def test_repeat_visits_share_one_visitor_id(client, db_session):
     assert first.visitor_id == second.visitor_id
 
 
-def test_a_different_browser_is_a_different_visitor(client, db_session):
+def test_a_different_browser_is_a_different_visitor(client, db_session, site):
     client.post("/api/event", json=_payload())
     client.post("/api/event", json=_payload(), headers={"user-agent": SAFARI_IPHONE})
 
@@ -65,7 +65,7 @@ def test_a_different_browser_is_a_different_visitor(client, db_session):
     assert first.visitor_id != second.visitor_id
 
 
-def test_discards_query_strings(client, db_session):
+def test_discards_query_strings(client, db_session, site):
     """Query strings routinely carry personal data and must never be stored."""
     response = client.post(
         "/api/event",
@@ -76,13 +76,13 @@ def test_discards_query_strings(client, db_session):
     assert db_session.scalars(select(Event)).one().pathname == "/welcome"
 
 
-def test_root_path_is_normalised(client, db_session):
+def test_root_path_is_normalised(client, db_session, site):
     client.post("/api/event", json=_payload(url="https://blue-mug.example"))
 
     assert db_session.scalars(select(Event)).one().pathname == "/"
 
 
-def test_internal_navigation_is_not_credited_to_a_source(client, db_session):
+def test_internal_navigation_is_not_credited_to_a_source(client, db_session, site):
     client.post("/api/event", json=_payload(referrer="https://blue-mug.example/"))
 
     event = db_session.scalars(select(Event)).one()
@@ -94,7 +94,7 @@ def test_internal_navigation_is_not_credited_to_a_source(client, db_session):
     "user_agent",
     ["Googlebot/2.1 (+http://www.google.com/bot.html)", "curl/8.4.0"],
 )
-def test_automated_traffic_is_not_recorded(client, db_session, user_agent):
+def test_automated_traffic_is_not_recorded(client, db_session, site, user_agent):
     response = client.post("/api/event", json=_payload(), headers={"user-agent": user_agent})
 
     # Answered exactly like a real browser, so crawlers learn nothing.
@@ -117,3 +117,19 @@ def test_rejects_missing_site_id(client, db_session):
 
     assert response.status_code == 422
     assert db_session.scalars(select(Event)).all() == []
+
+
+def test_events_for_an_unregistered_domain_are_dropped(client, db_session):
+    """Otherwise the collector is an open write endpoint for anybody."""
+    response = client.post("/api/event", json=_payload(site_id="not-mine.example"))
+
+    # Same answer a registered site gets, so nobody can probe which domains
+    # are tracked here.
+    assert response.status_code == 202
+    assert db_session.scalars(select(Event)).all() == []
+
+
+def test_the_domain_is_normalised_before_storage(client, db_session, site):
+    client.post("/api/event", json=_payload(site_id="https://www.blue-mug.example"))
+
+    assert db_session.scalars(select(Event)).one().site_id == "blue-mug.example"

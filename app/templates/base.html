@@ -10,6 +10,14 @@
     <header class="topbar">
       <a class="brand" href="/"><span class="mark"></span>Beacon</a>
       {% block topbar %}{% endblock %}
+      {% if user %}
+        <div class="account">
+          <span class="muted">{{ user.email }}</span>
+          <form method="post" action="/logout">
+            <button type="submit" class="link-button">Sign out</button>
+          </form>
+        </div>
+      {% endif %}
     </header>
     <main>{% block content %}{% endblock %}</main>
     {% block scripts %}{% endblock %}

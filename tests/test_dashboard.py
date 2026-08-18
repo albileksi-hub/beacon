@@ -1,13 +1,13 @@
 import datetime as dt
 
 from app.models import Event
-
-SITE = "blue-mug.example"
+from app.services import accounts
+from tests.conftest import OWNER_PASSWORD, SITE_DOMAIN
 
 
 def add_event(db, **overrides):
     defaults = {
-        "site_id": SITE,
+        "site_id": SITE_DOMAIN,
         "visitor_id": "visitor-1",
         "pathname": "/products/blue-mug",
         "timestamp": dt.datetime.now(dt.UTC),
@@ -23,24 +23,23 @@ def add_event(db, **overrides):
     db.commit()
 
 
-def test_dashboard_renders_the_headline_numbers(client, db_session):
+def test_dashboard_renders_the_headline_numbers(signed_in, db_session, site):
     add_event(db_session, visitor_id="a")
     add_event(db_session, visitor_id="b")
 
-    response = client.get(f"/sites/{SITE}")
-    body = response.text
+    response = signed_in.get(f"/sites/{SITE_DOMAIN}")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    assert SITE in body
-    assert "Visitors" in body
-    assert "Pageviews" in body
+    assert SITE_DOMAIN in response.text
+    assert "Visitors" in response.text
+    assert "Pageviews" in response.text
 
 
-def test_dashboard_renders_each_breakdown_panel(client, db_session):
+def test_dashboard_renders_each_breakdown_panel(signed_in, db_session, site):
     add_event(db_session, visitor_id="a")
 
-    body = client.get(f"/sites/{SITE}").text
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
 
     assert "Top pages" in body
     assert "/products/blue-mug" in body
@@ -48,46 +47,68 @@ def test_dashboard_renders_each_breakdown_panel(client, db_session):
     assert "desktop" in body
 
 
-def test_dashboard_draws_a_chart(client, db_session):
+def test_dashboard_draws_a_chart(signed_in, db_session, site):
     add_event(db_session, visitor_id="a")
 
-    body = client.get(f"/sites/{SITE}").text
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
 
     assert "<svg" in body
     assert "<polyline" in body
 
 
-def test_the_selected_period_is_marked_current(client, db_session):
+def test_the_selected_period_is_marked_current(signed_in, db_session, site):
     add_event(db_session, visitor_id="a")
 
-    body = client.get(f"/sites/{SITE}", params={"period": "7d"}).text
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}", params={"period": "7d"}).text
 
-    assert 'href="/sites/blue-mug.example?period=7d"\n       class="current"' in body
-
-
-def test_an_unknown_site_renders_rather_than_erroring(client):
-    response = client.get("/sites/never-heard-of-it.example")
-
-    assert response.status_code == 200
-    assert "No data for this period." in response.text
+    assert f'href="/sites/{SITE_DOMAIN}?period=7d"\n       class="current"' in body
 
 
-def test_an_invalid_period_is_rejected(client):
-    assert client.get(f"/sites/{SITE}", params={"period": "forever"}).status_code == 422
+def test_a_site_with_no_traffic_says_so(signed_in, site):
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
+
+    assert "No data for this period." in body
 
 
-def test_index_lists_sites_that_have_sent_traffic(client, db_session):
-    add_event(db_session, site_id="one.example")
-    add_event(db_session, site_id="two.example")
+def test_signed_out_visitors_are_sent_to_the_login_page(client, site):
+    response = client.get(f"/sites/{SITE_DOMAIN}", follow_redirects=False)
 
-    body = client.get("/").text
-
-    assert '/sites/one.example' in body
-    assert '/sites/two.example' in body
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
 
 
-def test_index_explains_setup_when_there_is_no_traffic(client):
-    body = client.get("/").text
+def test_another_persons_dashboard_is_a_404(signed_in, db_session):
+    stranger = accounts.register(db_session, email="stranger@example.com", password=OWNER_PASSWORD)
+    accounts.add_site(db_session, owner=stranger, domain="not-yours.example")
 
-    assert "No traffic recorded yet." in body
-    assert "data-site-id" in body
+    assert signed_in.get("/sites/not-yours.example").status_code == 404
+
+
+def test_an_invalid_period_is_rejected(signed_in, site):
+    assert signed_in.get(f"/sites/{SITE_DOMAIN}", params={"period": "forever"}).status_code == 422
+
+
+def test_index_lists_only_your_own_sites(signed_in, db_session, site, account):
+    accounts.add_site(db_session, owner=account, domain="second.example")
+    stranger = accounts.register(db_session, email="stranger@example.com", password=OWNER_PASSWORD)
+    accounts.add_site(db_session, owner=stranger, domain="theirs.example")
+
+    body = signed_in.get("/").text
+
+    assert f"/sites/{SITE_DOMAIN}" in body
+    assert "/sites/second.example" in body
+    assert "theirs.example" not in body
+
+
+def test_index_prompts_for_a_first_site(signed_in):
+    body = signed_in.get("/").text
+
+    assert "No sites yet." in body
+    assert 'name="domain"' in body
+
+
+def test_index_redirects_when_signed_out(client):
+    response = client.get("/", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"

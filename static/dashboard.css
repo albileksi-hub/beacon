@@ -232,3 +232,82 @@ pre {
   padding: 0.8rem 0.9rem;
   font-size: 0.8rem;
 }
+
+/* ---- accounts, forms ---- */
+
+.account { display: flex; align-items: center; gap: 0.75rem; font-size: 0.86rem; }
+
+.account form { margin: 0; }
+
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link-button:hover { color: var(--text); }
+
+.auth { max-width: 25rem; margin: 3rem auto 0; }
+
+.auth h1 { margin-bottom: 1rem; font-size: 1.2rem; }
+
+.form { display: flex; flex-direction: column; gap: 0.9rem; }
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.form input {
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+}
+
+.form input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.hint { font-size: 0.75rem; color: var(--muted); }
+
+.inline-form { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.inline-form input { flex: 1 1 14rem; }
+
+button.primary {
+  padding: 0.55rem 1rem;
+  font: inherit;
+  font-weight: 550;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 0.45rem;
+  cursor: pointer;
+}
+
+button.primary:hover { filter: brightness(1.08); }
+
+.error {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.86rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.45rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .error { color: #fca5a5; background: #2a1416; border-color: #4c1d1d; }
+}

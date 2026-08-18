@@ -11,6 +11,14 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./beacon.db"
     debug: bool = False
 
+    # Signs the session cookie. Anyone holding this value can forge a login
+    # for any account, so it must be replaced in production.
+    session_secret: str = "dev-only-insecure-session-secret"
+
+    # Restricts the session cookie to HTTPS. Off by default so that
+    # http://localhost works during development; on wherever it is deployed.
+    session_https_only: bool = False
+
     # Path to a MaxMind GeoLite2-Country.mmdb file. Without it, country
     # resolution degrades to "unknown" rather than failing.
     geoip_db_path: str | None = None

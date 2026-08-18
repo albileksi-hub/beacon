@@ -6,6 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
 from app.main import create_app
+from app.services import accounts
 
 CHROME_MAC = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -15,6 +16,10 @@ SAFARI_IPHONE = (
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
     "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 )
+
+OWNER_EMAIL = "owner@example.com"
+OWNER_PASSWORD = "a-perfectly-fine-password"
+SITE_DOMAIN = "blue-mug.example"
 
 
 @pytest.fixture
@@ -45,3 +50,25 @@ def client(db_session):
     app.dependency_overrides[get_db] = lambda: db_session
     with TestClient(app, headers={"user-agent": CHROME_MAC}) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def account(db_session):
+    return accounts.register(db_session, email=OWNER_EMAIL, password=OWNER_PASSWORD)
+
+
+@pytest.fixture
+def site(db_session, account):
+    """A registered domain. The collector ignores events for anything else."""
+    return accounts.add_site(db_session, owner=account, domain=SITE_DOMAIN)
+
+
+@pytest.fixture
+def signed_in(client, account):
+    response = client.post(
+        "/login",
+        data={"email": OWNER_EMAIL, "password": OWNER_PASSWORD},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    return client

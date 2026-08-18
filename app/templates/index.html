@@ -1,20 +1,36 @@
 {% extends "base.html" %}
-{% block title %}Beacon{% endblock %}
+{% block title %}Your sites — Beacon{% endblock %}
 
 {% block content %}
 <section class="stack">
-  <h1>Sites</h1>
+  <h1>Your sites</h1>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
   {% if sites %}
     <ul class="site-list">
       {% for site in sites %}
-        <li><a href="/sites/{{ site }}">{{ site }}</a></li>
+        <li><a href="/sites/{{ site.domain }}">{{ site.domain }}</a></li>
       {% endfor %}
     </ul>
   {% else %}
-    <div class="card empty-state">
-      <p>No traffic recorded yet.</p>
-      <p class="muted">Add this to any page to start collecting:</p>
-      <pre><code>&lt;script src="/static/beacon.js" data-site-id="yoursite.com" defer&gt;&lt;/script&gt;</code></pre>
+    <p class="muted">No sites yet. Add one below to get a tracking snippet.</p>
+  {% endif %}
+
+  <div class="card">
+    <h2>Add a site</h2>
+    <form method="post" action="/sites" class="form inline-form">
+      <input type="text" name="domain" placeholder="yoursite.com" required />
+      <button type="submit" class="primary">Add site</button>
+    </form>
+  </div>
+
+  {% if sites %}
+    <div class="card">
+      <h2>Tracking snippet</h2>
+      <p class="muted">Paste this into the <code>&lt;head&gt;</code> of each page:</p>
+      <pre><code>&lt;script src="/static/beacon.js"
+        data-site-id="{{ sites[0].domain }}" defer&gt;&lt;/script&gt;</code></pre>
     </div>
   {% endif %}
 </section>

@@ -164,12 +164,3 @@ def live_visitors(
     )
 
     return LiveVisitors(visitors=count or 0, window_minutes=int(window.total_seconds() // 60))
-
-
-def known_sites(db: Session) -> list[str]:
-    """Every site that has sent at least one event.
-
-    A stand-in for a real sites table, which arrives with accounts in the
-    multi-tenancy phase.
-    """
-    return list(db.scalars(select(Event.site_id).distinct().order_by(Event.site_id)))

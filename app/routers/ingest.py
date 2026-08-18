@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request, status
 from app.dependencies import DbSession
 from app.models import Event
 from app.schemas import EventIn
+from app.services import accounts
 from app.services.client import client_ip
 from app.services.geo import get_country_resolver
 from app.services.referrers import classify
@@ -30,16 +31,23 @@ def collect_event(payload: EventIn, request: Request, db: DbSession) -> dict[str
         # that a crawler learns nothing about being filtered.
         return ACCEPTED
 
+    domain = accounts.normalise_domain(payload.site_id)
+    if not accounts.site_is_registered(db, domain):
+        # Unregistered domain: nothing stored, same answer as everything else.
+        # Replying differently would let anyone probe which sites are tracked
+        # here, and would turn the collector into an open write endpoint.
+        return ACCEPTED
+
     address = client_ip(request)
     referrer_host, source = classify(payload.referrer, payload.url)
 
     event = Event(
-        site_id=payload.site_id,
+        site_id=domain,
         name=payload.name,
         pathname=pathname_of(payload.url),
         visitor_id=visitor_id(
             salt=current_salt(db),
-            site_id=payload.site_id,
+            site_id=domain,
             ip=address,
             user_agent=user_agent,
         ),

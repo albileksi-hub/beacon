@@ -1,7 +1,7 @@
 import datetime as dt
 
-from sqlalchemy import Date, DateTime, Index, Integer, LargeBinary, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, LargeBinary, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
@@ -21,7 +21,10 @@ class Event(Base):
     __tablename__ = "events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    site_id: Mapped[str] = mapped_column(String(64))
+    # The domain, denormalised rather than a foreign key. Reporting queries
+    # filter on it constantly and none of them need anything else from the
+    # sites table, so the join would buy nothing.
+    site_id: Mapped[str] = mapped_column(String(253))
     # Defaulted in Python, not by the database: one timestamp format across
     # every dialect, and tests can supply their own.
     timestamp: Mapped[dt.datetime] = mapped_column(
@@ -62,3 +65,33 @@ class DailySalt(Base):
     day: Mapped[dt.date] = mapped_column(Date, primary_key=True)
     value: Mapped[bytes] = mapped_column(LargeBinary(32))
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+
+class User(Base):
+    """Someone with a login."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+    sites: Mapped[list["Site"]] = relationship(
+        back_populates="owner", cascade="all, delete-orphan"
+    )
+
+
+class Site(Base):
+    """A tracked domain, belonging to exactly one account."""
+
+    __tablename__ = "sites"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Also the identifier the tracking script sends, so a customer never has to
+    # copy a random token around.
+    domain: Mapped[str] = mapped_column(String(253), unique=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+    owner: Mapped[User] = relationship(back_populates="sites")

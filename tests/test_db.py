@@ -26,4 +26,9 @@ def test_init_db_creates_every_table(monkeypatch):
 
     init_db()
 
-    assert set(inspect(engine).get_table_names()) == {"events", "daily_salts"}
+    assert set(inspect(engine).get_table_names()) == {
+        "events",
+        "daily_salts",
+        "users",
+        "sites",
+    }

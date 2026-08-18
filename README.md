@@ -106,7 +106,34 @@ Every setting is an environment variable prefixed `BEACON_`:
 | `BEACON_DATABASE_URL` | `sqlite:///./beacon.db` | SQLite locally, Postgres in production |
 | `BEACON_GEOIP_DB_PATH` | unset | Path to a MaxMind `GeoLite2-Country.mmdb` |
 | `BEACON_TRUST_PROXY_HEADERS` | `false` | Enable only behind a proxy that overwrites `X-Forwarded-For` |
+| `BEACON_SESSION_SECRET` | insecure default | Signs session cookies. Anyone holding it can forge a login |
+| `BEACON_SESSION_HTTPS_ONLY` | `false` | Restrict the session cookie to HTTPS. Enable in production |
 | `BEACON_DEBUG` | `false` | Verbose errors |
+
+## Accounts and tenancy
+
+Sign up, add a domain, get a snippet. A domain belongs to exactly one account,
+and every query is scoped to it.
+
+Some choices that are easy to get wrong:
+
+- **A site owned by someone else is a 404, not a 403.** A 403 confirms the
+  domain exists on the platform, which is enough to enumerate the customer
+  list one guess at a time.
+- **Login failures never say which half was wrong.** An unknown address is
+  also verified against a decoy hash, so a missing account and a wrong
+  password take the same time -- otherwise the response time alone reveals
+  which addresses are registered.
+- **The collector ignores unregistered domains**, and answers them with the
+  same `202` everything else gets. Without the check it is an open write
+  endpoint; with a different response it becomes a way to probe which sites
+  are tracked here.
+- **bcrypt rejects passwords past its 72-byte limit rather than truncating.**
+  Silent truncation makes a long passphrase weaker than the person choosing it
+  believes.
+- **Sessions are signed cookies with `SameSite=Lax`**, which is what stands in
+  for CSRF tokens on these forms, and the session is cleared before login to
+  rule out fixation.
 
 ## The dashboard
 
@@ -152,6 +179,6 @@ so a dialect typo cannot reach production unnoticed.
 
 ## Status
 
-Ingestion, enrichment, the stats API and the dashboard are complete and
-tested (112 tests, 100% coverage of `app/`). Still to come: multi-tenant
-accounts, the rollup pipeline, and deployment.
+Ingestion, enrichment, the stats API, the dashboard and multi-tenant
+accounts are complete and tested (152 tests, 100% coverage of `app/`). Still
+to come: the rollup pipeline, and deployment.
