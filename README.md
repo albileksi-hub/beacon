@@ -101,8 +101,36 @@ Every setting is an environment variable prefixed `BEACON_`:
 | `BEACON_TRUST_PROXY_HEADERS` | `false` | Enable only behind a proxy that overwrites `X-Forwarded-For` |
 | `BEACON_DEBUG` | `false` | Verbose errors |
 
+## The API
+
+| Endpoint | Returns |
+| --- | --- |
+| `POST /api/event` | The collector. Answers `202` to everything, including bots. |
+| `GET /api/stats/{site}/summary` | Visitors, pageviews, views per visitor |
+| `GET /api/stats/{site}/timeseries` | One point per bucket, zero-filled |
+| `GET /api/stats/{site}/breakdown/{prop}` | Top pages, sources, countries, devices, browsers, or operating systems |
+| `GET /api/stats/{site}/live` | Visitors in the last five minutes |
+
+`period` accepts `today`, `7d`, `30d`, `6mo`, `12mo`. Bucket size follows from
+the period rather than being chosen by the caller -- a year of hourly buckets
+is 8,760 points, which is neither readable on a chart nor cheap to compute.
+
+Two details worth pointing at:
+
+- **Empty buckets are returned, not omitted.** A chart with holes in it reads
+  as broken, so the series is zero-filled in Python against the full list of
+  buckets the range covers.
+- **`{prop}` is an enum, not a column name.** The request parameter never
+  reaches SQL; it selects from a whitelist. `breakdown/passwords` is a `422`.
+
+Date truncation is the one place the database dialect leaks through --
+SQLite's `strftime` and Postgres's `date_trunc` have nothing in common. It is
+isolated to a single function, and because Postgres never runs in the test
+suite, a test compiles the Postgres expression and asserts on the generated SQL
+so a dialect typo cannot reach production unnoticed.
+
 ## Status
 
-Ingestion and enrichment are complete and tested. Still to come: the stats
-query API, the dashboard, multi-tenant accounts, the rollup pipeline, and
-deployment.
+Ingestion, enrichment and the stats API are complete and tested (96 tests,
+100% coverage of `app/`). Still to come: the dashboard, multi-tenant accounts,
+the rollup pipeline, and deployment.

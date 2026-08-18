@@ -19,3 +19,26 @@ class EventIn(BaseModel):
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("url must be an absolute http(s) URL")
         return value
+
+
+class StatsSummary(BaseModel):
+    visitors: int
+    pageviews: int
+    views_per_visitor: float
+
+
+class TimeseriesPoint(BaseModel):
+    bucket: str
+    visitors: int
+    pageviews: int
+
+
+class BreakdownRow(BaseModel):
+    value: str
+    visitors: int
+    pageviews: int
+
+
+class LiveVisitors(BaseModel):
+    visitors: int
+    window_minutes: int
