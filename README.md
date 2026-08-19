@@ -340,7 +340,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 272 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 279 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:
