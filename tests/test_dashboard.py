@@ -62,7 +62,9 @@ def test_dashboard_draws_a_chart(signed_in, db_session, rebuild_rollups, site):
     body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
 
     assert "<svg" in body
-    assert "<polyline" in body
+    assert 'class="chart-curve"' in body
+    # Sparklines in the headline tiles.
+    assert 'class="spark"' in body
 
 
 def test_the_selected_period_is_marked_current(signed_in, db_session, rebuild_rollups, site):

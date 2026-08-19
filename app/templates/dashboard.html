@@ -12,6 +12,16 @@
   {%- endif -%}
 {%- endmacro %}
 
+{% macro spark(path) -%}
+  {%- if path -%}
+    <svg class="spark" viewBox="0 0 {{ spark_width }} {{ spark_height }}"
+         preserveAspectRatio="none" aria-hidden="true">
+      <path d="{{ path }}" fill="none" stroke="currentColor" stroke-width="1.5"
+            stroke-linecap="round" vector-effect="non-scaling-stroke" />
+    </svg>
+  {%- endif -%}
+{%- endmacro %}
+
 {% block topbar %}
 <nav class="periods" aria-label="Reporting period">
   {% for value, label in period_labels.items() %}
@@ -33,11 +43,13 @@
       <span class="tile-label">Visitors</span>
       <span class="tile-value">{{ comparison.summary.visitors | comma }}</span>
       {{ delta(comparison.visitors) }}
+      {{ spark(visitor_spark) }}
     </div>
     <div class="card tile">
       <span class="tile-label">Pageviews</span>
       <span class="tile-value">{{ comparison.summary.pageviews | comma }}</span>
       {{ delta(comparison.pageviews) }}
+      {{ spark(pageview_spark) }}
     </div>
     <div class="card tile">
       <span class="tile-label">Views per visitor</span>
@@ -52,6 +64,10 @@
   </div>
 
   <div class="card chart-card">
+    <div class="chart-head">
+      <h2>Visitors over time</h2>
+      <span class="muted">peak {{ chart.peak | comma }}</span>
+    </div>
     {# A flat line along the baseline reads worse than saying so plainly. #}
     {% if not chart.is_empty %}
       <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}"
@@ -69,9 +85,9 @@
           <text class="grid-label" x="4" y="{{ gridline.y - 5 }}">{{ gridline.value | comma }}</text>
         {% endfor %}
 
-        <path d="{{ chart.area }}" fill="url(#fade)" />
-        <polyline points="{{ chart.line }}" fill="none" stroke="var(--accent)"
-                  stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+        <path class="chart-area" d="{{ chart.area }}" fill="url(#fade)" />
+        <path class="chart-curve" d="{{ chart.curve }}" fill="none" stroke="var(--accent)"
+              stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" />
 
         {% for point in chart.points %}
           <circle class="dot" cx="{{ point.x }}" cy="{{ point.y }}" r="4">

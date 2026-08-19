@@ -1,14 +1,24 @@
-"""Geometry for the dashboard's inline SVG chart.
+"""Geometry for the dashboard's inline SVG charts.
 
-Computed server-side so the page renders without JavaScript, and so the
-project needs neither a charting library nor the Node toolchain to build one.
+Computed server-side so the page renders without JavaScript, and so the project
+needs neither a charting library nor the Node toolchain to build one.
+
+The curve is a monotone cubic spline rather than straight segments. Ordinary
+smoothing overshoots: a run of small values next to a spike bulges the curve
+below zero, drawing visitor counts that never happened. Fritsch-Carlson
+constrains the tangents so the curve can never leave the range of the data it
+passes through.
 """
 
+import math
 from dataclasses import dataclass
 
-DEFAULT_WIDTH = 800
-DEFAULT_HEIGHT = 220
-DEFAULT_PADDING = 8
+DEFAULT_WIDTH = 820
+DEFAULT_HEIGHT = 240
+DEFAULT_PADDING = 10
+
+SPARKLINE_WIDTH = 120
+SPARKLINE_HEIGHT = 28
 
 # Multiples a person would actually choose for an axis. Scaling to the raw peak
 # instead would label the gridlines 344 and 172. A peak above the last step
@@ -36,7 +46,7 @@ class Chart:
     height: int
     peak: int
     ceiling: int
-    line: str
+    curve: str
     area: str
     points: list[Point]
     gridlines: list[Gridline]
@@ -62,6 +72,86 @@ def axis_ceiling(peak: int) -> int:
     return magnitude * 10
 
 
+def _tangents(xs: list[float], ys: list[float]) -> list[float]:
+    """Fritsch-Carlson tangents: smooth, but never overshooting the data.
+
+    Called only with two or more points; _curve_through handles the shorter
+    cases before it gets here.
+    """
+    count = len(xs)
+    widths = [xs[i + 1] - xs[i] for i in range(count - 1)]
+    slopes = [(ys[i + 1] - ys[i]) / widths[i] for i in range(count - 1)]
+
+    tangents = [slopes[0]]
+    for i in range(1, count - 1):
+        # A turning point gets a flat tangent, which is what stops the curve
+        # bulging past the values on either side of it.
+        if slopes[i - 1] * slopes[i] <= 0:
+            tangents.append(0.0)
+        else:
+            tangents.append((slopes[i - 1] + slopes[i]) / 2)
+    tangents.append(slopes[-1])
+
+    for i, slope in enumerate(slopes):
+        if slope == 0:
+            tangents[i] = tangents[i + 1] = 0.0
+            continue
+
+        alpha = tangents[i] / slope
+        beta = tangents[i + 1] / slope
+        magnitude = math.hypot(alpha, beta)
+        if magnitude > 3:
+            scale = 3 / magnitude
+            tangents[i] = scale * alpha * slope
+            tangents[i + 1] = scale * beta * slope
+
+    return tangents
+
+
+def _curve_through(points: list[Point]) -> str:
+    """An SVG path following the points as a monotone cubic spline.
+
+    Callers guarantee at least one point.
+    """
+    if len(points) == 1:
+        return f"M {points[0].x:.2f},{points[0].y:.2f}"
+
+    xs = [point.x for point in points]
+    ys = [point.y for point in points]
+    tangents = _tangents(xs, ys)
+
+    path = [f"M {xs[0]:.2f},{ys[0]:.2f}"]
+    for i in range(len(points) - 1):
+        third = (xs[i + 1] - xs[i]) / 3
+        path.append(
+            f"C {xs[i] + third:.2f},{ys[i] + tangents[i] * third:.2f}"
+            f" {xs[i + 1] - third:.2f},{ys[i + 1] - tangents[i + 1] * third:.2f}"
+            f" {xs[i + 1]:.2f},{ys[i + 1]:.2f}"
+        )
+
+    return " ".join(path)
+
+
+def _plot(
+    values: list[int], labels: list[str], *, width: int, height: int, padding: int
+) -> tuple[list[Point], int, int]:
+    peak = max(values)
+    ceiling = axis_ceiling(peak)
+    usable_height = height - 2 * padding
+    span = width - 2 * padding
+
+    points = [
+        Point(
+            x=padding + (span * index / (len(values) - 1) if len(values) > 1 else span / 2),
+            y=height - padding - (value / ceiling) * usable_height,
+            value=value,
+            label=label,
+        )
+        for index, (value, label) in enumerate(zip(values, labels, strict=True))
+    ]
+    return points, peak, ceiling
+
+
 def build(
     values: list[int],
     labels: list[str],
@@ -70,46 +160,39 @@ def build(
     height: int = DEFAULT_HEIGHT,
     padding: int = DEFAULT_PADDING,
 ) -> Chart:
-    """Turn a series into an SVG polyline, a closed area path, and gridlines."""
+    """Turn a series into a curve, a filled area, and gridlines."""
     if not values:
         return Chart(
             width=width,
             height=height,
             peak=0,
             ceiling=1,
-            line="",
+            curve="",
             area="",
             points=[],
             gridlines=[],
         )
 
-    peak = max(values)
-    ceiling = axis_ceiling(peak)
-    usable_height = height - 2 * padding
-    span = width - 2 * padding
+    points, peak, ceiling = _plot(
+        values, labels, width=width, height=height, padding=padding
+    )
+    curve = _curve_through(points)
 
-    def y_for(value: float) -> float:
-        return height - padding - (value / ceiling) * usable_height
-
-    points = [
-        Point(
-            x=padding + (span * index / (len(values) - 1) if len(values) > 1 else span / 2),
-            y=y_for(value),
-            value=value,
-            label=label,
-        )
-        for index, (value, label) in enumerate(zip(values, labels, strict=True))
-    ]
-
-    line = " ".join(f"{point.x:.2f},{point.y:.2f}" for point in points)
+    # The fill reuses the stroke's path, dropped to the baseline at both ends,
+    # so the two can never disagree about where the line runs.
     area = (
-        f"M {points[0].x:.2f},{height} "
-        + " ".join(f"L {point.x:.2f},{point.y:.2f}" for point in points)
+        f"M {points[0].x:.2f},{height} L {points[0].x:.2f},{points[0].y:.2f} "
+        + curve[curve.index("C") :]
         + f" L {points[-1].x:.2f},{height} Z"
+        if len(points) > 1
+        else ""
     )
 
     gridlines = [
-        Gridline(y=round(y_for(ceiling * fraction), 2), value=int(ceiling * fraction))
+        Gridline(
+            y=round(height - padding - fraction * (height - 2 * padding), 2),
+            value=int(ceiling * fraction),
+        )
         for fraction in (1.0, 0.5, 0.0)
     ]
 
@@ -118,8 +201,25 @@ def build(
         height=height,
         peak=peak,
         ceiling=ceiling,
-        line=line,
+        curve=curve,
         area=area,
         points=points,
         gridlines=gridlines,
     )
+
+
+def sparkline(
+    values: list[int],
+    *,
+    width: int = SPARKLINE_WIDTH,
+    height: int = SPARKLINE_HEIGHT,
+    padding: int = 3,
+) -> str:
+    """A bare curve for the headline tiles: no axis, no labels, no dots."""
+    if not values or max(values) <= 0:
+        return ""
+
+    points, _, _ = _plot(
+        values, [""] * len(values), width=width, height=height, padding=padding
+    )
+    return _curve_through(points)

@@ -79,6 +79,10 @@ def site_dashboard(
                 [point.visitors for point in series],
                 [point.bucket for point in series],
             ),
+            "visitor_spark": charts.sparkline([point.visitors for point in series]),
+            "pageview_spark": charts.sparkline([point.pageviews for point in series]),
+            "spark_width": charts.SPARKLINE_WIDTH,
+            "spark_height": charts.SPARKLINE_HEIGHT,
             "panels": [
                 (
                     key,

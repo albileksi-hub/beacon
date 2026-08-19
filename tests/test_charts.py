@@ -8,7 +8,7 @@ def test_no_data_produces_an_empty_chart():
 
     assert chart.is_empty
     assert chart.points == []
-    assert chart.line == ""
+    assert chart.curve == ""
 
 
 def test_a_flat_zero_series_still_draws_a_baseline():
@@ -56,11 +56,80 @@ def test_the_area_path_is_closed_along_the_baseline():
     assert chart.area.endswith("L 90.00,50 Z")
 
 
-def test_the_line_is_a_polyline_points_list():
-    chart = charts.build([1, 2], ["a", "b"], width=100, height=50, padding=10)
+def test_the_area_follows_the_same_curve_as_the_stroke():
+    """Two paths that disagreed would draw a fill detached from its line."""
+    chart = charts.build([3, 9, 4], ["a", "b", "c"])
 
-    assert len(chart.line.split(" ")) == 2
-    assert all("," in pair for pair in chart.line.split(" "))
+    assert chart.curve[chart.curve.index("C") :] in chart.area
+
+
+def test_the_curve_is_a_cubic_spline_not_straight_segments():
+    chart = charts.build([1, 9, 3, 7], ["a", "b", "c", "d"])
+
+    assert chart.curve.startswith("M ")
+    assert chart.curve.count("C") == 3  # one segment between each pair
+
+
+def _sample(path: str, steps: int = 16) -> list[float]:
+    """Every y the curve actually passes through, not just its knots."""
+    numbers = path.replace("M", " ").replace("C", " ").split()
+    pairs = [tuple(float(part) for part in token.split(",")) for token in numbers]
+
+    heights: list[float] = []
+    start = pairs[0]
+    for index in range(1, len(pairs), 3):
+        first, second, end = pairs[index], pairs[index + 1], pairs[index + 2]
+        for step in range(steps + 1):
+            t = step / steps
+            u = 1 - t
+            heights.append(
+                u**3 * start[1]
+                + 3 * u**2 * t * first[1]
+                + 3 * u * t**2 * second[1]
+                + t**3 * end[1]
+            )
+        start = end
+    return heights
+
+
+def test_the_curve_never_overshoots_the_data():
+    """The reason for a monotone spline rather than an ordinary smooth one.
+
+    A spike surrounded by zeroes makes a naive curve bulge below the baseline,
+    drawing visitor counts that never happened.
+    """
+    chart = charts.build([0, 0, 100, 0, 0], list("abcde"), height=100, padding=0)
+
+    # SVG y runs downwards: 100 is a count of zero, 0 is the peak.
+    heights = _sample(chart.curve)
+    assert max(heights) <= 100.0 + 1e-6, "the curve dipped below zero visitors"
+    assert min(heights) >= 0.0 - 1e-6, "the curve rose above the peak"
+
+
+def test_a_rising_series_stays_rising():
+    chart = charts.build([1, 2, 3, 4, 5], list("abcde"), height=100, padding=0)
+
+    heights = _sample(chart.curve)
+    assert heights == sorted(heights, reverse=True)
+
+
+def test_a_sparkline_is_just_the_curve():
+    path = charts.sparkline([1, 5, 2, 8])
+
+    assert path.startswith("M ")
+    assert "C" in path
+
+
+def test_a_flat_or_absent_sparkline_draws_nothing():
+    assert charts.sparkline([]) == ""
+    assert charts.sparkline([0, 0, 0]) == ""
+
+
+def test_a_single_point_chart_has_no_area_to_fill():
+    chart = charts.build([5], ["only"])
+
+    assert chart.area == ""
+    assert chart.curve.startswith("M ")
 
 
 @pytest.mark.parametrize(
@@ -100,3 +169,17 @@ def test_points_are_scaled_to_the_axis_not_the_peak():
 
 def test_an_empty_chart_has_no_gridlines():
     assert charts.build([], []).gridlines == []
+
+
+def test_a_cliff_edge_has_its_tangents_clamped():
+    """Fritsch-Carlson's actual job.
+
+    A gentle rise followed by a vertical one gives the middle point a tangent
+    far steeper than the segment before it, and without clamping the curve
+    swings well below the first value on its way up.
+    """
+    chart = charts.build([0, 1, 100], ["a", "b", "c"], height=100, padding=0)
+
+    heights = _sample(chart.curve)
+    assert max(heights) <= 100.0 + 1e-6, "the curve dipped below zero visitors"
+    assert min(heights) >= 0.0 - 1e-6, "the curve rose above the peak"
