@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     ingest_batch_size: int = 500
     ingest_flush_seconds: float = 0.25
 
+    log_level: str = "INFO"
+    # One JSON object per line, for anywhere logs are shipped and searched
+    # rather than read by a person.
+    log_json: bool = False
+
     # Path to a MaxMind GeoLite2-Country.mmdb file. Without it, country
     # resolution degrades to "unknown" rather than failing.
     geoip_db_path: str | None = None

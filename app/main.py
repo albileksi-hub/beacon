@@ -12,7 +12,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.background import lifespan
 from app.config import Settings, get_settings
 from app.dependencies import DbSession
-from app.routers import auth, dashboard, ingest, sites, stats
+from app.observability import RequestLogging, configure_logging
+from app.routers import auth, dashboard, exports, ingest, sites, stats
 from app.templating import STATIC_DIR, templates
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,8 @@ def create_app() -> FastAPI:
     )
 
     settings = get_settings()
+    configure_logging(level=settings.log_level, json_output=settings.log_json)
+
     if settings.session_secret == Settings.model_fields["session_secret"].default:
         logger.warning(
             "BEACON_SESSION_SECRET is at its default value; session cookies are forgeable."
@@ -57,10 +60,15 @@ def create_app() -> FastAPI:
         allow_headers=["Content-Type"],
     )
 
+    # Outermost, so the timing covers everything else and every response
+    # carries a request id -- including ones the error handler produces.
+    app.add_middleware(RequestLogging)
+
     app.include_router(auth.router)
     app.include_router(ingest.router)
     app.include_router(stats.router)
     app.include_router(sites.router)
+    app.include_router(exports.router)
     app.include_router(dashboard.router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

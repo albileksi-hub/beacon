@@ -41,6 +41,8 @@
     <p class="muted">{{ period_labels[period] | lower }}, compared with the period before</p>
 
     {% if is_owner %}
+      <a class="link-button export"
+         href="/sites/{{ site_id }}/export.csv?period={{ period }}">Download CSV</a>
       <form method="post" action="/sites/{{ site_id }}/visibility" class="visibility">
         <input type="hidden" name="public" value="{{ 'false' if is_public else 'true' }}" />
         <button type="submit" class="link-button">

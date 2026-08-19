@@ -288,7 +288,10 @@ h2 {
   font-size: 0.82rem;
 }
 
-.visibility .link-button { color: var(--accent); font-weight: 550; }
+.visibility .link-button,
+.export { color: var(--accent); font-weight: 550; }
+
+.export { display: inline-block; margin-top: 0.5rem; font-size: 0.82rem; }
 .visibility .link-button:hover { color: var(--accent-hover); }
 
 /* ---- headline tiles ---- */

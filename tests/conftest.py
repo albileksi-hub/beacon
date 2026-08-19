@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db import Base, configure_sqlite, get_db
+from app.dependencies import get_session_factory
 from app.main import create_app
 from app.services import accounts, rollups, visitors
 
@@ -89,6 +90,10 @@ def client(db_session):
     """A test client that looks like a real browser unless a test says otherwise."""
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db_session
+    # The streaming export opens its own session; point it at this database too.
+    app.dependency_overrides[get_session_factory] = lambda: sessionmaker(
+        bind=db_session.get_bind(), autoflush=False, expire_on_commit=False
+    )
     with TestClient(app, headers={"user-agent": CHROME_MAC}) as test_client:
         yield test_client
 

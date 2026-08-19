@@ -105,3 +105,11 @@ def test_sqlite_gets_no_pool_tuning():
 def test_events_carries_exactly_one_index():
     """A second index on a prefix of this one would cost writes and buy nothing."""
     assert {index.name for index in Event.__table__.indexes} == {"ix_events_site_visitor"}
+
+
+def test_the_session_factory_dependency_hands_back_the_real_one():
+    """Overridden in tests, so its default needs saying out loud somewhere."""
+    from app.db import SessionLocal
+    from app.dependencies import get_session_factory
+
+    assert get_session_factory() is SessionLocal

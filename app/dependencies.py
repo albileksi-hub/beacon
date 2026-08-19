@@ -1,15 +1,29 @@
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
-from app.db import get_db
+from app.db import SessionLocal, get_db
 from app.models import Site, User
 from app.services import accounts
 
 # Annotated dependencies keep FastAPI's injection out of function defaults,
 # which keeps both linters and type checkers happy.
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+def get_session_factory() -> sessionmaker[Session]:
+    """A session factory, for work that outlives the request that started it.
+
+    The streaming export produces its body after the handler has returned, so
+    it cannot borrow the request's session -- that one is closed by then. It
+    still comes through a dependency rather than being imported directly, so it
+    can be pointed somewhere else in a test.
+    """
+    return SessionLocal
+
+
+SessionFactory = Annotated[sessionmaker[Session], Depends(get_session_factory)]
 
 
 def get_current_user(request: Request, db: DbSession) -> User | None:

@@ -316,6 +316,55 @@ requests/sec on this machine, against 698 for `GET /health`. The collector at
 on one Windows uvicorn worker, not this code, and the honest way to raise it is
 more workers and a database that does not serialise writers.
 
+## Logs and exports
+
+### The access log is a privacy surface too
+
+The default request log in most stacks carries the client address and the full
+URL including its query string — precisely the two things this project strips
+out of everything it stores. Logging them would put back what the product
+promises to discard, so neither appears:
+
+```json
+{"time": "2026-08-19T22:34:00+0200", "level": "info", "logger": "beacon.request",
+ "message": "request", "request_id": "b8190fc57e1f4aff", "method": "GET",
+ "path": "/login", "status": 200, "duration_ms": 8.11}
+```
+
+That line is from a request to `/login?email=someone@example.com&token=s3cr3t`.
+A test asserts the address and the query never reach it.
+
+Every response carries an `X-Request-Id`, and one supplied upstream is honoured
+so a request stays traceable across whatever sits in front of the service.
+Health and static traffic log at debug, because an orchestrator's probes
+otherwise drown out everything real. `BEACON_LOG_JSON=true` switches to one
+object per line for anywhere logs are shipped rather than read.
+
+It is raw ASGI middleware rather than Starlette's `BaseHTTPMiddleware`, which
+buffers responses and would defeat the streaming export below.
+
+### Taking the data out
+
+`GET /sites/{site}/export.csv?period=12mo` streams the site's aggregates:
+
+```
+day,dimension,value,visitors,pageviews
+2026-07-21,page,/,152,186
+2026-08-19,event,add-to-basket,1,0
+```
+
+Exporting the daily grain rather than raw events means the file is bounded by
+days times dimensions rather than by traffic, and it is the same export whether
+or not retention has run. It is streamed a chunk at a time, because building a
+busy site's export in memory is a way to run the process out of it, and it goes
+through the `csv` module rather than joining with commas — a pathname can
+contain a comma or a quote, and hand-rolled CSV is how an export quietly
+corrupts itself.
+
+Resolved through the same visibility rule as the dashboard: a published site's
+numbers are already served over the API, so refusing the same numbers in a
+different shape would be theatre rather than a control.
+
 ## Configuration
 
 Every setting is an environment variable prefixed `BEACON_`:
@@ -332,6 +381,8 @@ Every setting is an environment variable prefixed `BEACON_`:
 | `BEACON_INGEST_BUFFER_SIZE` | `0` | Events to buffer before batching. `0` commits each one separately |
 | `BEACON_INGEST_BATCH_SIZE` | `500` | Maximum events per write |
 | `BEACON_INGEST_FLUSH_SECONDS` | `0.25` | How long a partial batch waits |
+| `BEACON_LOG_LEVEL` | `INFO` | Root log level |
+| `BEACON_LOG_JSON` | `false` | One JSON object per line instead of human-readable text |
 | `BEACON_DEBUG` | `false` | Verbose errors |
 
 ## Accounts and tenancy
@@ -507,7 +558,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 333 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 353 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:
