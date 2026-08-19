@@ -106,3 +106,15 @@ def bucket_labels(time_range: TimeRange) -> list[str]:
                 cursor = _months_before(cursor, -1)
 
     return labels
+
+
+def preceding(time_range: TimeRange) -> TimeRange:
+    """The window of equal length immediately before this one.
+
+    Shifted by whole days so the comparison lands on the same grain the
+    aggregates are built on. For "today" that makes the comparison yesterday
+    up to this same time, which is the honest one -- comparing a half-finished
+    day against a whole one would show a fall every morning.
+    """
+    span = dt.timedelta(days=(time_range.end.date() - time_range.start.date()).days + 1)
+    return TimeRange(time_range.start - span, time_range.end - span, time_range.interval)

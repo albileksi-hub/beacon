@@ -197,17 +197,34 @@ Some choices that are easy to get wrong:
 
 ## The dashboard
 
-Server-rendered Jinja2 at `/sites/{site_id}`: headline tiles, a visitors
-chart, and top-N panels for pages, sources, countries and devices.
+Server-rendered Jinja2 at `/sites/{site_id}`: headline tiles with
+period-over-period movement, a visitors chart, and tabbed breakdowns across
+pages, sources, countries, devices, browsers and operating systems.
 
-The chart is inline SVG whose geometry is computed in Python, so the page
-renders without JavaScript and the project needs no charting library — and no
-Node toolchain to build one. The only script on the page keeps the live
-visitor count fresh, and it pauses while the tab is hidden rather than polling
-a page nobody is reading.
+Almost none of it needs JavaScript:
 
-Light and dark themes follow the system preference. The layout collapses to a
-single column on a phone.
+- **The chart is inline SVG** whose geometry — points, area path, and gridlines
+  on a rounded axis — is computed in Python. No charting library, and no Node
+  toolchain to build one.
+- **The breakdown tabs are radio inputs and sibling selectors**, so switching
+  between six dimensions works with scripting turned off.
+- **Growth from zero shows no percentage.** A jump from nothing is not a
+  percentage increase, and rendering it as one would be a lie the dashboard
+  tells every time a site starts.
+- **"Today" is compared against yesterday up to the same hour**, because
+  measuring a half-finished day against a whole one shows a fall every morning.
+
+The two scripts that do exist are small: one refreshes the live visitor count
+and pauses while the tab is hidden, the other toggles the theme.
+
+Light and dark follow the system preference until someone chooses, and the
+choice is applied inline in `<head>` so there is no flash of the wrong theme on
+load. Static assets carry a hash of their contents in the URL, so a browser
+holding yesterday's stylesheet cannot render new markup against it.
+
+A signed-out visitor gets a page explaining what Beacon is, rather than being
+dropped onto a login form with no context. Mistyped dashboard URLs render a
+real error page; the API keeps answering JSON.
 
 ## The API
 
@@ -281,7 +298,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 196 tests, 100% coverage of `app/`, running on
+Feature-complete and tested: 233 tests, 100% coverage of `app/`, running on
 both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:

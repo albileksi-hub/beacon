@@ -10,11 +10,14 @@ from app.templating import templates
 # Rendered pages, not part of the public API surface.
 router = APIRouter(tags=["dashboard"], include_in_schema=False)
 
+# Tab key, heading, and the dimension behind it.
 PANELS = (
-    ("Top pages", BreakdownProperty.PAGE),
-    ("Sources", BreakdownProperty.SOURCE),
-    ("Countries", BreakdownProperty.COUNTRY),
-    ("Devices", BreakdownProperty.DEVICE),
+    ("page", "Pages", BreakdownProperty.PAGE),
+    ("source", "Sources", BreakdownProperty.SOURCE),
+    ("country", "Countries", BreakdownProperty.COUNTRY),
+    ("device", "Devices", BreakdownProperty.DEVICE),
+    ("browser", "Browsers", BreakdownProperty.BROWSER),
+    ("os", "Systems", BreakdownProperty.OS),
 )
 
 PERIOD_LABELS = {
@@ -28,8 +31,10 @@ PERIOD_LABELS = {
 
 @router.get("/", response_class=HTMLResponse)
 def index(request: Request, db: DbSession, user: CurrentUser):
+    # Signed-out visitors get an explanation of what this is, rather than being
+    # dropped straight onto a login form with no context.
     if user is None:
-        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+        return templates.TemplateResponse(request, "landing.html", {})
 
     return templates.TemplateResponse(
         request, "index.html", {"user": user, "sites": accounts.sites_for(db, user)}
@@ -44,8 +49,8 @@ def site_dashboard(
     user: CurrentUser,
     period: Period = Period.LAST_30_DAYS,
 ):
-    # Pages redirect rather than answering 401, which would show the browser a
-    # bare error instead of a login form.
+    # Someone asking for a particular dashboard wants that page, so send them
+    # to the login form rather than to the marketing copy.
     if user is None:
         return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -65,7 +70,9 @@ def site_dashboard(
             "site_id": site.domain,
             "period": period,
             "period_labels": PERIOD_LABELS,
-            "summary": reports.summary(db, site_id=site.domain, time_range=time_range),
+            "comparison": reports.summary_with_comparison(
+                db, site_id=site.domain, time_range=time_range
+            ),
             "live": reports.live_visitors(db, site_id=site.domain),
             "chart": charts.build(
                 [point.visitors for point in series],
@@ -73,10 +80,13 @@ def site_dashboard(
             ),
             "panels": [
                 (
+                    key,
                     title,
-                    reports.breakdown(db, site_id=site.domain, time_range=time_range, prop=prop),
+                    reports.breakdown(
+                        db, site_id=site.domain, time_range=time_range, prop=prop
+                    ),
                 )
-                for title, prop in PANELS
+                for key, title, prop in PANELS
             ],
         },
     )

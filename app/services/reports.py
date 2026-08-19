@@ -13,11 +13,23 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import DailyStat, HourlyStat
-from app.schemas import BreakdownRow, StatsSummary, TimeseriesPoint
+from app.schemas import (
+    BreakdownRow,
+    Change,
+    StatsSummary,
+    SummaryWithComparison,
+    TimeseriesPoint,
+)
 from app.services import stats
 from app.services.rollups import TOTAL
 from app.services.stats import DEFAULT_BREAKDOWN_LIMIT, BreakdownProperty
-from app.services.timeranges import LABEL_FORMATS, Interval, TimeRange, bucket_labels
+from app.services.timeranges import (
+    LABEL_FORMATS,
+    Interval,
+    TimeRange,
+    bucket_labels,
+    preceding,
+)
 
 # The live counter keeps reading raw events. It needs the last five minutes,
 # which no rollup grain can answer, and the (site, timestamp) index makes it
@@ -44,11 +56,7 @@ def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary
         )
     ).one()
 
-    return StatsSummary(
-        visitors=visitors,
-        pageviews=pageviews,
-        views_per_visitor=round(pageviews / visitors, 2) if visitors else 0.0,
-    )
+    return StatsSummary.of(visitors=visitors, pageviews=pageviews)
 
 
 def breakdown(
@@ -140,3 +148,17 @@ def timeseries(db: Session, *, site_id: str, time_range: TimeRange) -> list[Time
         )
         for label in bucket_labels(time_range)
     ]
+
+
+def summary_with_comparison(
+    db: Session, *, site_id: str, time_range: TimeRange
+) -> SummaryWithComparison:
+    """This period's totals, next to the equivalent window before it."""
+    current = summary(db, site_id=site_id, time_range=time_range)
+    earlier = summary(db, site_id=site_id, time_range=preceding(time_range))
+
+    return SummaryWithComparison(
+        summary=current,
+        visitors=Change.between(current.visitors, earlier.visitors),
+        pageviews=Change.between(current.pageviews, earlier.pageviews),
+    )

@@ -26,6 +26,14 @@ class StatsSummary(BaseModel):
     pageviews: int
     views_per_visitor: float
 
+    @classmethod
+    def of(cls, *, visitors: int, pageviews: int) -> "StatsSummary":
+        return cls(
+            visitors=visitors,
+            pageviews=pageviews,
+            views_per_visitor=round(pageviews / visitors, 2) if visitors else 0.0,
+        )
+
 
 class TimeseriesPoint(BaseModel):
     bucket: str
@@ -42,3 +50,36 @@ class BreakdownRow(BaseModel):
 class LiveVisitors(BaseModel):
     visitors: int
     window_minutes: int
+
+
+class Change(BaseModel):
+    """Movement between two periods, as a percentage.
+
+    ``percent`` is None when the earlier period had nothing to compare against:
+    a jump from zero is not a percentage increase, and rendering it as one
+    (or as +100%) would be a lie the dashboard tells every time a site starts.
+    """
+
+    current: int
+    previous: int
+    percent: float | None
+
+    @classmethod
+    def between(cls, current: int, previous: int) -> "Change":
+        return cls(
+            current=current,
+            previous=previous,
+            percent=round((current - previous) / previous * 100, 1) if previous else None,
+        )
+
+    @property
+    def direction(self) -> str:
+        if self.percent is None or self.percent == 0:
+            return "flat"
+        return "up" if self.percent > 0 else "down"
+
+
+class SummaryWithComparison(BaseModel):
+    summary: StatsSummary
+    visitors: Change
+    pageviews: Change

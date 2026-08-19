@@ -1,18 +1,25 @@
 import logging
-from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.background import lifespan
 from app.config import Settings, get_settings
 from app.routers import auth, dashboard, ingest, sites, stats
+from app.templating import STATIC_DIR, templates
 
 logger = logging.getLogger(__name__)
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+# Statuses a person might actually reach in a browser, and what to tell them.
+BROWSER_ERRORS = {
+    401: ("You are not signed in", "Sign in to see this page."),
+    403: ("Not allowed", "This account cannot see that."),
+    404: ("Nothing here", "That page does not exist, or it belongs to another account."),
+}
 
 
 def create_app() -> FastAPI:
@@ -53,6 +60,31 @@ def create_app() -> FastAPI:
     app.include_router(sites.router)
     app.include_router(dashboard.router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.exception_handler(StarletteHTTPException)
+    async def render_errors_for_browsers(
+        request: Request, exc: StarletteHTTPException
+    ) -> Response:
+        """Give people a page and machines JSON.
+
+        Without this, mistyping a dashboard URL answers with a raw JSON blob,
+        which is a confusing thing for a browser to show.
+        """
+        wants_html = "text/html" in request.headers.get("accept", "")
+        if (
+            wants_html
+            and not request.url.path.startswith("/api/")
+            and exc.status_code in BROWSER_ERRORS
+        ):
+            heading, detail = BROWSER_ERRORS[exc.status_code]
+            return templates.TemplateResponse(
+                request,
+                "error.html",
+                {"status": exc.status_code, "heading": heading, "detail": detail},
+                status_code=exc.status_code,
+            )
+
+        return await http_exception_handler(request, exc)
 
     @app.get("/health", tags=["ops"])
     def health() -> dict[str, str]:

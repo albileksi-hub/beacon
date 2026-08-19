@@ -83,11 +83,7 @@ def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary
         )
     ).one()
 
-    return StatsSummary(
-        visitors=row.visitors,
-        pageviews=row.pageviews,
-        views_per_visitor=round(row.pageviews / row.visitors, 2) if row.visitors else 0.0,
-    )
+    return StatsSummary.of(visitors=row.visitors, pageviews=row.pageviews)
 
 
 def timeseries(db: Session, *, site_id: str, time_range: TimeRange) -> list[TimeseriesPoint]:

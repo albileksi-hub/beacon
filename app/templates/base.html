@@ -4,22 +4,55 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Beacon{% endblock %}</title>
-    <link rel="stylesheet" href="/static/dashboard.css" />
+    <meta name="description" content="Privacy-first, cookieless web analytics." />
+    <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml" />
+    <link rel="stylesheet" href="{{ asset('dashboard.css') }}" />
+    <script>
+      // Applied before first paint: reading the stored theme from a deferred
+      // script would show a flash of the wrong one.
+      (function () {
+        try {
+          var saved = localStorage.getItem("beacon-theme");
+          if (saved === "light" || saved === "dark") {
+            document.documentElement.dataset.theme = saved;
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="/"><span class="mark"></span>Beacon</a>
-      {% block topbar %}{% endblock %}
-      {% if user %}
-        <div class="account">
-          <span class="muted">{{ user.email }}</span>
+      <a class="brand" href="/">
+        <span class="mark" aria-hidden="true"></span>
+        <span>Beacon</span>
+      </a>
+
+      <div class="topbar-main">{% block topbar %}{% endblock %}</div>
+
+      <div class="topbar-end">
+        <button
+          type="button"
+          class="icon-button"
+          id="theme-toggle"
+          aria-label="Switch between light and dark"
+          title="Switch between light and dark"
+        >
+          <span class="theme-icon" aria-hidden="true"></span>
+        </button>
+        {% if user %}
+          <span class="who">{{ user.email }}</span>
           <form method="post" action="/logout">
             <button type="submit" class="link-button">Sign out</button>
           </form>
-        </div>
-      {% endif %}
+        {% else %}
+          <a class="link-button" href="/login">Sign in</a>
+        {% endif %}
+      </div>
     </header>
+
     <main>{% block content %}{% endblock %}</main>
+
+    <script src="{{ asset('theme.js') }}" defer></script>
     {% block scripts %}{% endblock %}
   </body>
 </html>

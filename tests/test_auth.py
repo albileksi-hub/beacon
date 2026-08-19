@@ -63,12 +63,13 @@ def test_signing_in_with_an_unknown_email_gives_the_same_message(client):
 
 
 def test_signing_out_ends_the_session(signed_in):
-    assert signed_in.get("/").status_code == 200
+    assert "Your sites" in signed_in.get("/").text
 
     response = signed_in.post("/logout", follow_redirects=False)
 
     assert response.status_code == 303
-    assert signed_in.get("/", follow_redirects=False).headers["location"] == "/login"
+    # The same URL now shows the public page instead of the account.
+    assert "Your sites" not in signed_in.get("/").text
 
 
 def test_login_and_signup_pages_render_for_visitors(client):

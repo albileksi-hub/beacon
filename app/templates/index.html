@@ -2,36 +2,44 @@
 {% block title %}Your sites — Beacon{% endblock %}
 
 {% block content %}
-<section class="stack">
-  <h1>Your sites</h1>
+<section class="stack narrow">
+  <div class="page-head">
+    <h1>Your sites</h1>
+    <p class="muted">Each site gets its own dashboard and its own snippet.</p>
+  </div>
 
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
   {% if sites %}
     <ul class="site-list">
       {% for site in sites %}
-        <li><a href="/sites/{{ site.domain }}">{{ site.domain }}</a></li>
+        <li>
+          <a href="/sites/{{ site.domain }}">
+            <span class="site-name">{{ site.domain }}</span>
+            <span class="site-go" aria-hidden="true">&rarr;</span>
+          </a>
+        </li>
       {% endfor %}
     </ul>
-  {% else %}
-    <p class="muted">No sites yet. Add one below to get a tracking snippet.</p>
   {% endif %}
 
   <div class="card">
     <h2>Add a site</h2>
     <form method="post" action="/sites" class="form inline-form">
-      <input type="text" name="domain" placeholder="yoursite.com" required />
-      <button type="submit" class="primary">Add site</button>
+      <input type="text" name="domain" placeholder="yoursite.com"
+             aria-label="Domain to track" required />
+      <button type="submit" class="button primary">Add site</button>
     </form>
   </div>
 
   {% if sites %}
     <div class="card">
       <h2>Tracking snippet</h2>
-      <p class="muted">Paste this into the <code>&lt;head&gt;</code> of each page:</p>
-      <pre><code>&lt;script src="/static/beacon.js"
-        data-site-id="{{ sites[0].domain }}" defer&gt;&lt;/script&gt;</code></pre>
+      <p class="muted">Paste this into the <code>&lt;head&gt;</code> of every page:</p>
+      <pre class="snippet"><code>&lt;script src="/static/beacon.js" data-site-id="{{ sites[0].domain }}" defer&gt;&lt;/script&gt;</code></pre>
     </div>
+  {% else %}
+    <p class="muted">No sites yet — add your first one above.</p>
   {% endif %}
 </section>
 {% endblock %}

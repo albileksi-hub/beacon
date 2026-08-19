@@ -45,10 +45,13 @@ def test_dashboard_renders_each_breakdown_panel(signed_in, db_session, rebuild_r
 
     body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
 
-    assert "Top pages" in body
+    assert "Pages" in body
     assert "/products/blue-mug" in body
     assert "Hacker News" in body
     assert "desktop" in body
+    # Every dimension gets a tab, not just the four that used to fit.
+    for tab in ("Sources", "Countries", "Devices", "Browsers", "Systems"):
+        assert tab in body
 
 
 def test_dashboard_draws_a_chart(signed_in, db_session, rebuild_rollups, site):
@@ -75,7 +78,7 @@ def test_the_selected_period_is_marked_current(signed_in, db_session, rebuild_ro
 def test_a_site_with_no_traffic_says_so(signed_in, site):
     body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
 
-    assert "No data for this period." in body
+    assert "No visitors in this period yet." in body
 
 
 def test_signed_out_visitors_are_sent_to_the_login_page(client, site):
@@ -115,12 +118,14 @@ def test_index_lists_only_your_own_sites(signed_in, db_session, rebuild_rollups,
 def test_index_prompts_for_a_first_site(signed_in):
     body = signed_in.get("/").text
 
-    assert "No sites yet." in body
+    assert "No sites yet" in body
     assert 'name="domain"' in body
 
 
-def test_index_redirects_when_signed_out(client):
-    response = client.get("/", follow_redirects=False)
+def test_the_front_page_explains_itself_to_signed_out_visitors(client):
+    """A portfolio link should not open onto a bare login box."""
+    response = client.get("/")
 
-    assert response.status_code == 303
-    assert response.headers["location"] == "/login"
+    assert response.status_code == 200
+    assert "Know what your visitors read" in response.text
+    assert "/signup" in response.text

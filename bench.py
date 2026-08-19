@@ -29,7 +29,7 @@ def render(module, session, site_id, time_range) -> None:
     """Exactly the queries one dashboard page issues."""
     module.summary(session, site_id=site_id, time_range=time_range)
     module.timeseries(session, site_id=site_id, time_range=time_range)
-    for _, prop in PANELS:
+    for _, _, prop in PANELS:
         module.breakdown(session, site_id=site_id, time_range=time_range, prop=prop)
 
 

@@ -2,7 +2,13 @@ import datetime as dt
 
 import pytest
 
-from app.services.timeranges import Interval, Period, bucket_labels, resolve
+from app.services.timeranges import (
+    Interval,
+    Period,
+    bucket_labels,
+    preceding,
+    resolve,
+)
 
 NOON = dt.datetime(2026, 8, 18, 12, 30, tzinfo=dt.UTC)
 FEBRUARY = dt.datetime(2026, 2, 9, tzinfo=dt.UTC)
@@ -63,3 +69,20 @@ def test_hour_labels_are_iso_like():
 def test_unsupported_period_is_rejected():
     with pytest.raises(ValueError, match="unsupported period"):
         resolve("nonsense", now=NOON)
+
+
+def test_the_preceding_window_is_the_same_length_and_ends_where_this_one_starts():
+    this_week = resolve(Period.LAST_7_DAYS, now=NOON)
+    last_week = preceding(this_week)
+
+    assert bucket_labels(last_week)[0] == "2026-08-05"
+    assert bucket_labels(last_week)[-1] == "2026-08-11"
+    assert len(bucket_labels(last_week)) == len(bucket_labels(this_week))
+
+
+def test_today_is_compared_against_yesterday_at_the_same_time():
+    """Comparing a half-finished day against a whole one shows a fall every morning."""
+    yesterday = preceding(resolve(Period.TODAY, now=NOON))
+
+    assert yesterday.start == dt.datetime(2026, 8, 17, 0, 0, tzinfo=dt.UTC)
+    assert yesterday.end == dt.datetime(2026, 8, 17, 12, 30, tzinfo=dt.UTC)

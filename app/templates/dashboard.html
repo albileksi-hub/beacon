@@ -1,57 +1,78 @@
 {% extends "base.html" %}
 {% block title %}{{ site_id }} — Beacon{% endblock %}
 
+{% macro delta(change) -%}
+  {%- if change.percent is none -%}
+    <span class="delta flat" title="Nothing in the previous period to compare with">—</span>
+  {%- else -%}
+    <span class="delta {{ change.direction }}"
+          title="{{ change.previous | comma }} in the previous period">
+      {{ "+" if change.percent > 0 else "" }}{{ change.percent }}%
+    </span>
+  {%- endif -%}
+{%- endmacro %}
+
 {% block topbar %}
-<nav class="periods">
+<nav class="periods" aria-label="Reporting period">
   {% for value, label in period_labels.items() %}
     <a href="/sites/{{ site_id }}?period={{ value }}"
-       class="{% if value == period %}current{% endif %}">{{ label }}</a>
+       {% if value == period %}class="current" aria-current="page"{% endif %}>{{ label }}</a>
   {% endfor %}
 </nav>
 {% endblock %}
 
 {% block content %}
 <section class="stack">
-  <h1>{{ site_id }}</h1>
+  <div class="page-head">
+    <h1>{{ site_id }}</h1>
+    <p class="muted">{{ period_labels[period] | lower }}, compared with the period before</p>
+  </div>
 
   <div class="tiles">
     <div class="card tile">
       <span class="tile-label">Visitors</span>
-      <span class="tile-value">{{ summary.visitors | comma }}</span>
+      <span class="tile-value">{{ comparison.summary.visitors | comma }}</span>
+      {{ delta(comparison.visitors) }}
     </div>
     <div class="card tile">
       <span class="tile-label">Pageviews</span>
-      <span class="tile-value">{{ summary.pageviews | comma }}</span>
+      <span class="tile-value">{{ comparison.summary.pageviews | comma }}</span>
+      {{ delta(comparison.pageviews) }}
     </div>
     <div class="card tile">
       <span class="tile-label">Views per visitor</span>
-      <span class="tile-value">{{ summary.views_per_visitor }}</span>
+      <span class="tile-value">{{ comparison.summary.views_per_visitor }}</span>
+      <span class="delta flat">&nbsp;</span>
     </div>
     <div class="card tile">
-      <span class="tile-label"><span class="pulse"></span>Live now</span>
+      <span class="tile-label"><span class="pulse" aria-hidden="true"></span>Live now</span>
       <span class="tile-value" id="live-count" data-site-id="{{ site_id }}">{{ live.visitors }}</span>
+      <span class="delta flat">last {{ live.window_minutes }} min</span>
     </div>
   </div>
 
   <div class="card chart-card">
-    <div class="chart-head">
-      <h2>Visitors</h2>
-      <span class="muted">peak {{ chart.peak | comma }}</span>
-    </div>
-
     {# A flat line along the baseline reads worse than saying so plainly. #}
     {% if not chart.is_empty %}
       <svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}"
-           role="img" aria-label="Visitors over time">
+           role="img" aria-label="Visitors over time, peak {{ chart.peak }}">
         <defs>
           <linearGradient id="fade" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.30" />
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.26" />
             <stop offset="100%" stop-color="var(--accent)" stop-opacity="0" />
           </linearGradient>
         </defs>
+
+        {% for gridline in chart.gridlines %}
+          <line class="gridline" x1="0" x2="{{ chart.width }}"
+                y1="{{ gridline.y }}" y2="{{ gridline.y }}" />
+          <text class="grid-label" x="4" y="{{ gridline.y - 5 }}">{{ gridline.value | comma }}</text>
+        {% endfor %}
+
         <path d="{{ chart.area }}" fill="url(#fade)" />
         <polyline points="{{ chart.line }}" fill="none" stroke="var(--accent)"
-                  stroke-width="2" stroke-linejoin="round" />
+                  stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+
         {% for point in chart.points %}
           <circle class="dot" cx="{{ point.x }}" cy="{{ point.y }}" r="4">
             <title>{{ point.label }} — {{ point.value | comma }} visitors</title>
@@ -63,27 +84,43 @@
         <span>{{ chart.points[-1].label }}</span>
       </div>
     {% else %}
-      <p class="empty">No data for this period.</p>
+      <p class="empty">No visitors in this period yet.</p>
     {% endif %}
   </div>
 
-  <div class="panels">
-    {% for title, rows in panels %}
-      <div class="card panel">
-        <h2>{{ title }}</h2>
+  {# Radio inputs rather than JavaScript, so the tabs work with scripting off. #}
+  <div class="card tabs">
+    {% for key, title, rows in panels %}
+      <input type="radio" name="panel" id="tab-{{ key }}" class="tab-input"
+             {% if loop.first %}checked{% endif %} />
+    {% endfor %}
+
+    <nav class="tab-bar" aria-label="Breakdown">
+      {% for key, title, rows in panels %}
+        <label class="tab" for="tab-{{ key }}" tabindex="0">{{ title }}</label>
+      {% endfor %}
+    </nav>
+
+    {% for key, title, rows in panels %}
+      <div class="tab-panel">
         {% if rows %}
-          {% set top = rows[0].visitors or 1 %}
-          <ul class="rows">
+          {% set widest = rows[0].visitors or 1 %}
+          {% set total = comparison.summary.visitors or 1 %}
+          <ol class="rows">
             {% for row in rows %}
               <li>
-                <span class="bar" style="width: {{ (row.visitors / top * 100) | round(1) }}%"></span>
-                <span class="label">{{ row.value }}</span>
+                <span class="bar" style="width: {{ (row.visitors / widest * 100) | round(1) }}%"></span>
+                <span class="label" title="{{ row.value }}">
+                  {% if key == "country" %}<span class="flag">{{ row.value | flag }}</span>{% endif %}
+                  {{ row.value }}
+                </span>
+                <span class="share">{{ (row.visitors / total * 100) | round(1) }}%</span>
                 <span class="count">{{ row.visitors | comma }}</span>
               </li>
             {% endfor %}
-          </ul>
+          </ol>
         {% else %}
-          <p class="empty">Nothing yet.</p>
+          <p class="empty">Nothing recorded yet.</p>
         {% endif %}
       </div>
     {% endfor %}
@@ -92,5 +129,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/dashboard.js" defer></script>
+<script src="{{ asset('dashboard.js') }}" defer></script>
 {% endblock %}

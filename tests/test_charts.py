@@ -1,3 +1,5 @@
+import pytest
+
 from app.services import charts
 
 
@@ -59,3 +61,42 @@ def test_the_line_is_a_polyline_points_list():
 
     assert len(chart.line.split(" ")) == 2
     assert all("," in pair for pair in chart.line.split(" "))
+
+
+@pytest.mark.parametrize(
+    ("peak", "expected"),
+    [
+        (0, 1),
+        (3, 3),
+        (7, 8),
+        (12, 12),
+        (47, 50),
+        (96, 100),
+        (344, 400),
+        (12099, 12500),
+        # Past the last step, so it rounds to the next whole decade.
+        (95, 100),
+        (9500, 10000),
+    ],
+)
+def test_the_axis_rounds_up_to_a_number_a_person_would_choose(peak, expected):
+    assert charts.axis_ceiling(peak) == expected
+
+
+def test_gridlines_span_the_axis():
+    chart = charts.build([0, 5, 10], ["a", "b", "c"], height=100, padding=10)
+
+    assert [line.value for line in chart.gridlines] == [10, 5, 0]
+    assert [line.y for line in chart.gridlines] == [10.0, 50.0, 90.0]
+
+
+def test_points_are_scaled_to_the_axis_not_the_peak():
+    # Peak 96 draws against an axis of 100, so it stops just short of the top.
+    chart = charts.build([96], ["a"], height=100, padding=0)
+
+    assert chart.ceiling == 100
+    assert chart.points[0].y == 4.0
+
+
+def test_an_empty_chart_has_no_gridlines():
+    assert charts.build([], []).gridlines == []

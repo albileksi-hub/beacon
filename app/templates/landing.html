@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Beacon — privacy-first web analytics{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Open-source web analytics</p>
+  <h1>Know what your visitors read.<br />Learn nothing else about them.</h1>
+  <p class="lede">
+    Beacon counts visitors, pages and referrers without cookies, without
+    fingerprinting, and without storing a single piece of personal data. No
+    consent banner, because there is nothing to consent to.
+  </p>
+
+  <div class="hero-actions">
+    <a class="button primary" href="/signup">Create an account</a>
+    <a class="button ghost" href="/login">Sign in</a>
+  </div>
+
+  <p class="snippet-caption">The entire integration:</p>
+  <pre class="snippet"><code>&lt;script src="/static/beacon.js" data-site-id="yoursite.com" defer&gt;&lt;/script&gt;</code></pre>
+</section>
+
+<section class="points">
+  <div class="point">
+    <h2>No cookies, no banner</h2>
+    <p>
+      Visitors are recognised by a keyed hash of their address and browser,
+      salted with a value that is generated fresh each day and
+      <strong>deleted two days later</strong>. Once it is gone, nobody can
+      reproduce the mapping — not an attacker with a stolen backup, and not us.
+    </p>
+  </div>
+  <div class="point">
+    <h2>Reduced at the door</h2>
+    <p>
+      Query strings are dropped from URLs, referrers are cut to their host, and
+      the address becomes a country code and is then discarded. There is no
+      column in the database capable of holding an IP or a raw User-Agent.
+    </p>
+  </div>
+  <div class="point">
+    <h2>Fast at any size</h2>
+    <p>
+      Counts are pre-aggregated on a daily grain, which the salt rotation makes
+      exactly additive. A year of traffic renders in single-digit milliseconds
+      instead of two seconds.
+    </p>
+  </div>
+</section>
+{% endblock %}
