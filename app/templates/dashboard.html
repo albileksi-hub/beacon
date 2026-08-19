@@ -34,8 +34,27 @@
 {% block content %}
 <section class="stack">
   <div class="page-head">
-    <h1>{{ site_id }}</h1>
+    <div class="title-row">
+      <h1>{{ site_id }}</h1>
+      {% if is_public %}<span class="badge">Public</span>{% endif %}
+    </div>
     <p class="muted">{{ period_labels[period] | lower }}, compared with the period before</p>
+
+    {% if is_owner %}
+      <form method="post" action="/sites/{{ site_id }}/visibility" class="visibility">
+        <input type="hidden" name="public" value="{{ 'false' if is_public else 'true' }}" />
+        <button type="submit" class="link-button">
+          {{ "Make private" if is_public else "Publish this dashboard" }}
+        </button>
+        <span class="muted">
+          {% if is_public %}
+            Anyone with the link can read these numbers.
+          {% else %}
+            Only you can see this.
+          {% endif %}
+        </span>
+      </form>
+    {% endif %}
   </div>
 
   <div class="tiles">
@@ -135,6 +154,11 @@
               </li>
             {% endfor %}
           </ol>
+        {% elif key == "event" %}
+          <p class="empty">
+            No custom events yet. Call <code>beacon("signup")</code> from your
+            site to count anything besides a page being read.
+          </p>
         {% else %}
           <p class="empty">Nothing recorded yet.</p>
         {% endif %}

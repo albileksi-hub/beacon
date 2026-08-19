@@ -1,6 +1,7 @@
 import datetime as dt
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -9,6 +10,7 @@ from sqlalchemy import (
     LargeBinary,
     String,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -103,6 +105,10 @@ class Site(Base):
     domain: Mapped[str] = mapped_column(String(253), unique=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+    # A public site's dashboard is readable without an account. Off by default:
+    # sharing has to be a decision somebody makes, never the fallback.
+    public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     owner: Mapped[User] = relationship(back_populates="sites")
 

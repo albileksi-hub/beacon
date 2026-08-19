@@ -8,11 +8,17 @@ forever, and nothing in the raw events tells you it happened.
 
 import datetime as dt
 
-from sqlalchemy import delete, distinct, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models import DailyStat, Event, HourlyStat
-from app.services.stats import BREAKDOWN_COLUMNS, bucket_column
+from app.services.stats import (
+    BREAKDOWN_COLUMNS,
+    BREAKDOWN_FILTERS,
+    bucket_column,
+    pageview_count,
+    visitor_count,
+)
 from app.services.timeranges import Interval
 
 TOTAL = "total"
@@ -36,7 +42,7 @@ def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
     db.execute(delete(DailyStat).where(DailyStat.site_id == site_id, DailyStat.day == day))
 
     visitors, pageviews = db.execute(
-        select(func.count(distinct(Event.visitor_id)), func.count(Event.id)).where(*scope)
+        select(visitor_count(), pageview_count()).where(*scope)
     ).one()
 
     rows: list[DailyStat] = []
@@ -53,11 +59,17 @@ def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
         )
 
     for prop, column in BREAKDOWN_COLUMNS.items():
-        grouped = db.execute(
-            select(column, func.count(distinct(Event.visitor_id)), func.count(Event.id))
-            .where(*scope)
-            .group_by(column)
+        statement = (
+            select(column, visitor_count(), pageview_count()).where(*scope).group_by(column)
         )
+
+        # The same narrowing the raw queries apply, so the aggregates cover
+        # exactly the rows the definition covers.
+        narrowing = BREAKDOWN_FILTERS.get(prop)
+        if narrowing is not None:
+            statement = statement.where(narrowing)
+
+        grouped = db.execute(statement)
         rows.extend(
             DailyStat(
                 site_id=site_id,
@@ -87,7 +99,7 @@ def rebuild_hours(db: Session, *, site_id: str, day: dt.date) -> int:
 
     bucket = bucket_column(db, Interval.HOUR)
     grouped = db.execute(
-        select(bucket, func.count(distinct(Event.visitor_id)), func.count(Event.id))
+        select(bucket, visitor_count(), pageview_count())
         .where(Event.site_id == site_id, Event.timestamp >= start, Event.timestamp < end)
         .group_by(bucket)
     )

@@ -19,6 +19,7 @@ PANELS = (
     ("browser", "Browsers", BreakdownProperty.BROWSER),
     ("os", "Systems", BreakdownProperty.OS),
     ("screen", "Screens", BreakdownProperty.SCREEN),
+    ("event", "Goals", BreakdownProperty.EVENT),
 )
 
 PERIOD_LABELS = {
@@ -50,14 +51,12 @@ def site_dashboard(
     user: CurrentUser,
     period: Period = Period.LAST_30_DAYS,
 ) -> Response:
-    # Someone asking for a particular dashboard wants that page, so send them
-    # to the login form rather than to the marketing copy.
-    if user is None:
-        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
-
-    site = accounts.owned_site(db, owner=user, domain=site_id)
+    site = accounts.readable_site(db, viewer=user, domain=site_id)
     if site is None:
-        # See dependencies.require_owned_site: 404, never 403.
+        # A signed-out visitor may simply need to sign in. Anyone else is told
+        # the same thing they would hear about a domain that does not exist.
+        if user is None:
+            return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such site")
 
     time_range = resolve(period)
@@ -69,6 +68,8 @@ def site_dashboard(
         {
             "user": user,
             "site_id": site.domain,
+            "is_public": site.public,
+            "is_owner": user is not None and site.owner_id == user.id,
             "period": period,
             "period_labels": PERIOD_LABELS,
             "comparison": reports.summary_with_comparison(

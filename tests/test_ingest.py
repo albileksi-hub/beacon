@@ -148,3 +148,18 @@ def test_a_missing_width_still_records_the_event(client, db_session, site):
     client.post("/api/event", json=_payload(screen_width=None))
 
     assert db_session.scalars(select(Event)).one().screen == "Unknown"
+
+
+def test_a_custom_event_is_recorded_under_its_own_name(client, db_session, site):
+    client.post("/api/event", json=_payload(name="signup"))
+
+    event = db_session.scalars(select(Event)).one()
+    assert event.name == "signup"
+    assert event.pathname == "/products/blue-mug"
+
+
+def test_an_overlong_event_name_is_rejected(client, db_session, site):
+    response = client.post("/api/event", json=_payload(name="x" * 65))
+
+    assert response.status_code == 422
+    assert db_session.scalars(select(Event)).all() == []

@@ -79,8 +79,9 @@ def test_live_endpoint(signed_in, db_session, rebuild_rollups, site):
     assert response.json() == {"visitors": 1, "window_minutes": 5}
 
 
-def test_stats_require_a_signed_in_user(client, site):
-    assert client.get(f"/api/stats/{SITE_DOMAIN}/summary").status_code == 401
+def test_a_private_site_is_invisible_to_a_stranger(client, site):
+    """404 rather than 401: the answer must not reveal that the site exists."""
+    assert client.get(f"/api/stats/{SITE_DOMAIN}/summary").status_code == 404
 
 
 def test_a_site_you_do_not_own_is_a_404_not_a_403(signed_in, db_session, rebuild_rollups):
@@ -119,3 +120,25 @@ def test_breakdown_limit_is_bounded(signed_in, site):
 
     assert signed_in.get(url, params={"limit": 0}).status_code == 422
     assert signed_in.get(url, params={"limit": 500}).status_code == 422
+
+
+def test_a_published_site_is_readable_without_an_account(
+    client, db_session, site, rebuild_rollups
+):
+    add_event(db_session, visitor_id="a")
+    accounts.set_visibility(db_session, site=site, public=True)
+    rebuild_rollups()
+
+    response = client.get(f"/api/stats/{SITE_DOMAIN}/summary")
+
+    assert response.status_code == 200
+    assert response.json()["visitors"] == 1
+
+
+def test_unpublishing_closes_it_again(client, db_session, site):
+    accounts.set_visibility(db_session, site=site, public=True)
+    assert client.get(f"/api/stats/{SITE_DOMAIN}/summary").status_code == 200
+
+    accounts.set_visibility(db_session, site=site, public=False)
+
+    assert client.get(f"/api/stats/{SITE_DOMAIN}/summary").status_code == 404

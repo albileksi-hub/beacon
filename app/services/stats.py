@@ -4,7 +4,7 @@ import datetime as dt
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import Select, distinct, func, select
+from sqlalchemy import Select, case, distinct, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.functions import Function
 
@@ -13,6 +13,9 @@ from app.schemas import BreakdownRow, LiveVisitors, StatsSummary, TimeseriesPoin
 from app.services.timeranges import Interval, TimeRange, bucket_labels
 
 LIVE_WINDOW = dt.timedelta(minutes=5)
+
+# The event name every tracking script sends on a page load.
+PAGEVIEW = "pageview"
 DEFAULT_BREAKDOWN_LIMIT = 10
 
 
@@ -24,6 +27,7 @@ class BreakdownProperty(StrEnum):
     BROWSER = "browser"
     OS = "os"
     SCREEN = "screen"
+    EVENT = "event"
 
 
 # A whitelist, so a request parameter never reaches a column name directly.
@@ -37,6 +41,14 @@ BREAKDOWN_COLUMNS = {
     BreakdownProperty.BROWSER: Event.browser,
     BreakdownProperty.OS: Event.os,
     BreakdownProperty.SCREEN: Event.screen,
+    BreakdownProperty.EVENT: Event.name,
+}
+
+# Dimensions that count only a subset of events. Applied by both the raw
+# queries and the rollup builder, so the two cannot disagree about scope.
+BREAKDOWN_FILTERS = {
+    # Goals are about what people did besides reading a page.
+    BreakdownProperty.EVENT: Event.name != PAGEVIEW,
 }
 
 # SQLite and Postgres disagree completely about date truncation. This module is
@@ -53,13 +65,18 @@ _POSTGRES_BUCKETS = {
 }
 
 
-def _visitors() -> Function[int]:
+def visitor_count() -> Function[int]:
     """Unique visitors. The expensive one: a distinct count over the window."""
     return func.count(distinct(Event.visitor_id))
 
 
-def _pageviews() -> Function[int]:
-    return func.count(Event.id)
+def pageview_count() -> Function[int]:
+    """Only pageviews count as pageviews.
+
+    Custom events share this table, so counting rows would inflate every site's
+    pageview figure the moment somebody started tracking sign-ups.
+    """
+    return func.coalesce(func.sum(case((Event.name == PAGEVIEW, 1), else_=0)), 0)
 
 
 def _scoped(statement: Select[Any], site_id: str, time_range: TimeRange) -> Select[Any]:
@@ -81,7 +98,7 @@ def bucket_column(db: Session, interval: Interval) -> Function[str]:
 def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary:
     row = db.execute(
         _scoped(
-            select(_visitors().label("visitors"), _pageviews().label("pageviews")),
+            select(visitor_count().label("visitors"), pageview_count().label("pageviews")),
             site_id,
             time_range,
         )
@@ -97,8 +114,8 @@ def timeseries(db: Session, *, site_id: str, time_range: TimeRange) -> list[Time
         _scoped(
             select(
                 bucket.label("bucket"),
-                _visitors().label("visitors"),
-                _pageviews().label("pageviews"),
+                visitor_count().label("visitors"),
+                pageview_count().label("pageviews"),
             ),
             site_id,
             time_range,
@@ -127,14 +144,14 @@ def breakdown(
     limit: int = DEFAULT_BREAKDOWN_LIMIT,
 ) -> list[BreakdownRow]:
     column = BREAKDOWN_COLUMNS[prop]
-    visitors = _visitors()
+    visitors = visitor_count()
 
-    rows = db.execute(
+    statement = (
         _scoped(
             select(
                 column.label("value"),
                 visitors.label("visitors"),
-                _pageviews().label("pageviews"),
+                pageview_count().label("pageviews"),
             ),
             site_id,
             time_range,
@@ -143,7 +160,13 @@ def breakdown(
         # Ties broken by value so the ordering is stable between requests.
         .order_by(visitors.desc(), column)
         .limit(limit)
-    ).all()
+    )
+
+    narrowing = BREAKDOWN_FILTERS.get(prop)
+    if narrowing is not None:
+        statement = statement.where(narrowing)
+
+    rows = db.execute(statement).all()
 
     return [
         BreakdownRow(value=str(row.value), visitors=row.visitors, pageviews=row.pageviews)
@@ -160,7 +183,7 @@ def live_visitors(
 ) -> LiveVisitors:
     since = (now or dt.datetime.now(dt.UTC)) - window
     count = db.scalar(
-        select(_visitors()).where(Event.site_id == site_id, Event.timestamp >= since)
+        select(visitor_count()).where(Event.site_id == site_id, Event.timestamp >= since)
     )
 
     return LiveVisitors(visitors=count or 0, window_minutes=int(window.total_seconds() // 60))

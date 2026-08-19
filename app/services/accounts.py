@@ -93,3 +93,25 @@ def owned_site(db: Session, *, owner: User, domain: str) -> Site | None:
 
 def site_is_registered(db: Session, domain: str) -> bool:
     return db.scalar(select(Site.id).where(Site.domain == domain)) is not None
+
+
+def readable_site(db: Session, *, viewer: User | None, domain: str) -> Site | None:
+    """The site, if this viewer is allowed to see its numbers.
+
+    Either they own it, or its owner has published it. Anything else is a 404
+    to the caller, for the reason in owned_site.
+    """
+    hostname = normalise_domain(domain)
+    site = db.scalar(select(Site).where(Site.domain == hostname))
+    if site is None:
+        return None
+    if site.public:
+        return site
+
+    return site if viewer is not None and site.owner_id == viewer.id else None
+
+
+def set_visibility(db: Session, *, site: Site, public: bool) -> Site:
+    site.public = public
+    db.commit()
+    return site

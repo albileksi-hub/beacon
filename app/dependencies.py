@@ -42,3 +42,18 @@ def require_owned_site(site_id: str, db: DbSession, user: RequiredUser) -> Site:
 
 
 OwnedSite = Annotated[Site, Depends(require_owned_site)]
+
+
+def require_readable_site(site_id: str, db: DbSession, user: CurrentUser) -> Site:
+    """The site named in the path, for anyone entitled to read it.
+
+    That is its owner, or anybody at all once the owner has published it. A
+    site that exists but is neither is a 404, exactly like one that does not.
+    """
+    site = accounts.readable_site(db, viewer=user, domain=site_id)
+    if site is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such site")
+    return site
+
+
+ReadableSite = Annotated[Site, Depends(require_readable_site)]

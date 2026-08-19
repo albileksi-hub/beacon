@@ -2,14 +2,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from app.dependencies import DbSession, OwnedSite
+from app.dependencies import DbSession, ReadableSite
 from app.schemas import BreakdownRow, LiveVisitors, StatsSummary, TimeseriesPoint
 from app.services import reports
 from app.services.stats import DEFAULT_BREAKDOWN_LIMIT, BreakdownProperty
 from app.services.timeranges import Period, resolve
 
-# Every route here resolves {site_id} through OwnedSite, so a signed-in user
-# can only ever read their own numbers.
+# Every route resolves {site_id} through ReadableSite, so a caller sees only
+# their own sites and any their owner has published.
 router = APIRouter(prefix="/api/stats/{site_id}", tags=["stats"])
 
 BreakdownLimit = Annotated[int, Query(ge=1, le=100)]
@@ -17,7 +17,7 @@ BreakdownLimit = Annotated[int, Query(ge=1, le=100)]
 
 @router.get("/summary")
 def read_summary(
-    site: OwnedSite,
+    site: ReadableSite,
     db: DbSession,
     period: Period = Period.LAST_30_DAYS,
 ) -> StatsSummary:
@@ -27,7 +27,7 @@ def read_summary(
 
 @router.get("/timeseries")
 def read_timeseries(
-    site: OwnedSite,
+    site: ReadableSite,
     db: DbSession,
     period: Period = Period.LAST_30_DAYS,
 ) -> list[TimeseriesPoint]:
@@ -41,7 +41,7 @@ def read_timeseries(
 
 @router.get("/breakdown/{prop}")
 def read_breakdown(
-    site: OwnedSite,
+    site: ReadableSite,
     prop: BreakdownProperty,
     db: DbSession,
     period: Period = Period.LAST_30_DAYS,
@@ -54,6 +54,6 @@ def read_breakdown(
 
 
 @router.get("/live")
-def read_live(site: OwnedSite, db: DbSession) -> LiveVisitors:
+def read_live(site: ReadableSite, db: DbSession) -> LiveVisitors:
     """Visitors seen in the last few minutes."""
     return reports.live_visitors(db, site_id=site.domain)

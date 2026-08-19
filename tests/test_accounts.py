@@ -70,3 +70,35 @@ def test_registered_sites_are_recognised(db_session, site):
 def test_a_blank_domain_is_rejected(db_session, account):
     with pytest.raises(accounts.InvalidDomain, match="Enter a domain"):
         accounts.add_site(db_session, owner=account, domain="   https://   ")
+
+
+def test_sites_start_private(site):
+    assert site.public is False
+
+
+def test_an_owner_can_read_their_own_private_site(db_session, account, site):
+    assert accounts.readable_site(db_session, viewer=account, domain=SITE_DOMAIN) == site
+
+
+def test_a_stranger_cannot_read_a_private_site(db_session, account, site):
+    stranger = accounts.register(db_session, email="stranger@example.com", password=OWNER_PASSWORD)
+
+    assert accounts.readable_site(db_session, viewer=stranger, domain=SITE_DOMAIN) is None
+    assert accounts.readable_site(db_session, viewer=None, domain=SITE_DOMAIN) is None
+
+
+def test_publishing_lets_anybody_read_it(db_session, account, site):
+    accounts.set_visibility(db_session, site=site, public=True)
+
+    assert accounts.readable_site(db_session, viewer=None, domain=SITE_DOMAIN) == site
+
+
+def test_unpublishing_takes_it_back(db_session, account, site):
+    accounts.set_visibility(db_session, site=site, public=True)
+    accounts.set_visibility(db_session, site=site, public=False)
+
+    assert accounts.readable_site(db_session, viewer=None, domain=SITE_DOMAIN) is None
+
+
+def test_a_domain_nobody_registered_is_never_readable(db_session, account):
+    assert accounts.readable_site(db_session, viewer=account, domain="ghost.example") is None

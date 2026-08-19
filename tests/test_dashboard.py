@@ -131,3 +131,76 @@ def test_the_front_page_explains_itself_to_signed_out_visitors(client):
     assert response.status_code == 200
     assert "Know what your visitors read" in response.text
     assert "/signup" in response.text
+
+
+def test_a_published_dashboard_is_readable_by_anyone(
+    client, db_session, site, rebuild_rollups
+):
+    """The point of publishing: a link somebody can follow without signing up."""
+    add_event(db_session, visitor_id="a")
+    accounts.set_visibility(db_session, site=site, public=True)
+    rebuild_rollups()
+
+    response = client.get(f"/sites/{SITE_DOMAIN}")
+
+    assert response.status_code == 200
+    assert "Visitors" in response.text
+    assert "Public" in response.text
+
+
+def test_a_visitor_to_a_published_dashboard_gets_no_controls(client, db_session, site):
+    accounts.set_visibility(db_session, site=site, public=True)
+
+    body = client.get(f"/sites/{SITE_DOMAIN}").text
+
+    assert "Make private" not in body
+    assert "Publish this dashboard" not in body
+
+
+def test_the_owner_sees_the_publish_control(signed_in, site):
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
+
+    assert "Publish this dashboard" in body
+    assert "Only you can see this." in body
+
+
+def test_the_owner_can_publish_and_unpublish(signed_in, db_session, site):
+    published = signed_in.post(
+        f"/sites/{SITE_DOMAIN}/visibility", data={"public": "true"}, follow_redirects=False
+    )
+
+    assert published.status_code == 303
+    db_session.refresh(site)
+    assert site.public is True
+
+    signed_in.post(
+        f"/sites/{SITE_DOMAIN}/visibility", data={"public": "false"}, follow_redirects=False
+    )
+    db_session.refresh(site)
+    assert site.public is False
+
+
+def test_a_stranger_cannot_publish_somebody_elses_site(signed_in, db_session):
+    stranger = accounts.register(db_session, email="stranger@example.com", password=OWNER_PASSWORD)
+    theirs = accounts.add_site(db_session, owner=stranger, domain="theirs.example")
+
+    response = signed_in.post(
+        "/sites/theirs.example/visibility", data={"public": "true"}, follow_redirects=False
+    )
+
+    assert response.status_code == 404
+    db_session.refresh(theirs)
+    assert theirs.public is False
+
+
+def test_publishing_requires_an_account(client, site):
+    assert client.post(
+        f"/sites/{SITE_DOMAIN}/visibility", data={"public": "true"}
+    ).status_code == 401
+
+
+def test_the_goals_panel_explains_itself_when_empty(signed_in, site):
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
+
+    assert "Goals" in body
+    assert "No custom events yet" in body

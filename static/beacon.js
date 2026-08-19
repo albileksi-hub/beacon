@@ -70,6 +70,14 @@
     };
   }
 
+  // Public API for anything that is not a page being read:
+  //     beacon("signup")
+  // Refuses the name "pageview" so a site cannot inflate its own view count
+  // through the same call.
+  window.beacon = function (name) {
+    if (typeof name === "string" && name && name !== "pageview") send(name);
+  };
+
   watchHistory("pushState");
   watchHistory("replaceState");
   window.addEventListener("popstate", onNavigation);

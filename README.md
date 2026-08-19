@@ -235,6 +235,37 @@ fingerprint can never equal a visitor ID and the two tables cannot be
 cross-referenced. `tests/test_privacy.py` checks the schema guard against this
 table too.
 
+## Goals
+
+Pageviews are the default, not the limit. Anything else a site cares about is
+one call:
+
+```js
+beacon("signup");
+```
+
+Two decisions in that one line:
+
+- **The API refuses the name `pageview`.** A site should not be able to inflate
+  its own view count through the same call that records a sign-up.
+- **Goals do not count as pageviews.** They share a table, so counting rows
+  would have quietly inflated every site's pageview figure the day it started
+  tracking anything. The pageview total is now an explicit sum over pageview
+  rows, and the same narrowing is applied by the rollup builder, so the
+  aggregates cover exactly what the definition covers.
+
+## Sharing a dashboard
+
+A site is private until its owner publishes it, at which point the dashboard
+and its API are readable by anyone with the link — useful for a public
+transparency page, and for showing the thing to someone without asking them to
+sign up first.
+
+Publishing is resolved through ownership while reading is resolved through
+visibility: anyone may read a published dashboard, but only one account decides
+that it is published. An unpublished site answers `404` to a stranger rather
+than `401`, so the response cannot be used to discover which domains exist here.
+
 ## The dashboard
 
 Server-rendered Jinja2 at `/sites/{site_id}`: headline tiles with
@@ -273,7 +304,7 @@ real error page; the API keeps answering JSON.
 | `POST /api/event` | The collector. Answers `202` to everything, including bots. |
 | `GET /api/stats/{site}/summary` | Visitors, pageviews, views per visitor |
 | `GET /api/stats/{site}/timeseries` | One point per bucket, zero-filled |
-| `GET /api/stats/{site}/breakdown/{prop}` | Top pages, sources, countries, devices, browsers, or operating systems |
+| `GET /api/stats/{site}/breakdown/{prop}` | Top pages, sources, countries, devices, browsers, systems, screens, or goals |
 | `GET /api/stats/{site}/live` | Visitors in the last five minutes |
 
 `period` accepts `today`, `7d`, `30d`, `6mo`, `12mo`. Bucket size follows from
@@ -340,16 +371,11 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 279 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 302 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:
 
-- **Custom events** beyond pageviews, so a site owner can count sign-ups and
-  purchases rather than only reads. The schema already carries a `name` column
-  for it.
-- **Public dashboards** — a per-site toggle making the numbers readable without
-  an account, which is how Plausible does its own transparency page.
 - **Retention** — dropping raw events past a certain age, since the rollups
   already hold everything the dashboard needs.
 - **HyperLogLog sketches**, if cross-day unique visitors were ever wanted. They

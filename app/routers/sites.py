@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Form, Request, Response, status
 from fastapi.responses import RedirectResponse
 
-from app.dependencies import DbSession, RequiredUser
+from app.dependencies import DbSession, OwnedSite, RequiredUser
 from app.services import accounts
 from app.templating import templates
 
@@ -27,4 +27,19 @@ def create_site(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    return RedirectResponse(f"/sites/{site.domain}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/sites/{site_id}/visibility")
+def change_visibility(
+    site: OwnedSite,
+    db: DbSession,
+    public: Annotated[bool, Form()],
+) -> Response:
+    """Publish a dashboard, or take it back.
+
+    Resolved through OwnedSite rather than ReadableSite: a public dashboard is
+    readable by anyone, but only its owner decides that.
+    """
+    accounts.set_visibility(db, site=site, public=public)
     return RedirectResponse(f"/sites/{site.domain}", status_code=status.HTTP_303_SEE_OTHER)

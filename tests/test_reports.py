@@ -27,6 +27,10 @@ COUNTRIES = ["DE", "US", "GB", None]
 DEVICES = ["desktop", "mobile", "tablet"]
 BROWSERS = ["Chrome", "Firefox", "Safari"]
 SYSTEMS = ["Windows", "Mac OS X", "Linux"]
+SCREENS = ["Phone", "Tablet", "Laptop", "Desktop"]
+# A minority of events are goals rather than page reads, so the comparison
+# covers the dimension that filters them.
+NAMES = ["pageview"] * 8 + ["signup", "add-to-basket"]
 
 
 @pytest.fixture
@@ -55,14 +59,14 @@ def traffic(db_session):
                         site_id=SITE,
                         visitor_id=visitor_id,
                         timestamp=moment,
-                        name="pageview",
+                        name=random.choice(NAMES),
                         pathname=random.choice(PAGES),
                         source=random.choice(SOURCES),
                         browser=random.choice(BROWSERS),
                         os=random.choice(SYSTEMS),
                         device=random.choice(DEVICES),
                         country=random.choice(COUNTRIES),
-                        screen="Laptop",
+                        screen=random.choice(SCREENS),
                     )
                 )
 

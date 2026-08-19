@@ -187,3 +187,37 @@ def test_postgres_buckets_with_date_trunc():
     assert "date_trunc" in compiled
     assert "to_char" in compiled
     assert "YYYY-MM-01" in compiled
+
+
+def test_custom_events_do_not_count_as_pageviews(db_session, month):
+    """Otherwise every site's pageviews inflate the day it tracks a sign-up."""
+    add_event(db_session, visitor_id="a", name="pageview")
+    add_event(db_session, visitor_id="a", name="signup")
+    add_event(db_session, visitor_id="a", name="add-to-basket")
+
+    result = stats.summary(db_session, site_id=SITE, time_range=month)
+
+    assert result.pageviews == 1
+    assert result.visitors == 1
+
+
+def test_somebody_who_only_fired_a_goal_still_counts_as_a_visitor(db_session, month):
+    add_event(db_session, visitor_id="quiet", name="signup")
+
+    assert stats.summary(db_session, site_id=SITE, time_range=month).visitors == 1
+
+
+def test_the_goals_breakdown_leaves_out_page_reads(db_session, month):
+    add_event(db_session, visitor_id="a", name="pageview")
+    add_event(db_session, visitor_id="a", name="signup")
+    add_event(db_session, visitor_id="b", name="signup")
+    add_event(db_session, visitor_id="c", name="add-to-basket")
+
+    rows = stats.breakdown(
+        db_session, site_id=SITE, time_range=month, prop=BreakdownProperty.EVENT
+    )
+
+    assert [(row.value, row.visitors) for row in rows] == [
+        ("signup", 2),
+        ("add-to-basket", 1),
+    ]
