@@ -90,8 +90,8 @@ def create_app() -> FastAPI:
         return await http_exception_handler(request, exc)
 
     @app.get("/health", tags=["ops"])
-    def health(db: DbSession, response: Response) -> dict[str, str]:
-        """Liveness plus a database round-trip.
+    def health(request: Request, db: DbSession, response: Response) -> dict[str, str | int]:
+        """Liveness, a database round-trip, and the ingest buffer.
 
         A health check that only proves the process is running will report a
         container as healthy while its database is unreachable, which is the
@@ -104,7 +104,17 @@ def create_app() -> FastAPI:
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
             return {"status": "degraded", "database": "unreachable"}
 
-        return {"status": "ok", "database": "ok"}
+        report: dict[str, str | int] = {"status": "ok", "database": "ok"}
+
+        # Dropped events are the one failure the service survives silently, so
+        # the count has to be visible somewhere a monitor can reach it.
+        writer = getattr(request.app.state, "event_writer", None)
+        if writer is not None:
+            stats = writer.stats
+            report["queued_events"] = stats.queued
+            report["dropped_events"] = stats.dropped
+
+        return report
 
     return app
 

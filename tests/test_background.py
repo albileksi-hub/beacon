@@ -125,3 +125,37 @@ def test_maintenance_expires_old_data_on_a_quiet_instance(db_session, monkeypatc
 
     assert db_session.scalars(select(DailySalt)).all() == []
     assert db_session.scalars(select(LoginAttempt)).all() == []
+
+
+def test_no_writer_is_created_when_buffering_is_off(monkeypatch):
+    app = FastAPI()
+    monkeypatch.setattr(
+        background, "get_settings", lambda: Settings(ingest_buffer_size=0)
+    )
+
+    async def exercise():
+        async with background.lifespan(app):
+            pass
+
+    asyncio.run(exercise())
+
+    assert app.state.event_writer is None
+
+
+def test_buffering_starts_a_writer_and_drains_it_on_shutdown(monkeypatch):
+    app = FastAPI()
+    monkeypatch.setattr(
+        background,
+        "get_settings",
+        lambda: Settings(ingest_buffer_size=64, ingest_flush_seconds=0.01),
+    )
+
+    async def exercise():
+        async with background.lifespan(app):
+            assert app.state.event_writer is not None
+            return app.state.event_writer
+
+    writer = asyncio.run(exercise())
+
+    # stop() clears the thread handle, which is how a drained writer looks.
+    assert writer._thread is None

@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     # whether they will ever want to re-aggregate at a finer grain.
     raw_event_retention_days: int = 0
 
+    # Events to buffer before writing them in one batch. 0 writes each event in
+    # its own transaction, which is slower under load but means a 202 promises
+    # the event is committed rather than merely accepted. See
+    # app.services.collector for the measurements behind the trade.
+    ingest_buffer_size: int = 0
+    ingest_batch_size: int = 500
+    ingest_flush_seconds: float = 0.25
+
     # Path to a MaxMind GeoLite2-Country.mmdb file. Without it, country
     # resolution degrades to "unknown" rather than failing.
     geoip_db_path: str | None = None

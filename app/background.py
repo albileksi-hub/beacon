@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from app.config import get_settings
 from app.db import SessionLocal
 from app.services import rollups, throttle, visitors
+from app.services.collector import EventWriter
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +55,29 @@ async def _maintenance_loop(interval_seconds: float) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    interval = get_settings().rollup_interval_seconds
+    settings = get_settings()
+
+    interval = settings.rollup_interval_seconds
     task = asyncio.create_task(_maintenance_loop(interval)) if interval > 0 else None
     # Kept on app.state so the loop can be inspected rather than merely assumed.
     app.state.maintenance_task = task
 
+    writer = None
+    if settings.ingest_buffer_size > 0:
+        writer = EventWriter(
+            SessionLocal,
+            capacity=settings.ingest_buffer_size,
+            batch_size=settings.ingest_batch_size,
+            flush_seconds=settings.ingest_flush_seconds,
+        )
+        writer.start()
+    app.state.event_writer = writer
+
     yield
+
+    # Drained before the loop is cancelled, so a clean shutdown loses nothing.
+    if writer is not None:
+        writer.stop()
 
     if task is not None:
         task.cancel()

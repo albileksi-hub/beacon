@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from sqlalchemy import select
 
@@ -162,4 +164,18 @@ def test_an_overlong_event_name_is_rejected(client, db_session, site):
     response = client.post("/api/event", json=_payload(name="x" * 65))
 
     assert response.status_code == 422
+    assert db_session.scalars(select(Event)).all() == []
+
+
+def test_a_buffered_collector_hands_the_event_to_the_writer(client, db_session, site):
+    """With buffering on, the request thread must not touch the database."""
+    submitted = []
+    client.app.state.event_writer = SimpleNamespace(submit=submitted.append)
+
+    response = client.post("/api/event", json=_payload())
+
+    assert response.status_code == 202
+    assert len(submitted) == 1
+    assert submitted[0]["pathname"] == "/products/blue-mug"
+    # Nothing was written synchronously; the writer thread owns that now.
     assert db_session.scalars(select(Event)).all() == []

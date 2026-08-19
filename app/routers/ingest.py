@@ -1,4 +1,7 @@
+import datetime as dt
+
 from fastapi import APIRouter, Request, status
+from sqlalchemy import insert
 
 from app.dependencies import DbSession
 from app.models import Event
@@ -42,26 +45,33 @@ def collect_event(payload: EventIn, request: Request, db: DbSession) -> dict[str
     address = client_ip(request)
     referrer_host, source = classify(payload.referrer, payload.url)
 
-    event = Event(
-        site_id=domain,
-        name=payload.name,
-        pathname=pathname_of(payload.url),
-        visitor_id=visitor_id(
+    values = {
+        "site_id": domain,
+        "name": payload.name,
+        "pathname": pathname_of(payload.url),
+        "visitor_id": visitor_id(
             salt=current_salt(db),
             site_id=domain,
             ip=address,
             user_agent=user_agent,
         ),
-        referrer_host=referrer_host,
-        source=source,
-        browser=client.browser,
-        os=client.os,
-        device=client.device,
-        country=get_country_resolver().country_code(address),
-        screen=screen_bucket(payload.screen_width),
-    )
-    db.add(event)
-    db.commit()
+        "referrer_host": referrer_host,
+        "source": source,
+        "browser": client.browser,
+        "os": client.os,
+        "device": client.device,
+        "country": get_country_resolver().country_code(address),
+        "screen": screen_bucket(payload.screen_width),
+        "timestamp": dt.datetime.now(dt.UTC),
+    }
+
+    writer = getattr(request.app.state, "event_writer", None)
+    if writer is not None:
+        # Buffered: the write happens on the writer thread, off this request.
+        writer.submit(values)
+    else:
+        db.execute(insert(Event), [values])
+        db.commit()
 
     # `address`, `user_agent` and the exact viewport width all go out of scope
     # here, and none of them were persisted.

@@ -17,6 +17,7 @@ if __name__ == "__main__":
     # Keep the rollups fresh while developing. Set before the app is
     # imported, because settings are read once and cached.
     os.environ.setdefault("BEACON_ROLLUP_INTERVAL_SECONDS", "30")
+    os.environ.setdefault("BEACON_INGEST_BUFFER_SIZE", "20000")
 
     import uvicorn
 

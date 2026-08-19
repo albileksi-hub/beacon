@@ -270,6 +270,52 @@ job that could no longer rebuild it. Freed pages are reused by SQLite; handing
 them back to the filesystem needs a `VACUUM`, which locks the database and so
 stays an operator's decision rather than a background job's.
 
+### Under concurrent load
+
+Everything above is the database path called from one thread. `python
+loadtest.py --events 4000 --workers 32` drives the actual endpoint, which is
+the only number that describes what the service can take.
+
+One transaction per event, 32 connections:
+
+```
+throughput   472 requests/sec
+p99          915 ms
+max        4,249 ms
+```
+
+No failures — but a tracking beacon with a four-second worst case is a tracking
+beacon that slows down the page it is measuring. SQLite permits exactly one
+writer, so those requests were queueing on a lock while holding an HTTP
+connection open.
+
+Setting `BEACON_INGEST_BUFFER_SIZE` moves the write off the request path: the
+endpoint hands the event to a bounded queue and answers immediately, and one
+thread drains it in batches. Same load:
+
+```
+throughput   565 requests/sec
+p99           91 ms      (10x better)
+max          135 ms      (31x better)
+```
+
+The trade is stated where it lives, in `app/services/collector.py`: `202` now
+means the event was accepted rather than committed, so a process killed with
+events still queued loses them. That is right for pageview counts and wrong for
+anything that must not be lost, which is why it is off by default. A clean
+shutdown drains the queue. The queue is bounded because dropping events under a
+flood and counting the drops is survivable, while growing a list until the
+kernel intervenes is not — and `/health` reports both the depth and the drops,
+since silent loss is the one failure this design can have.
+
+Throughput barely moved, and that is the more interesting result. Profiling
+showed enrichment costs about 20µs per event, and an event for an *unregistered*
+domain — which does essentially nothing and returns — still only manages 742
+requests/sec on this machine, against 698 for `GET /health`. The collector at
+565 is within a quarter of a do-nothing request. The ceiling is the HTTP stack
+on one Windows uvicorn worker, not this code, and the honest way to raise it is
+more workers and a database that does not serialise writers.
+
 ## Configuration
 
 Every setting is an environment variable prefixed `BEACON_`:
@@ -283,6 +329,9 @@ Every setting is an environment variable prefixed `BEACON_`:
 | `BEACON_SESSION_HTTPS_ONLY` | `false` | Restrict the session cookie to HTTPS. Enable in production |
 | `BEACON_ROLLUP_INTERVAL_SECONDS` | `0` | Seconds between in-process maintenance runs. `0` disables it |
 | `BEACON_RAW_EVENT_RETENTION_DAYS` | `0` | Days of raw events to keep. `0` keeps them forever |
+| `BEACON_INGEST_BUFFER_SIZE` | `0` | Events to buffer before batching. `0` commits each one separately |
+| `BEACON_INGEST_BATCH_SIZE` | `500` | Maximum events per write |
+| `BEACON_INGEST_FLUSH_SECONDS` | `0.25` | How long a partial batch waits |
 | `BEACON_DEBUG` | `false` | Verbose errors |
 
 ## Accounts and tenancy
@@ -458,7 +507,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 318 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 333 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:
