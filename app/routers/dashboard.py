@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.dependencies import CurrentUser, DbSession
-from app.services import accounts, charts, stats
+from app.services import accounts, charts, reports
 from app.services.stats import BreakdownProperty
 from app.services.timeranges import Period, resolve
 from app.templating import templates
@@ -55,7 +55,7 @@ def site_dashboard(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such site")
 
     time_range = resolve(period)
-    series = stats.timeseries(db, site_id=site.domain, time_range=time_range)
+    series = reports.timeseries(db, site_id=site.domain, time_range=time_range)
 
     return templates.TemplateResponse(
         request,
@@ -65,8 +65,8 @@ def site_dashboard(
             "site_id": site.domain,
             "period": period,
             "period_labels": PERIOD_LABELS,
-            "summary": stats.summary(db, site_id=site.domain, time_range=time_range),
-            "live": stats.live_visitors(db, site_id=site.domain),
+            "summary": reports.summary(db, site_id=site.domain, time_range=time_range),
+            "live": reports.live_visitors(db, site_id=site.domain),
             "chart": charts.build(
                 [point.visitors for point in series],
                 [point.bucket for point in series],
@@ -74,7 +74,7 @@ def site_dashboard(
             "panels": [
                 (
                     title,
-                    stats.breakdown(db, site_id=site.domain, time_range=time_range, prop=prop),
+                    reports.breakdown(db, site_id=site.domain, time_range=time_range, prop=prop),
                 )
                 for title, prop in PANELS
             ],

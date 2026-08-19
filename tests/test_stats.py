@@ -173,7 +173,7 @@ def _compiled(expression, dialect):
 
 
 def test_sqlite_buckets_with_strftime():
-    expression = stats._bucket_column(_FakeSession("sqlite"), Interval.DAY)
+    expression = stats.bucket_column(_FakeSession("sqlite"), Interval.DAY)
 
     assert "strftime" in _compiled(expression, sqlite.dialect())
 
@@ -181,7 +181,7 @@ def test_sqlite_buckets_with_strftime():
 def test_postgres_buckets_with_date_trunc():
     # Postgres never runs in the test suite, so this is the only thing standing
     # between a dialect typo and a broken dashboard in production.
-    expression = stats._bucket_column(_FakeSession("postgresql"), Interval.MONTH)
+    expression = stats.bucket_column(_FakeSession("postgresql"), Interval.MONTH)
     compiled = _compiled(expression, postgresql.dialect())
 
     assert "date_trunc" in compiled

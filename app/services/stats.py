@@ -24,7 +24,7 @@ class BreakdownProperty(StrEnum):
 
 
 # A whitelist, so a request parameter never reaches a column name directly.
-_COLUMNS = {
+BREAKDOWN_COLUMNS = {
     BreakdownProperty.PAGE: Event.pathname,
     BreakdownProperty.SOURCE: Event.source,
     # Visits with no country resolve to a bucket rather than vanishing, which
@@ -66,7 +66,7 @@ def _scoped(statement: Select, site_id: str, time_range: TimeRange) -> Select:
     )
 
 
-def _bucket_column(db: Session, interval: Interval):
+def bucket_column(db: Session, interval: Interval):
     if db.get_bind().dialect.name == "sqlite":
         return func.strftime(_SQLITE_BUCKETS[interval], Event.timestamp)
     return func.to_char(
@@ -91,7 +91,7 @@ def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary
 
 
 def timeseries(db: Session, *, site_id: str, time_range: TimeRange) -> list[TimeseriesPoint]:
-    bucket = _bucket_column(db, time_range.interval)
+    bucket = bucket_column(db, time_range.interval)
 
     rows = db.execute(
         _scoped(
@@ -126,7 +126,7 @@ def breakdown(
     prop: BreakdownProperty,
     limit: int = DEFAULT_BREAKDOWN_LIMIT,
 ) -> list[BreakdownRow]:
-    column = _COLUMNS[prop]
+    column = BREAKDOWN_COLUMNS[prop]
     visitors = _visitors()
 
     rows = db.execute(

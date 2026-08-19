@@ -31,4 +31,6 @@ def test_init_db_creates_every_table(monkeypatch):
         "daily_salts",
         "users",
         "sites",
+        "daily_stats",
+        "hourly_stats",
     }

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.background import lifespan
 from app.config import Settings, get_settings
 from app.routers import auth, dashboard, ingest, sites, stats
 
@@ -19,6 +20,7 @@ def create_app() -> FastAPI:
         title="Beacon",
         description="Privacy-first, cookieless web analytics.",
         version="0.1.0",
+        lifespan=lifespan,
     )
 
     settings = get_settings()

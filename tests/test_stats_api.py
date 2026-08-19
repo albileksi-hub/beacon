@@ -25,10 +25,12 @@ def add_event(db, **overrides):
     db.commit()
 
 
-def test_summary_endpoint(signed_in, db_session, site):
+def test_summary_endpoint(signed_in, db_session, rebuild_rollups, site):
     add_event(db_session, visitor_id="a")
     add_event(db_session, visitor_id="a", pathname="/about")
     add_event(db_session, visitor_id="b")
+
+    rebuild_rollups()
 
     response = signed_in.get(f"/api/stats/{SITE_DOMAIN}/summary")
 
@@ -36,8 +38,10 @@ def test_summary_endpoint(signed_in, db_session, site):
     assert response.json() == {"visitors": 2, "pageviews": 3, "views_per_visitor": 1.5}
 
 
-def test_timeseries_endpoint_returns_a_full_series(signed_in, db_session, site):
+def test_timeseries_endpoint_returns_a_full_series(signed_in, db_session, rebuild_rollups, site):
     add_event(db_session, visitor_id="a")
+
+    rebuild_rollups()
 
     response = signed_in.get(f"/api/stats/{SITE_DOMAIN}/timeseries", params={"period": "30d"})
 
@@ -48,10 +52,12 @@ def test_timeseries_endpoint_returns_a_full_series(signed_in, db_session, site):
     assert set(points[0]) == {"bucket", "visitors", "pageviews"}
 
 
-def test_breakdown_endpoint(signed_in, db_session, site):
+def test_breakdown_endpoint(signed_in, db_session, rebuild_rollups, site):
     add_event(db_session, visitor_id="a", pathname="/popular")
     add_event(db_session, visitor_id="b", pathname="/popular")
     add_event(db_session, visitor_id="c", pathname="/quiet")
+
+    rebuild_rollups()
 
     response = signed_in.get(f"/api/stats/{SITE_DOMAIN}/breakdown/page")
 
@@ -62,8 +68,10 @@ def test_breakdown_endpoint(signed_in, db_session, site):
     ]
 
 
-def test_live_endpoint(signed_in, db_session, site):
+def test_live_endpoint(signed_in, db_session, rebuild_rollups, site):
     add_event(db_session, visitor_id="a")
+
+    rebuild_rollups()
 
     response = signed_in.get(f"/api/stats/{SITE_DOMAIN}/live")
 
@@ -75,11 +83,13 @@ def test_stats_require_a_signed_in_user(client, site):
     assert client.get(f"/api/stats/{SITE_DOMAIN}/summary").status_code == 401
 
 
-def test_a_site_you_do_not_own_is_a_404_not_a_403(signed_in, db_session):
+def test_a_site_you_do_not_own_is_a_404_not_a_403(signed_in, db_session, rebuild_rollups):
     """A 403 would confirm the domain exists here, which enumerates customers."""
     stranger = accounts.register(db_session, email="stranger@example.com", password=OWNER_PASSWORD)
     accounts.add_site(db_session, owner=stranger, domain="not-yours.example")
     add_event(db_session, site_id="not-yours.example", visitor_id="theirs")
+
+    rebuild_rollups()
 
     response = signed_in.get("/api/stats/not-yours.example/summary")
 

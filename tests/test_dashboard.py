@@ -23,9 +23,11 @@ def add_event(db, **overrides):
     db.commit()
 
 
-def test_dashboard_renders_the_headline_numbers(signed_in, db_session, site):
+def test_dashboard_renders_the_headline_numbers(signed_in, db_session, rebuild_rollups, site):
     add_event(db_session, visitor_id="a")
     add_event(db_session, visitor_id="b")
+
+    rebuild_rollups()
 
     response = signed_in.get(f"/sites/{SITE_DOMAIN}")
 
@@ -36,8 +38,10 @@ def test_dashboard_renders_the_headline_numbers(signed_in, db_session, site):
     assert "Pageviews" in response.text
 
 
-def test_dashboard_renders_each_breakdown_panel(signed_in, db_session, site):
+def test_dashboard_renders_each_breakdown_panel(signed_in, db_session, rebuild_rollups, site):
     add_event(db_session, visitor_id="a")
+
+    rebuild_rollups()
 
     body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
 
@@ -47,8 +51,10 @@ def test_dashboard_renders_each_breakdown_panel(signed_in, db_session, site):
     assert "desktop" in body
 
 
-def test_dashboard_draws_a_chart(signed_in, db_session, site):
+def test_dashboard_draws_a_chart(signed_in, db_session, rebuild_rollups, site):
     add_event(db_session, visitor_id="a")
+
+    rebuild_rollups()
 
     body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
 
@@ -56,8 +62,10 @@ def test_dashboard_draws_a_chart(signed_in, db_session, site):
     assert "<polyline" in body
 
 
-def test_the_selected_period_is_marked_current(signed_in, db_session, site):
+def test_the_selected_period_is_marked_current(signed_in, db_session, rebuild_rollups, site):
     add_event(db_session, visitor_id="a")
+
+    rebuild_rollups()
 
     body = signed_in.get(f"/sites/{SITE_DOMAIN}", params={"period": "7d"}).text
 
@@ -77,9 +85,11 @@ def test_signed_out_visitors_are_sent_to_the_login_page(client, site):
     assert response.headers["location"] == "/login"
 
 
-def test_another_persons_dashboard_is_a_404(signed_in, db_session):
+def test_another_persons_dashboard_is_a_404(signed_in, db_session, rebuild_rollups):
     stranger = accounts.register(db_session, email="stranger@example.com", password=OWNER_PASSWORD)
     accounts.add_site(db_session, owner=stranger, domain="not-yours.example")
+
+    rebuild_rollups()
 
     assert signed_in.get("/sites/not-yours.example").status_code == 404
 
@@ -88,10 +98,12 @@ def test_an_invalid_period_is_rejected(signed_in, site):
     assert signed_in.get(f"/sites/{SITE_DOMAIN}", params={"period": "forever"}).status_code == 422
 
 
-def test_index_lists_only_your_own_sites(signed_in, db_session, site, account):
+def test_index_lists_only_your_own_sites(signed_in, db_session, rebuild_rollups, site, account):
     accounts.add_site(db_session, owner=account, domain="second.example")
     stranger = accounts.register(db_session, email="stranger@example.com", password=OWNER_PASSWORD)
     accounts.add_site(db_session, owner=stranger, domain="theirs.example")
+
+    rebuild_rollups()
 
     body = signed_in.get("/").text
 

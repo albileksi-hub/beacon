@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
 from app.main import create_app
-from app.services import accounts
+from app.services import accounts, rollups
 
 CHROME_MAC = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -72,3 +72,17 @@ def signed_in(client, account):
     )
     assert response.status_code == 303
     return client
+
+
+@pytest.fixture
+def rebuild_rollups(db_session):
+    """Rebuild the aggregates the endpoints read.
+
+    In production the background loop does this; in tests it has to happen
+    after the events exist, so it is a callable rather than a plain fixture.
+    """
+
+    def rebuild(days_back: int = 3) -> None:
+        rollups.refresh(db_session, days_back=days_back)
+
+    return rebuild

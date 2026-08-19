@@ -14,6 +14,10 @@ if __name__ == "__main__":
     os.chdir(PROJECT_ROOT)
     sys.path.insert(0, str(PROJECT_ROOT))
 
+    # Keep the rollups fresh while developing. Set before the app is
+    # imported, because settings are read once and cached.
+    os.environ.setdefault("BEACON_ROLLUP_INTERVAL_SECONDS", "30")
+
     import uvicorn
 
     from app.db import init_db

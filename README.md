@@ -58,10 +58,14 @@ Then open http://localhost:8100 for the dashboard, or
 http://localhost:8100/static/demo.html for an instrumented sample page.
 Interactive API docs are at http://localhost:8100/docs.
 
-To fill the dashboard with plausible traffic:
+To fill the dashboard with plausible traffic and build the aggregates:
 
 ```bash
-.venv/Scripts/python.exe seed.py --days 30 --site demo.example
+.venv/Scripts/python.exe seed.py --days 365 --site demo.example --reset
+```
+
+```bash
+.venv/Scripts/python.exe manage.py rollup --days 370
 ```
 
 Tests:
@@ -97,6 +101,61 @@ Notes on a few decisions:
 - **Country lookup degrades rather than fails.** With no GeoIP database
   configured, country becomes "unknown" and ingestion continues.
 
+## Rollups, and why unique visitors are the hard part
+
+The dashboard issues six queries per page, and four of them are
+`COUNT(DISTINCT visitor_id)` over the whole window. Against a year of events
+that is a two-second page load, so the numbers are precomputed.
+
+The catch is that **unique visitors do not add up.** One person browsing at
+09:00 and again at 14:00 is one visitor that day but appears in two hourly
+buckets, so summing hourly uniques overcounts. This is the problem that pushes
+real analytics systems towards HyperLogLog sketches.
+
+Beacon does not need them, because of a property that falls out of the privacy
+design: **the visitor salt rotates at midnight**, so the same person browsing
+on Monday and Tuesday has two unrelated IDs by construction. Cross-day
+uniqueness is not merely unavailable, it is meaningless. The day is therefore
+the atomic unit of visitor identity, and daily figures *are* summable into
+weeks and months exactly because of it.
+
+So the aggregates are built on the daily grain:
+
+- `daily_stats` — per site, per day, per dimension value. Serves the summary,
+  every breakdown, and the daily and monthly charts.
+- `hourly_stats` — totals only, per site per hour, for the single-day view.
+  Never folded upwards; that is the overcount above.
+
+The job **rebuilds** days rather than incrementing counters. Rebuilding is
+idempotent, so running it twice or resuming after a crash converges on the
+same numbers, whereas a counter that double-counts once stays wrong forever
+with nothing in the raw events to reveal it. It reaches back two days, because
+an event can arrive after midnight for the day that just ended.
+
+The live counter still reads raw events. It needs the last five minutes, which
+no rollup grain can answer, and the `(site_id, timestamp)` index makes it cheap
+regardless of table size.
+
+### Does it work?
+
+`app.services.stats` reads raw events and defines what a correct answer is.
+`app.services.reports` reads the aggregates and is what the dashboard calls.
+[`tests/test_reports.py`](tests/test_reports.py) asserts the two agree across
+every period and every dimension, so the optimisation cannot quietly start
+lying.
+
+### Is it faster?
+
+`python bench.py --site demo.example --period 12mo`, against 229,720 events on
+SQLite:
+
+| Period | Raw events | Rollups | |
+| --- | --- | --- | --- |
+| 30 days | 129.5 ms | 5.0 ms | **26x** |
+| 12 months | 2027.1 ms | 9.6 ms | **211x** |
+
+A two-second dashboard render becomes ten milliseconds.
+
 ## Configuration
 
 Every setting is an environment variable prefixed `BEACON_`:
@@ -108,6 +167,7 @@ Every setting is an environment variable prefixed `BEACON_`:
 | `BEACON_TRUST_PROXY_HEADERS` | `false` | Enable only behind a proxy that overwrites `X-Forwarded-For` |
 | `BEACON_SESSION_SECRET` | insecure default | Signs session cookies. Anyone holding it can forge a login |
 | `BEACON_SESSION_HTTPS_ONLY` | `false` | Restrict the session cookie to HTTPS. Enable in production |
+| `BEACON_ROLLUP_INTERVAL_SECONDS` | `0` | Seconds between in-process rollup refreshes. `0` disables it |
 | `BEACON_DEBUG` | `false` | Verbose errors |
 
 ## Accounts and tenancy
@@ -179,6 +239,5 @@ so a dialect typo cannot reach production unnoticed.
 
 ## Status
 
-Ingestion, enrichment, the stats API, the dashboard and multi-tenant
-accounts are complete and tested (152 tests, 100% coverage of `app/`). Still
-to come: the rollup pipeline, and deployment.
+Everything through the rollup pipeline is complete and tested (196 tests,
+100% coverage of `app/`). Still to come: CI, Docker, Postgres and deployment.

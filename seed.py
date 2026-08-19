@@ -19,8 +19,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from sqlalchemy import delete, insert  # noqa: E402
+
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.models import Event  # noqa: E402
+from app.models import DailyStat, Event, HourlyStat  # noqa: E402
 
 PAGES = [
     ("/", 34),
@@ -55,6 +57,7 @@ MOBILE = [("Mobile Safari", "iOS"), ("Chrome Mobile", "Android")]
 
 # Daytime-weighted hours, so the "today" view has a believable shape.
 HOUR_WEIGHTS = [1, 1, 1, 1, 1, 2, 4, 7, 11, 14, 16, 16, 15, 15, 16, 17, 16, 14, 12, 10, 8, 6, 4, 2]
+BATCH_SIZE = 5_000
 
 
 def _pick(weighted):
@@ -68,15 +71,21 @@ def _visitors_for(day: dt.date, baseline: int) -> int:
     return max(1, int(random.gauss(baseline * weekday_factor, baseline * 0.18)))
 
 
-def generate(site_id: str, days: int, baseline: int, seed: int) -> int:
+def generate(site_id: str, days: int, baseline: int, seed: int, reset: bool) -> int:
     random.seed(seed)
     init_db()
+
+    if reset:
+        with SessionLocal() as session:
+            for table in (Event, DailyStat, HourlyStat):
+                session.execute(delete(table))
+            session.commit()
 
     now = dt.datetime.now(dt.UTC)
     start = (now - dt.timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
     spike_day = random.randrange(4, max(5, days - 3))
 
-    events: list[Event] = []
+    rows: list[dict] = []
     for offset in range(days):
         midnight = start + dt.timedelta(days=offset)
         count = _visitors_for(midnight.date(), baseline)
@@ -98,29 +107,32 @@ def generate(site_id: str, days: int, baseline: int, seed: int) -> int:
 
             # Most people read one page; a few browse several.
             for depth in range(random.choices([1, 2, 3, 4], weights=[58, 24, 12, 6], k=1)[0]):
-                events.append(
-                    Event(
-                        site_id=site_id,
-                        visitor_id=visitor,
-                        timestamp=arrived + dt.timedelta(minutes=depth * random.randrange(1, 4)),
-                        name="pageview",
-                        pathname=_pick(PAGES),
+                rows.append(
+                    {
+                        "site_id": site_id,
+                        "visitor_id": visitor,
+                        "timestamp": arrived + dt.timedelta(minutes=depth * random.randrange(1, 4)),
+                        "name": "pageview",
+                        "pathname": _pick(PAGES),
                         # Only the entry page carries the referring source.
-                        source=source if depth == 0 else "Direct",
-                        referrer_host=None,
-                        browser=browser,
-                        os=operating_system,
-                        device=device,
-                        country=_pick(COUNTRIES),
-                        screen_width=random.choice([390, 414, 768, 1280, 1440, 1920]),
-                    )
+                        "source": source if depth == 0 else "Direct",
+                        "referrer_host": None,
+                        "browser": browser,
+                        "os": operating_system,
+                        "device": device,
+                        "country": _pick(COUNTRIES),
+                        "screen_width": random.choice([390, 414, 768, 1280, 1440, 1920]),
+                    }
                 )
 
+    # Core insert rather than ORM objects: at a few hundred thousand rows the
+    # identity map and unit of work cost more than the database write does.
     with SessionLocal() as session:
-        session.add_all(events)
+        for start in range(0, len(rows), BATCH_SIZE):
+            session.execute(insert(Event), rows[start : start + BATCH_SIZE])
         session.commit()
 
-    return len(events)
+    return len(rows)
 
 
 def main() -> int:
@@ -129,9 +141,10 @@ def main() -> int:
     parser.add_argument("--days", type=int, default=30)
     parser.add_argument("--baseline", type=int, default=90, help="typical visitors per weekday")
     parser.add_argument("--seed", type=int, default=7, help="fixed for reproducible demo data")
+    parser.add_argument("--reset", action="store_true", help="clear existing events first")
     args = parser.parse_args()
 
-    written = generate(args.site, args.days, args.baseline, args.seed)
+    written = generate(args.site, args.days, args.baseline, args.seed, args.reset)
     print(f"seeded {written:,} events for {args.site} across {args.days} days")
     return 0
 
