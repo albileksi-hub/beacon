@@ -46,4 +46,31 @@
   }
 
   send("pageview");
+
+  // Single-page apps change the URL without reloading the document. Without
+  // this, such a site records exactly one pageview per visit however much of it
+  // somebody reads.
+  var lastPath = location.pathname;
+
+  function onNavigation() {
+    // Ignore hash and query-only changes: those are the same page.
+    if (location.pathname === lastPath) return;
+    lastPath = location.pathname;
+    send("pageview");
+  }
+
+  function watchHistory(method) {
+    var original = history[method];
+    if (typeof original !== "function") return;
+
+    history[method] = function () {
+      var result = original.apply(this, arguments);
+      onNavigation();
+      return result;
+    };
+  }
+
+  watchHistory("pushState");
+  watchHistory("replaceState");
+  window.addEventListener("popstate", onNavigation);
 })();

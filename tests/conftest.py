@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
 from app.main import create_app
-from app.services import accounts, rollups
+from app.services import accounts, rollups, visitors
 
 CHROME_MAC = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -126,3 +126,11 @@ def rebuild_rollups(db_session):
         rollups.refresh(db_session, days_back=days_back)
 
     return rebuild
+
+
+@pytest.fixture(autouse=True)
+def clear_salt_cache():
+    """The salt cache is process-wide; a leak between tests would be invisible."""
+    visitors.forget_cached_salts()
+    yield
+    visitors.forget_cached_salts()

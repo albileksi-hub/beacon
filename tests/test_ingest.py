@@ -20,7 +20,7 @@ def test_health_reports_ok(client):
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ok", "database": "ok"}
 
 
 def test_records_an_enriched_pageview(client, db_session, site):
@@ -37,7 +37,7 @@ def test_records_an_enriched_pageview(client, db_session, site):
     assert event.browser == "Chrome"
     assert event.os == "Mac OS X"
     assert event.device == "desktop"
-    assert event.screen_width == 1280
+    assert event.screen == "Laptop"
     assert len(event.visitor_id) == 32
 
 
@@ -133,3 +133,18 @@ def test_the_domain_is_normalised_before_storage(client, db_session, site):
     client.post("/api/event", json=_payload(site_id="https://www.blue-mug.example"))
 
     assert db_session.scalars(select(Event)).one().site_id == "blue-mug.example"
+
+
+def test_the_exact_viewport_width_is_bucketed_not_stored(client, db_session, site):
+    """A precise width is strong fingerprinting material; the bucket is not."""
+    client.post("/api/event", json=_payload(screen_width=1437))
+
+    event = db_session.scalars(select(Event)).one()
+    assert event.screen == "Laptop"
+    assert "1437" not in str(event.__dict__)
+
+
+def test_a_missing_width_still_records_the_event(client, db_session, site):
+    client.post("/api/event", json=_payload(screen_width=None))
+
+    assert db_session.scalars(select(Event)).one().screen == "Unknown"

@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app import background
 from app.config import Settings
-from app.models import DailyStat, Event
+from app.models import DailySalt, DailyStat, Event, LoginAttempt
 
 
 def _settings(monkeypatch, interval: int) -> None:
@@ -27,7 +27,7 @@ def test_no_loop_runs_when_the_interval_is_zero(monkeypatch):
 
     asyncio.run(exercise())
 
-    assert app.state.rollup_task is None
+    assert app.state.maintenance_task is None
 
 
 def test_the_loop_starts_and_is_cancelled_on_shutdown(monkeypatch):
@@ -36,11 +36,11 @@ def test_the_loop_starts_and_is_cancelled_on_shutdown(monkeypatch):
 
     async def exercise():
         async with background.lifespan(app):
-            assert not app.state.rollup_task.done()
+            assert not app.state.maintenance_task.done()
 
     asyncio.run(exercise())
 
-    assert app.state.rollup_task.cancelled()
+    assert app.state.maintenance_task.cancelled()
 
 
 def test_the_loop_keeps_going_after_a_failed_refresh(monkeypatch):
@@ -53,14 +53,17 @@ def test_the_loop_keeps_going_after_a_failed_refresh(monkeypatch):
             raise RuntimeError("database went away")
         return 0
 
-    monkeypatch.setattr(background, "refresh_rollups_once", sometimes_broken)
+    monkeypatch.setattr(background, "run_maintenance", sometimes_broken)
 
     async def exercise():
-        task = asyncio.create_task(background._rollup_loop(0.001))
+        task = asyncio.create_task(background._maintenance_loop(0.001))
         # Wait for the condition rather than for a duration, so the test does
         # not depend on how fast the machine running it happens to be.
+        # Waits for a third attempt, not a second: the third only begins once
+        # the second iteration has finished, which is what proves the loop
+        # carried on rather than merely started again.
         deadline = time.monotonic() + 5
-        while len(attempts) < 2 and time.monotonic() < deadline:
+        while len(attempts) < 3 and time.monotonic() < deadline:
             await asyncio.sleep(0.01)
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -68,10 +71,10 @@ def test_the_loop_keeps_going_after_a_failed_refresh(monkeypatch):
 
     asyncio.run(exercise())
 
-    assert len(attempts) >= 2, "the loop stopped after the first failure"
+    assert len(attempts) >= 3, "the loop stopped after the first failure"
 
 
-def test_a_refresh_rebuilds_the_aggregates(db_session, monkeypatch):
+def test_a_maintenance_run_rebuilds_the_aggregates(db_session, monkeypatch):
     db_session.add(
         Event(
             site_id="blue-mug.example",
@@ -84,7 +87,7 @@ def test_a_refresh_rebuilds_the_aggregates(db_session, monkeypatch):
             os="Windows",
             device="desktop",
             country="DE",
-            screen_width=1920,
+            screen="Desktop",
         )
     )
     db_session.commit()
@@ -94,5 +97,31 @@ def test_a_refresh_rebuilds_the_aggregates(db_session, monkeypatch):
         background, "SessionLocal", lambda: contextlib.nullcontext(db_session)
     )
 
-    assert background.refresh_rollups_once() > 0
+    assert background.run_maintenance() > 0
     assert db_session.scalars(select(DailyStat)).all() != []
+
+
+def test_maintenance_expires_old_data_on_a_quiet_instance(db_session, monkeypatch):
+    """The purges cannot depend on traffic.
+
+    A site with no visitors for a week creates no salt for a week, so a purge
+    that only runs when a salt is created would leave the old ones re-derivable
+    the whole time -- exactly what the rotation exists to prevent.
+    """
+    stale_day = dt.datetime.now(dt.UTC).date() - dt.timedelta(days=30)
+    db_session.add(DailySalt(day=stale_day, value=b"x" * 32))
+    db_session.add(
+        LoginAttempt(
+            fingerprint="a" * 32,
+            attempted_at=dt.datetime.now(dt.UTC) - dt.timedelta(days=30),
+        )
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        background, "SessionLocal", lambda: contextlib.nullcontext(db_session)
+    )
+    background.run_maintenance()
+
+    assert db_session.scalars(select(DailySalt)).all() == []
+    assert db_session.scalars(select(LoginAttempt)).all() == []

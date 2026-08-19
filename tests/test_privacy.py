@@ -37,7 +37,7 @@ def test_no_identifying_request_data_is_ever_persisted(client, db_session, site)
             "site_id": "blue-mug.example",
             "url": SENSITIVE_URL,
             "referrer": "https://mail.example/inbox?user=someone@example.com",
-            "screen_width": 1280,
+            "screen_width": 1437,
         },
         headers={"user-agent": CHROME_MAC, "x-forwarded-for": CLIENT_ADDRESS},
     )
@@ -52,6 +52,7 @@ def test_no_identifying_request_data_is_ever_persisted(client, db_session, site)
     assert CLIENT_ADDRESS not in stored, "an IP address reached the database"
     assert CHROME_MAC not in stored, "a raw User-Agent reached the database"
     assert "checkout?" not in stored, "a query string reached the database"
+    assert "1437" not in stored, "an exact viewport width reached the database"
 
 
 def test_no_address_derived_table_can_hold_an_address_or_user_agent():

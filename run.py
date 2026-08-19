@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     import uvicorn
 
-    from app.db import init_db
+    from app.db import upgrade_database
 
-    init_db()
+    upgrade_database()
     uvicorn.run("app.main:app", host="127.0.0.1", port=8100)

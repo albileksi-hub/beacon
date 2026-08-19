@@ -40,9 +40,22 @@ filter later:
 | `https://mail.example/inbox?user=a@b.com` | `mail.example` |
 | Full `User-Agent` string | `Chrome` / `macOS` / `desktop` |
 | IP address | two-letter country code, then discarded |
+| Viewport width of `1437` | `Laptop` |
 
-The schema has no column capable of holding an address, a raw User-Agent, or a
-cookie ID. [`tests/test_privacy.py`](tests/test_privacy.py) asserts both facts
+That last row matters more than it looks. An exact viewport width is one of
+the higher-entropy signals in a browser fingerprint — "1437 pixels wide"
+narrows a person down a long way, and combined with the other columns it would
+undo much of the point of this project. The bucket answers the question a site
+owner actually has ("do I need to care about phones?") and carries almost none
+of the entropy.
+
+Retention is enforced on a timer rather than as a side effect of traffic. A
+site with no visitors for a week creates no salt for a week, so a purge that
+only ran when a salt was created would leave the old ones re-derivable the
+whole time — which is precisely what the rotation exists to prevent.
+
+The schema has no column capable of holding an address, a raw User-Agent, an
+exact viewport width, or a cookie ID. [`tests/test_privacy.py`](tests/test_privacy.py) asserts both facts
 against a live request, so the claims above fail the build if they stop being
 true.
 
@@ -58,7 +71,9 @@ Then open http://localhost:8100 for the dashboard, or
 http://localhost:8100/static/demo.html for an instrumented sample page.
 Interactive API docs are at http://localhost:8100/docs.
 
-To fill the dashboard with plausible traffic and build the aggregates:
+To go from an empty clone to a populated dashboard — this runs the
+migrations, creates a demo account, registers the site, and generates a year of
+plausible traffic:
 
 ```bash
 .venv/Scripts/python.exe seed.py --days 365 --site demo.example --reset
@@ -67,6 +82,11 @@ To fill the dashboard with plausible traffic and build the aggregates:
 ```bash
 .venv/Scripts/python.exe manage.py rollup --days 370
 ```
+
+It prints the demo credentials it creates. The schema is only ever built by
+Alembic, in every environment: creating tables straight from the models in
+development and migrating in production means a model change with no migration
+works locally and fails on deploy.
 
 Tests:
 
@@ -93,6 +113,14 @@ Notes on a few decisions:
 - **The tracking script uses `navigator.sendBeacon`**, which survives page
   unload, falling back to `fetch(keepalive)`. It honours Do Not Track and fails
   silently — analytics should never break someone's site.
+- **It follows single-page navigation** by wrapping `pushState`/`replaceState`
+  and listening for `popstate`. Without that, an SPA records exactly one
+  pageview per visit however much of it somebody reads. Hash-only changes are
+  ignored, because that is the same page.
+- **`/health` makes a database round-trip** and answers `503` when it fails. A
+  check that only proves the process is running will report a container as
+  healthy while its database is unreachable, which is the one situation the
+  check exists to catch.
 - **Bot traffic gets the same `202` a real browser gets** and is dropped
   server-side, so a crawler learns nothing about being filtered.
 - **`X-Forwarded-For` is trusted only when explicitly configured.** Any client
@@ -312,7 +340,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 246 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 272 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:

@@ -17,7 +17,7 @@ def add_event(db, **overrides):
         "os": "Linux",
         "device": "desktop",
         "country": "DE",
-        "screen_width": 1920,
+        "screen": "Desktop",
     }
     db.add(Event(**(defaults | overrides)))
     db.commit()

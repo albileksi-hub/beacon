@@ -1,14 +1,17 @@
 import logging
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, status
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.background import lifespan
 from app.config import Settings, get_settings
+from app.dependencies import DbSession
 from app.routers import auth, dashboard, ingest, sites, stats
 from app.templating import STATIC_DIR, templates
 
@@ -87,8 +90,21 @@ def create_app() -> FastAPI:
         return await http_exception_handler(request, exc)
 
     @app.get("/health", tags=["ops"])
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    def health(db: DbSession, response: Response) -> dict[str, str]:
+        """Liveness plus a database round-trip.
+
+        A health check that only proves the process is running will report a
+        container as healthy while its database is unreachable, which is the
+        one situation the check exists to catch.
+        """
+        try:
+            db.execute(text("SELECT 1"))
+        except SQLAlchemyError:
+            logger.exception("health check could not reach the database")
+            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            return {"status": "degraded", "database": "unreachable"}
+
+        return {"status": "ok", "database": "ok"}
 
     return app
 

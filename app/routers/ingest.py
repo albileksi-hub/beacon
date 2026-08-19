@@ -7,6 +7,7 @@ from app.services import accounts
 from app.services.client import client_ip
 from app.services.geo import get_country_resolver
 from app.services.referrers import classify
+from app.services.screens import bucket as screen_bucket
 from app.services.urls import pathname_of
 from app.services.user_agent import profile
 from app.services.visitors import current_salt, visitor_id
@@ -57,10 +58,11 @@ def collect_event(payload: EventIn, request: Request, db: DbSession) -> dict[str
         os=client.os,
         device=client.device,
         country=get_country_resolver().country_code(address),
-        screen_width=payload.screen_width,
+        screen=screen_bucket(payload.screen_width),
     )
     db.add(event)
     db.commit()
 
-    # `address` and `user_agent` go out of scope here and were never persisted.
+    # `address`, `user_agent` and the exact viewport width all go out of scope
+    # here, and none of them were persisted.
     return ACCEPTED

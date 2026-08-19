@@ -341,7 +341,8 @@ h2 {
 .tabs > .tab-input:nth-of-type(3):checked ~ .tab-bar > .tab:nth-child(3),
 .tabs > .tab-input:nth-of-type(4):checked ~ .tab-bar > .tab:nth-child(4),
 .tabs > .tab-input:nth-of-type(5):checked ~ .tab-bar > .tab:nth-child(5),
-.tabs > .tab-input:nth-of-type(6):checked ~ .tab-bar > .tab:nth-child(6) {
+.tabs > .tab-input:nth-of-type(6):checked ~ .tab-bar > .tab:nth-child(6),
+.tabs > .tab-input:nth-of-type(7):checked ~ .tab-bar > .tab:nth-child(7) {
   color: var(--accent);
   background: var(--accent-soft);
   font-weight: 550;
@@ -352,7 +353,8 @@ h2 {
 .tabs > .tab-input:nth-of-type(3):checked ~ .tab-panel:nth-of-type(3),
 .tabs > .tab-input:nth-of-type(4):checked ~ .tab-panel:nth-of-type(4),
 .tabs > .tab-input:nth-of-type(5):checked ~ .tab-panel:nth-of-type(5),
-.tabs > .tab-input:nth-of-type(6):checked ~ .tab-panel:nth-of-type(6) {
+.tabs > .tab-input:nth-of-type(6):checked ~ .tab-panel:nth-of-type(6),
+.tabs > .tab-input:nth-of-type(7):checked ~ .tab-panel:nth-of-type(7) {
   display: block;
 }
 

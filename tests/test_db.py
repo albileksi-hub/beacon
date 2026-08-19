@@ -1,9 +1,7 @@
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
 
-import app.db
-from app.db import get_db, init_db
+from app.db import Base, get_db, upgrade_database
 
 
 def test_get_db_yields_a_session_and_closes_it():
@@ -18,20 +16,19 @@ def test_get_db_yields_a_session_and_closes_it():
     assert not session.in_transaction()
 
 
-def test_init_db_creates_every_table(monkeypatch):
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+def test_upgrade_runs_migrations_rather_than_creating_tables(monkeypatch):
+    """One way to build a schema, so dev and production cannot drift apart."""
+    upgraded_to = []
+    monkeypatch.setattr(
+        "alembic.command.upgrade", lambda config, revision: upgraded_to.append(revision)
     )
-    monkeypatch.setattr(app.db, "engine", engine)
 
-    init_db()
+    upgrade_database()
 
-    assert set(inspect(engine).get_table_names()) == {
-        "events",
-        "daily_salts",
-        "users",
-        "sites",
-        "daily_stats",
-        "hourly_stats",
-        "login_attempts",
-    }
+    assert upgraded_to == ["head"]
+
+
+def test_every_model_has_a_table(db_session):
+    tables = set(inspect(db_session.get_bind()).get_table_names())
+
+    assert tables == set(Base.metadata.tables)

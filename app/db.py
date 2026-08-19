@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import create_engine
@@ -29,11 +30,17 @@ def get_db() -> Iterator[Session]:
         db.close()
 
 
-def init_db() -> None:
-    """Create tables directly from the models.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-    Fine for local development; production schema changes go through Alembic.
+
+def upgrade_database() -> None:
+    """Bring the schema up to date.
+
+    The only way the schema is ever built outside the test suite. Creating
+    tables straight from the models in development and migrating in production
+    means a model change with no migration works locally and fails on deploy.
     """
-    from app import models  # noqa: F401  (import registers the tables on Base)
+    from alembic import command
+    from alembic.config import Config
 
-    Base.metadata.create_all(bind=engine)
+    command.upgrade(Config(str(PROJECT_ROOT / "alembic.ini")), "head")

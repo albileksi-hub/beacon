@@ -62,7 +62,7 @@ def traffic(db_session):
                         os=random.choice(SYSTEMS),
                         device=random.choice(DEVICES),
                         country=random.choice(COUNTRIES),
-                        screen_width=1280,
+                        screen="Laptop",
                     )
                 )
 

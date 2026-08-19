@@ -2,7 +2,7 @@
 
 import argparse
 
-from app.db import SessionLocal, init_db
+from app.db import SessionLocal, upgrade_database
 from app.services import rollups
 
 
@@ -10,7 +10,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
 
-    commands.add_parser("initdb", help="create tables from the models")
+    commands.add_parser("migrate", help="bring the schema up to date")
 
     rollup = commands.add_parser("rollup", help="rebuild the pre-aggregated tables")
     rollup.add_argument(
@@ -22,9 +22,9 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    if args.command == "initdb":
-        init_db()
-        print("database initialised")
+    if args.command == "migrate":
+        upgrade_database()
+        print("schema up to date")
         return 0
 
     with SessionLocal() as session:

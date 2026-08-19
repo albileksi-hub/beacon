@@ -18,6 +18,7 @@ PANELS = (
     ("device", "Devices", BreakdownProperty.DEVICE),
     ("browser", "Browsers", BreakdownProperty.BROWSER),
     ("os", "Systems", BreakdownProperty.OS),
+    ("screen", "Screens", BreakdownProperty.SCREEN),
 )
 
 PERIOD_LABELS = {

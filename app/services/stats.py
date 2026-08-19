@@ -23,6 +23,7 @@ class BreakdownProperty(StrEnum):
     DEVICE = "device"
     BROWSER = "browser"
     OS = "os"
+    SCREEN = "screen"
 
 
 # A whitelist, so a request parameter never reaches a column name directly.
@@ -35,6 +36,7 @@ BREAKDOWN_COLUMNS = {
     BreakdownProperty.DEVICE: Event.device,
     BreakdownProperty.BROWSER: Event.browser,
     BreakdownProperty.OS: Event.os,
+    BreakdownProperty.SCREEN: Event.screen,
 }
 
 # SQLite and Postgres disagree completely about date truncation. This module is

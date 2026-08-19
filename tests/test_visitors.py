@@ -1,11 +1,12 @@
 import datetime as dt
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.models import DailySalt
 from app.services.visitors import (
     SALT_BYTES,
     current_salt,
+    forget_cached_salts,
     purge_expired_salts,
     visitor_id,
 )
@@ -95,9 +96,29 @@ def test_visitor_ids_cannot_be_re_derived_once_the_salt_expires(db_session):
 def test_losing_the_creation_race_falls_back_to_the_winning_salt(db_session, monkeypatch):
     """Two workers can reach for today's salt at once; only one row may win."""
     winner = current_salt(db_session, today=TUESDAY)
+    forget_cached_salts()
 
     # Simulate our read happening before the other worker's insert landed.
     monkeypatch.setattr(type(db_session), "scalar", lambda self, *args, **kwargs: None)
 
     assert current_salt(db_session, today=TUESDAY) == winner
     assert len(db_session.scalars(select(DailySalt)).all()) == 1
+
+
+def test_todays_salt_is_only_fetched_once(db_session):
+    """It cannot change within the day, and ingest reads it on every event."""
+    first = current_salt(db_session, today=TUESDAY)
+
+    # Remove it from the database entirely; the cached value must still win.
+    db_session.execute(delete(DailySalt))
+    db_session.commit()
+
+    assert current_salt(db_session, today=TUESDAY) == first
+
+
+def test_the_cache_does_not_carry_a_salt_across_midnight(db_session):
+    monday = current_salt(db_session, today=MONDAY)
+    tuesday = current_salt(db_session, today=TUESDAY)
+
+    assert monday != tuesday
+    assert current_salt(db_session, today=MONDAY) == monday

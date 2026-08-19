@@ -24,7 +24,7 @@ class Event(Base):
 
     Every column is either non-identifying on its own or already reduced to a
     coarse bucket. There is no IP address, no cookie ID, no raw User-Agent, no
-    query string, and no full referring URL.
+    query string, no full referring URL, and no exact viewport width.
     """
 
     __tablename__ = "events"
@@ -52,7 +52,8 @@ class Event(Base):
     os: Mapped[str] = mapped_column(String(64), default="Unknown")
     device: Mapped[str] = mapped_column(String(16), default="unknown")
     country: Mapped[str | None] = mapped_column(String(2))
-    screen_width: Mapped[int | None] = mapped_column(Integer)
+    # A bucket, never the exact pixel width; see app.services.screens.
+    screen: Mapped[str] = mapped_column(String(16), default="Unknown")
 
     __table_args__ = (
         # Every dashboard query filters by site and slices by time.

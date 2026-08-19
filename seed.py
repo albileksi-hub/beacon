@@ -19,10 +19,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from sqlalchemy import delete, insert  # noqa: E402
+from sqlalchemy import delete, insert, select  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.models import DailyStat, Event, HourlyStat  # noqa: E402
+from app.db import SessionLocal, upgrade_database  # noqa: E402
+from app.models import DailyStat, Event, HourlyStat, Site, User  # noqa: E402
+from app.services import accounts, screens  # noqa: E402
 
 PAGES = [
     ("/", 34),
@@ -59,6 +61,27 @@ MOBILE = [("Mobile Safari", "iOS"), ("Chrome Mobile", "Android")]
 HOUR_WEIGHTS = [1, 1, 1, 1, 1, 2, 4, 7, 11, 14, 16, 16, 15, 15, 16, 17, 16, 14, 12, 10, 8, 6, 4, 2]
 BATCH_SIZE = 5_000
 
+DEMO_EMAIL = "demo@beacon.local"
+DEMO_PASSWORD = "local-demo-password"
+
+
+def _ensure_site(session: Session, domain: str) -> None:
+    """Give the seeded traffic an owner.
+
+    Without this the events belong to a domain no account can see, so the
+    dashboard shows nothing and a fresh clone looks broken.
+    """
+    if session.scalar(select(Site).where(Site.domain == domain)) is not None:
+        return
+
+    owner = session.scalar(select(User))
+    if owner is None:
+        owner = accounts.register(session, email=DEMO_EMAIL, password=DEMO_PASSWORD)
+        print(f"created demo account {DEMO_EMAIL} / {DEMO_PASSWORD}")
+
+    accounts.add_site(session, owner=owner, domain=domain)
+    print(f"registered {domain} to {owner.email}")
+
 
 def _pick(weighted):
     values, weights = zip(*weighted, strict=True)
@@ -73,7 +96,10 @@ def _visitors_for(day: dt.date, baseline: int) -> int:
 
 def generate(site_id: str, days: int, baseline: int, seed: int, reset: bool) -> int:
     random.seed(seed)
-    init_db()
+    upgrade_database()
+
+    with SessionLocal() as session:
+        _ensure_site(session, site_id)
 
     if reset:
         with SessionLocal() as session:
@@ -121,7 +147,9 @@ def generate(site_id: str, days: int, baseline: int, seed: int, reset: bool) -> 
                         "os": operating_system,
                         "device": device,
                         "country": _pick(COUNTRIES),
-                        "screen_width": random.choice([390, 414, 768, 1280, 1440, 1920]),
+                        "screen": screens.bucket(
+                            random.choice([390, 414, 768, 1280, 1440, 1920])
+                        ),
                     }
                 )
 
