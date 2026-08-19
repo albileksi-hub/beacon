@@ -237,7 +237,62 @@ isolated to a single function, and because Postgres never runs in the test
 suite, a test compiles the Postgres expression and asserts on the generated SQL
 so a dialect typo cannot reach production unnoticed.
 
+## Running it in production
+
+The image runs migrations on start, so a deploy that changes the schema needs
+no separate step:
+
+```bash
+docker compose up --build
+```
+
+That brings up Postgres and the app together on http://localhost:8000. For a
+real deployment, set these and nothing else is required:
+
+| Variable | Why |
+| --- | --- |
+| `BEACON_DATABASE_URL` | `postgresql+psycopg://...` |
+| `BEACON_SESSION_SECRET` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `BEACON_SESSION_HTTPS_ONLY` | `true`, once TLS is in front of the app |
+| `BEACON_TRUST_PROXY_HEADERS` | `true`, but only behind a proxy that overwrites `X-Forwarded-For` |
+| `BEACON_ROLLUP_INTERVAL_SECONDS` | `60`, to keep the aggregates fresh |
+
+The container runs as a non-root user and ships a health check. `PORT` is
+honoured if the host injects one.
+
+Migrations are Alembic, and one set runs on both databases: SQLite cannot
+`ALTER` most things, so batch mode rebuilds the table instead.
+
+## What CI checks
+
+Four jobs, on every push and pull request:
+
+- **Lint and test (SQLite)** — `ruff`, then the suite with coverage gated at
+  100%. The gate is deliberate: it fails a change that adds untested code
+  rather than reporting a slightly lower number nobody looks at.
+- **Test (Postgres)** — the entire suite again against real Postgres. Date
+  truncation is the one place the dialect leaks through, and unit tests that
+  compile SQL are not the same as running it.
+- **Migrations match the models** — `alembic upgrade head`, then
+  `alembic check`, which fails if a model was changed without a migration, and
+  finally `alembic downgrade base` to prove the migration reverses.
+- **Docker image builds** — builds the image, starts it, and waits for
+  `/health` to answer. A Dockerfile that only builds is not evidence of much.
+
 ## Status
 
-Everything through the rollup pipeline is complete and tested (196 tests,
-100% coverage of `app/`). Still to come: CI, Docker, Postgres and deployment.
+Feature-complete and tested: 196 tests, 100% coverage of `app/`, running on
+both SQLite and Postgres in CI.
+
+Ideas worth doing next, roughly in order of how much they would add:
+
+- **Custom events** beyond pageviews, so a site owner can count sign-ups and
+  purchases rather than only reads. The schema already carries a `name` column
+  for it.
+- **Public dashboards** — a per-site toggle making the numbers readable without
+  an account, which is how Plausible does its own transparency page.
+- **Retention** — dropping raw events past a certain age, since the rollups
+  already hold everything the dashboard needs.
+- **HyperLogLog sketches**, if cross-day unique visitors were ever wanted. They
+  would need the salt rotation to go, which is the entire privacy argument, so
+  this is a genuine product decision rather than an engineering one.

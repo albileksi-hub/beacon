@@ -1,0 +1,33 @@
+# A production-shaped stack for local use: Postgres instead of SQLite, the app
+# behind the same image that gets deployed.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: beacon
+      POSTGRES_PASSWORD: beacon
+      POSTGRES_DB: beacon
+    volumes:
+      - beacon-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beacon"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      BEACON_DATABASE_URL: postgresql+psycopg://beacon:beacon@db:5432/beacon
+      BEACON_SESSION_SECRET: ${BEACON_SESSION_SECRET:-change-me-before-deploying}
+      BEACON_ROLLUP_INTERVAL_SECONDS: 60
+      # Enable once there is TLS in front of the app.
+      BEACON_SESSION_HTTPS_ONLY: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  beacon-db:

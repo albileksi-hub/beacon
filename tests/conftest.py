@@ -1,6 +1,8 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -22,20 +24,58 @@ OWNER_PASSWORD = "a-perfectly-fine-password"
 SITE_DOMAIN = "blue-mug.example"
 
 
-@pytest.fixture
-def db_session():
-    """An isolated in-memory database per test.
+# CI runs the whole suite a second time against Postgres. Nothing else in the
+# project ever sees two dialects, and the reporting SQL differs between them.
+POSTGRES_URL = os.environ.get("BEACON_TEST_DATABASE_URL")
 
-    StaticPool keeps every connection pointed at the same in-memory database,
-    which would otherwise be discarded when a connection is returned to the pool.
+
+@pytest.fixture(scope="session")
+def postgres_engine():
+    """One Postgres schema for the whole run, or None when running on SQLite."""
+    if not POSTGRES_URL:
+        yield None
+        return
+
+    engine = create_engine(POSTGRES_URL)
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    yield engine
+    Base.metadata.drop_all(engine)
+    engine.dispose()
+
+
+def _new_session(engine):
+    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)()
+
+
+@pytest.fixture
+def db_session(postgres_engine):
+    """An isolated database per test.
+
+    On SQLite that is a throwaway in-memory database; StaticPool keeps every
+    connection pointed at the same one, which would otherwise be discarded when
+    a connection returns to the pool. On Postgres, creating a schema per test
+    is far too slow, so the tables are emptied between tests instead.
     """
+    if postgres_engine is not None:
+        with postgres_engine.begin() as connection:
+            for table in reversed(Base.metadata.sorted_tables):
+                connection.execute(delete(table))
+
+        session = _new_session(postgres_engine)
+        try:
+            yield session
+        finally:
+            session.close()
+        return
+
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)()
+    session = _new_session(engine)
     try:
         yield session
     finally:
