@@ -155,3 +155,21 @@ class HourlyStat(Base):
         UniqueConstraint("site_id", "hour", name="uq_hourly_stats_grain"),
         Index("ix_hourly_stats_lookup", "site_id", "hour"),
     )
+
+
+class LoginAttempt(Base):
+    """A failed sign-in, recorded against a hash of the address.
+
+    Rate limiting normally means keeping a list of addresses. Beacon promises
+    never to store one, and that promise should not have an exception carved
+    into it for the operator's own convenience -- so the address is keyed-hashed
+    with the same rotating salt the visitor IDs use, and then discarded.
+    """
+
+    __tablename__ = "login_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(String(32))
+    attempted_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+    __table_args__ = (Index("ix_login_attempts_lookup", "fingerprint", "attempted_at"),)

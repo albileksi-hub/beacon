@@ -194,6 +194,18 @@ Some choices that are easy to get wrong:
 - **Sessions are signed cookies with `SameSite=Lax`**, which is what stands in
   for CSRF tokens on these forms, and the session is cleared before login to
   rule out fixation.
+- **Sign-in is rate limited**, five failures per address per fifteen minutes.
+  bcrypt's work factor makes guessing expensive but not impossible, and nothing
+  else stands between an attacker and as many attempts as the network allows.
+
+The rate limiter is the interesting one, because it normally works by keeping a
+list of addresses — and this project promises never to store one. That promise
+should not have an exception carved into it for the operator's own convenience,
+so attempts are recorded against a keyed hash of the address using the same
+rotating salt as the visitor IDs, with a domain-separation prefix so a login
+fingerprint can never equal a visitor ID and the two tables cannot be
+cross-referenced. `tests/test_privacy.py` checks the schema guard against this
+table too.
 
 ## The dashboard
 
@@ -284,9 +296,11 @@ Migrations are Alembic, and one set runs on both databases: SQLite cannot
 
 Four jobs, on every push and pull request:
 
-- **Lint and test (SQLite)** — `ruff`, then the suite with coverage gated at
-  100%. The gate is deliberate: it fails a change that adds untested code
-  rather than reporting a slightly lower number nobody looks at.
+- **Lint and test (SQLite)** — `ruff`, then `mypy --strict`, then the suite
+  with coverage gated at 100%. The coverage gate is deliberate: it fails a
+  change that adds untested code rather than reporting a slightly lower number
+  nobody looks at. The one dependency without type information is waived by
+  name rather than globally, so a future untyped import gets noticed.
 - **Test (Postgres)** — the entire suite again against real Postgres. Date
   truncation is the one place the dialect leaks through, and unit tests that
   compile SQL are not the same as running it.
@@ -298,8 +312,8 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 233 tests, 100% coverage of `app/`, running on
-both SQLite and Postgres in CI.
+Feature-complete and tested: 246 tests, 100% coverage of `app/`, clean under
+`mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:
 

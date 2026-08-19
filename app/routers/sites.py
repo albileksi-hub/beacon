@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request, status
+from fastapi import APIRouter, Form, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from app.dependencies import DbSession, RequiredUser
@@ -16,7 +16,7 @@ def create_site(
     db: DbSession,
     user: RequiredUser,
     domain: Annotated[str, Form()],
-):
+) -> Response:
     try:
         site = accounts.add_site(db, owner=user, domain=domain)
     except (accounts.DomainAlreadyRegistered, accounts.InvalidDomain) as error:

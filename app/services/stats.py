@@ -2,9 +2,11 @@
 
 import datetime as dt
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import Select, distinct, func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.functions import Function
 
 from app.models import Event
 from app.schemas import BreakdownRow, LiveVisitors, StatsSummary, TimeseriesPoint
@@ -49,16 +51,16 @@ _POSTGRES_BUCKETS = {
 }
 
 
-def _visitors():
+def _visitors() -> Function[int]:
     """Unique visitors. The expensive one: a distinct count over the window."""
     return func.count(distinct(Event.visitor_id))
 
 
-def _pageviews():
+def _pageviews() -> Function[int]:
     return func.count(Event.id)
 
 
-def _scoped(statement: Select, site_id: str, time_range: TimeRange) -> Select:
+def _scoped(statement: Select[Any], site_id: str, time_range: TimeRange) -> Select[Any]:
     return statement.where(
         Event.site_id == site_id,
         Event.timestamp >= time_range.start,
@@ -66,7 +68,7 @@ def _scoped(statement: Select, site_id: str, time_range: TimeRange) -> Select:
     )
 
 
-def bucket_column(db: Session, interval: Interval):
+def bucket_column(db: Session, interval: Interval) -> Function[str]:
     if db.get_bind().dialect.name == "sqlite":
         return func.strftime(_SQLITE_BUCKETS[interval], Event.timestamp)
     return func.to_char(

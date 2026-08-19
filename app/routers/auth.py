@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request, status
+from fastapi import APIRouter, Form, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.dependencies import CurrentUser, DbSession
-from app.services import accounts
+from app.services import accounts, throttle
+from app.services.client import client_ip
 from app.services.passwords import InvalidPassword
 from app.templating import templates
 
@@ -25,14 +26,16 @@ def _start_session(request: Request, user_id: int) -> None:
 
 
 @router.get("/signup", response_class=HTMLResponse)
-def signup_form(request: Request, user: CurrentUser):
+def signup_form(request: Request, user: CurrentUser) -> Response:
     if user is not None:
         return RedirectResponse("/", status_code=SEE_OTHER)
     return templates.TemplateResponse(request, "signup.html", {})
 
 
 @router.post("/signup")
-def signup(request: Request, db: DbSession, email: EmailField, password: PasswordField):
+def signup(
+    request: Request, db: DbSession, email: EmailField, password: PasswordField
+) -> Response:
     try:
         user = accounts.register(db, email=email, password=password)
     except (accounts.EmailAlreadyRegistered, InvalidPassword) as error:
@@ -48,16 +51,31 @@ def signup(request: Request, db: DbSession, email: EmailField, password: Passwor
 
 
 @router.get("/login", response_class=HTMLResponse)
-def login_form(request: Request, user: CurrentUser):
+def login_form(request: Request, user: CurrentUser) -> Response:
     if user is not None:
         return RedirectResponse("/", status_code=SEE_OTHER)
     return templates.TemplateResponse(request, "login.html", {})
 
 
 @router.post("/login")
-def login(request: Request, db: DbSession, email: EmailField, password: PasswordField):
+def login(
+    request: Request, db: DbSession, email: EmailField, password: PasswordField
+) -> Response:
+    marker = throttle.fingerprint(db, client_ip(request))
+    if throttle.is_locked(db, marker):
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {
+                "error": "Too many sign-in attempts. Try again in a few minutes.",
+                "email": email,
+            },
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     user = accounts.authenticate(db, email=email, password=password)
     if user is None:
+        throttle.record_failure(db, marker)
         # One message for both causes: naming which half was wrong would
         # confirm whether an address is registered.
         return templates.TemplateResponse(
@@ -67,11 +85,12 @@ def login(request: Request, db: DbSession, email: EmailField, password: Password
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
+    throttle.clear(db, marker)
     _start_session(request, user.id)
     return RedirectResponse("/", status_code=SEE_OTHER)
 
 
 @router.post("/logout")
-def logout(request: Request):
+def logout(request: Request) -> Response:
     request.session.clear()
     return RedirectResponse("/login", status_code=SEE_OTHER)

@@ -1,7 +1,8 @@
 from sqlalchemy import select
 
-from app.models import Site, User
+from app.models import LoginAttempt, Site, User
 from app.services import accounts
+from app.services.throttle import MAX_FAILURES
 from tests.conftest import OWNER_EMAIL, OWNER_PASSWORD
 
 
@@ -116,3 +117,44 @@ def test_adding_a_blank_domain_is_refused(signed_in):
 
     assert response.status_code == 400
     assert "Enter a domain" in response.text
+
+
+def _fail_login(client, times: int):
+    for _ in range(times):
+        response = client.post(
+            "/login",
+            data={"email": OWNER_EMAIL, "password": "wrong"},
+            follow_redirects=False,
+        )
+    return response
+
+
+def test_repeated_failures_are_locked_out(client, account):
+    """Nothing else stops somebody trying passwords as fast as the network allows."""
+    assert _fail_login(client, MAX_FAILURES).status_code == 401
+
+    blocked = client.post(
+        "/login", data={"email": OWNER_EMAIL, "password": OWNER_PASSWORD}, follow_redirects=False
+    )
+
+    assert blocked.status_code == 429
+    assert "Too many sign-in attempts" in blocked.text
+
+
+def test_the_right_password_still_works_before_the_limit(client, account):
+    _fail_login(client, MAX_FAILURES - 1)
+
+    response = client.post(
+        "/login", data={"email": OWNER_EMAIL, "password": OWNER_PASSWORD}, follow_redirects=False
+    )
+
+    assert response.status_code == 303
+
+
+def test_a_successful_sign_in_resets_the_count(client, db_session, account):
+    _fail_login(client, MAX_FAILURES - 1)
+    client.post(
+        "/login", data={"email": OWNER_EMAIL, "password": OWNER_PASSWORD}, follow_redirects=False
+    )
+
+    assert db_session.scalars(select(LoginAttempt)).all() == []

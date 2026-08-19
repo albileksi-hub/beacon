@@ -53,7 +53,7 @@ def axis_ceiling(peak: int) -> int:
     if peak <= 5:
         return peak
 
-    magnitude = 10 ** (len(str(peak)) - 1)
+    magnitude = int(10 ** (len(str(peak)) - 1))
     for step in _AXIS_STEPS:
         candidate = int(magnitude * step)
         if candidate >= peak:

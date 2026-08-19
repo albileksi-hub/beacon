@@ -18,8 +18,10 @@ Consequences accepted by this design:
 import datetime as dt
 import hashlib
 import secrets
+from typing import Any, cast
 
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -58,7 +60,10 @@ def current_salt(db: Session, *, today: dt.date | None = None) -> bytes:
 def purge_expired_salts(db: Session, *, today: dt.date | None = None) -> int:
     """Delete salts old enough that their visitor IDs can no longer be re-derived."""
     cutoff = (today or utc_today()) - dt.timedelta(days=SALT_RETENTION_DAYS)
-    deleted = db.execute(delete(DailySalt).where(DailySalt.day < cutoff)).rowcount
+    # rowcount lives on CursorResult; Session.execute is typed as returning the
+    # narrower Result.
+    result = cast(CursorResult[Any], db.execute(delete(DailySalt).where(DailySalt.day < cutoff)))
+    deleted = result.rowcount
     db.commit()
     return deleted
 

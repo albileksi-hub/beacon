@@ -5,6 +5,7 @@ browser fingerprinting, so only the broad browser/OS/device buckets survive.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 from user_agents import parse as _parse
 
@@ -42,7 +43,7 @@ _SCRIPTED_CLIENT_MARKERS = (
 )
 
 
-def _device_of(parsed) -> str:
+def _device_of(parsed: Any) -> str:
     if parsed.is_tablet:
         return "tablet"
     if parsed.is_mobile:

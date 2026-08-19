@@ -11,10 +11,14 @@ from tests.conftest import CHROME_MAC
 SENSITIVE_URL = "https://blue-mug.example/checkout?email=someone@example.com&token=s3cr3t-abc"
 CLIENT_ADDRESS = "203.0.113.77"
 
-# Tables holding data gathered from visitors. The account tables are out of
-# scope on purpose: a customer's own email address is something they typed into
-# a signup form, not something collected from someone browsing their site.
-VISITOR_DATA_TABLES = {"events", "daily_salts"}
+# Every table derived from somebody's network address. The account tables are
+# out of scope on purpose: a customer's own email is something they typed into a
+# signup form, not something collected from a person browsing their site.
+#
+# login_attempts belongs here even though it is the operator's own security
+# machinery -- rate limiting normally keeps a list of addresses, and the promise
+# not to store one should not have an exception carved into it for our benefit.
+ADDRESS_DERIVED_TABLES = {"events", "daily_salts", "login_attempts"}
 
 
 def _dump_every_row(db_session) -> str:
@@ -50,12 +54,12 @@ def test_no_identifying_request_data_is_ever_persisted(client, db_session, site)
     assert "checkout?" not in stored, "a query string reached the database"
 
 
-def test_no_visitor_table_can_hold_an_address_or_user_agent():
+def test_no_address_derived_table_can_hold_an_address_or_user_agent():
     """A schema-level guard: the columns simply do not exist."""
     columns = {
         column.name
         for table in Base.metadata.sorted_tables
-        if table.name in VISITOR_DATA_TABLES
+        if table.name in ADDRESS_DERIVED_TABLES
         for column in table.columns
     }
     forbidden = {"ip", "ip_address", "remote_addr", "user_agent", "cookie", "session_id", "email"}

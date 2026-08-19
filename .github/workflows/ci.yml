@@ -28,6 +28,9 @@ jobs:
       - name: Lint
         run: ruff check .
 
+      - name: Type-check
+        run: mypy
+
       - name: Test
         run: pytest --cov=app --cov-report=term-missing --cov-fail-under=100
 

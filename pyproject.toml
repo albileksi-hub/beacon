@@ -28,6 +28,7 @@ dev = [
     "pytest-cov>=5",
     "httpx>=0.27",
     "ruff>=0.6",
+    "mypy>=1.11",
 ]
 
 [tool.setuptools.packages.find]
@@ -45,6 +46,17 @@ extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["app"]
+
+# The only dependency that ships no type information. Scoped to that one
+# package rather than waived globally, so a future untyped import is noticed.
+[[tool.mypy.overrides]]
+module = ["user_agents.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

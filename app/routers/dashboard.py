@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.dependencies import CurrentUser, DbSession
@@ -30,7 +30,7 @@ PERIOD_LABELS = {
 
 
 @router.get("/", response_class=HTMLResponse)
-def index(request: Request, db: DbSession, user: CurrentUser):
+def index(request: Request, db: DbSession, user: CurrentUser) -> Response:
     # Signed-out visitors get an explanation of what this is, rather than being
     # dropped straight onto a login form with no context.
     if user is None:
@@ -48,7 +48,7 @@ def site_dashboard(
     db: DbSession,
     user: CurrentUser,
     period: Period = Period.LAST_30_DAYS,
-):
+) -> Response:
     # Someone asking for a particular dashboard wants that page, so send them
     # to the login form rather than to the marketing copy.
     if user is None:

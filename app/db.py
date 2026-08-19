@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from typing import Any
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -10,7 +11,7 @@ class Base(DeclarativeBase):
     pass
 
 
-def _connect_args(url: str) -> dict:
+def _connect_args(url: str) -> dict[str, Any]:
     # SQLite's default thread check trips on FastAPI's threadpool; Postgres needs nothing.
     return {"check_same_thread": False} if url.startswith("sqlite") else {}
 
