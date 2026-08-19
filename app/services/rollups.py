@@ -7,8 +7,10 @@ forever, and nothing in the raw events tells you it happened.
 """
 
 import datetime as dt
+from typing import Any, cast
 
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.models import DailyStat, Event, HourlyStat
@@ -27,6 +29,10 @@ VALUE_LIMIT = 512
 # How far back a routine refresh reaches. More than one day, because an event
 # can arrive after midnight for the day that just ended.
 RECENT_DAYS = 2
+
+# Retention shorter than this would delete raw events the refresh above still
+# needs, so a smaller setting is refused rather than honoured.
+MINIMUM_RETENTION_DAYS = 7
 
 
 def _day_bounds(day: dt.date) -> tuple[dt.datetime, dt.datetime]:
@@ -132,3 +138,39 @@ def refresh(db: Session, *, days_back: int = RECENT_DAYS, today: dt.date | None 
             rebuilt += 1
 
     return rebuilt
+
+
+def purge_expired_events(
+    db: Session, *, retention_days: int, today: dt.date | None = None
+) -> int:
+    """Delete raw events the aggregates already account for.
+
+    Raw events are needed for exactly two things: the live counter, which looks
+    at the last five minutes, and rebuilding a day's aggregates. Once a day is
+    rolled up and out of the refresh window, its raw rows are dead weight -- and
+    on a busy site they are almost all of the database.
+
+    Two guards, because this is not reversible:
+
+    * a retention shorter than MINIMUM_RETENTION_DAYS is refused, so the setting
+      cannot be turned into a way to delete data the refresh still needs;
+    * only sites that actually have aggregates are touched. A site whose rollups
+      never ran would otherwise lose its history to a job that could no longer
+      rebuild it.
+    """
+    if retention_days < MINIMUM_RETENTION_DAYS:
+        return 0
+
+    last_day = today or dt.datetime.now(dt.UTC).date()
+    cutoff, _ = _day_bounds(last_day - dt.timedelta(days=retention_days))
+
+    aggregated = select(DailyStat.site_id).distinct()
+    result = cast(
+        CursorResult[Any],
+        db.execute(
+            delete(Event).where(Event.timestamp < cutoff, Event.site_id.in_(aggregated))
+        ),
+    )
+    deleted = result.rowcount
+    db.commit()
+    return deleted

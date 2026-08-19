@@ -184,6 +184,92 @@ SQLite:
 
 A two-second dashboard render becomes ten milliseconds.
 
+## The database
+
+Everything below was measured against a seeded year of traffic for one
+mid-sized site: **4,432,316 events, 1.1 GB of SQLite**. `python analyse.py`
+reproduces it — it hooks the engine, runs the real service functions, captures
+every statement they issue and asks the database to explain each one, so the
+plans below are what the application actually does rather than SQL retyped by
+hand into a report. It exits non-zero if anything in the hot path falls back to
+a full scan.
+
+### What the reporting queries cost
+
+| Query | Raw events | Rollups |
+| --- | --- | --- |
+| 30-day summary | 1546 ms | 0.62 ms |
+| 12-month summary | — | 0.77 ms |
+| 12-month time series | — | 3.08 ms |
+| Top pages, 30 days | — | 1.09 ms |
+| Live visitors (last 5 min) | 0.46 ms | reads raw, by design |
+
+Every one is index-backed. `events` carries a single composite index on
+`(site_id, timestamp, visitor_id)`, which SQLite reports as *covering* for both
+the range scan and the distinct-visitor count.
+
+There used to be a second index on `(site_id, timestamp)`. It was a strict
+prefix of that one, so it could never be preferred to it, while still costing a
+write on every event. Removing it measured **40% more ingest throughput with
+byte-identical query plans**.
+
+### What the collector costs
+
+The collector commits one transaction per event, because it answers `202` on
+the promise that the event is safe. That makes commit latency the whole game:
+
+| | events/sec |
+| --- | --- |
+| Starting point | 140 |
+| + WAL journal | 782 |
+| + `synchronous=NORMAL` | 8,328 (raw insert) |
+| Through the real collector path, all changes | **1,916** |
+
+`journal_mode=WAL` stops readers blocking the writer and stops every commit
+rewriting a rollback journal. `synchronous=NORMAL` under WAL is still durable
+across a process crash; only an operating-system crash can lose the last few
+transactions, which for pageview counts is the right trade.
+
+Profiling the remaining time found the domain check was **30% of the cost of
+ingesting one event** — a `SELECT` per event to answer a question whose answer
+almost never changes. The set of registered domains is now read once per
+interval instead, which took ingest from 1,118 to 1,916 events/sec.
+
+SQLite also **ignores foreign keys unless asked**, which had quietly made every
+`ON DELETE CASCADE` in the schema decorative. `PRAGMA foreign_keys=ON` is now
+set on every connection, and a test deletes an account through Core SQL to
+prove the cascade is real.
+
+Postgres gets `pool_pre_ping`, because a pooled connection can be closed while
+idle — by the database's own timeout, by a proxy, or by a deploy — and without
+it the next request to pick that connection up fails instead of reconnecting.
+
+### Retention
+
+Raw events are needed for exactly two things: the live counter, which looks at
+the last five minutes, and rebuilding a day's aggregates. Once a day is rolled
+up and out of the refresh window, its raw rows are dead weight — and on a busy
+site they are almost the entire database.
+
+Setting `BEACON_RAW_EVENT_RETENTION_DAYS=30` against that 4.4M-event database:
+
+```
+before   4,432,316 raw events   1098.1 MB
+purged   4,060,933 events older than 30 days
+after      371,383 raw events     73.4 MB
+```
+
+The twelve-month report before and after: **2,482,596 visitors and 4,119,313
+pageviews, both times**. Top pages identical too. A year of reporting from 7%
+of the data.
+
+Deleting is irreversible, so it is off by default and carries two guards: a
+retention shorter than the refresh window is refused rather than honoured, and
+a site with no aggregates is left alone — otherwise its history would go to a
+job that could no longer rebuild it. Freed pages are reused by SQLite; handing
+them back to the filesystem needs a `VACUUM`, which locks the database and so
+stays an operator's decision rather than a background job's.
+
 ## Configuration
 
 Every setting is an environment variable prefixed `BEACON_`:
@@ -195,7 +281,8 @@ Every setting is an environment variable prefixed `BEACON_`:
 | `BEACON_TRUST_PROXY_HEADERS` | `false` | Enable only behind a proxy that overwrites `X-Forwarded-For` |
 | `BEACON_SESSION_SECRET` | insecure default | Signs session cookies. Anyone holding it can forge a login |
 | `BEACON_SESSION_HTTPS_ONLY` | `false` | Restrict the session cookie to HTTPS. Enable in production |
-| `BEACON_ROLLUP_INTERVAL_SECONDS` | `0` | Seconds between in-process rollup refreshes. `0` disables it |
+| `BEACON_ROLLUP_INTERVAL_SECONDS` | `0` | Seconds between in-process maintenance runs. `0` disables it |
+| `BEACON_RAW_EVENT_RETENTION_DAYS` | `0` | Days of raw events to keep. `0` keeps them forever |
 | `BEACON_DEBUG` | `false` | Verbose errors |
 
 ## Accounts and tenancy
@@ -371,7 +458,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 302 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 318 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:

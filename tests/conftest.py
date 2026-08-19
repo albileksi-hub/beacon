@@ -6,7 +6,7 @@ from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db import Base, get_db
+from app.db import Base, configure_sqlite, get_db
 from app.main import create_app
 from app.services import accounts, rollups, visitors
 
@@ -74,6 +74,7 @@ def db_session(postgres_engine):
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    configure_sqlite(engine)
     Base.metadata.create_all(engine)
     session = _new_session(engine)
     try:
@@ -129,8 +130,10 @@ def rebuild_rollups(db_session):
 
 
 @pytest.fixture(autouse=True)
-def clear_salt_cache():
-    """The salt cache is process-wide; a leak between tests would be invisible."""
+def clear_process_caches():
+    """Both caches are process-wide; a leak between tests would be invisible."""
     visitors.forget_cached_salts()
+    accounts.forget_registered_domains()
     yield
     visitors.forget_cached_salts()
+    accounts.forget_registered_domains()

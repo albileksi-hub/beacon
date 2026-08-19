@@ -27,10 +27,14 @@ def run_maintenance() -> int:
     exactly the promise the salt rotation exists to keep. The same applies to
     login attempts on a quiet instance.
     """
+    settings = get_settings()
     with SessionLocal() as session:
         rebuilt = rollups.refresh(session)
         visitors.purge_expired_salts(session)
         throttle.purge_expired(session)
+        rollups.purge_expired_events(
+            session, retention_days=settings.raw_event_retention_days
+        )
         return rebuilt
 
 

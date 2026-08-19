@@ -1,5 +1,8 @@
 """Accounts, sites, and the ownership checks that keep tenants apart."""
 
+import datetime as dt
+import threading
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -71,6 +74,9 @@ def add_site(db: Session, *, owner: User, domain: str) -> Site:
     site = Site(domain=hostname, owner_id=owner.id)
     db.add(site)
     db.commit()
+    # This worker starts collecting immediately rather than at the end of the
+    # interval; other workers still wait for theirs to lapse.
+    forget_registered_domains()
     return site
 
 
@@ -91,8 +97,41 @@ def owned_site(db: Session, *, owner: User, domain: str) -> Site | None:
     )
 
 
+# The collector checks a domain against this on every single event, and it
+# measured 30% of the cost of ingesting one. The set of registered domains is
+# small and changes rarely, so it is read once per interval rather than once per
+# event. The window is short because another worker may have added a site, and
+# only time can tell this process about that.
+REGISTRY_TTL = dt.timedelta(seconds=30)
+
+_registry_lock = threading.Lock()
+_registry: tuple[dt.datetime, frozenset[str]] | None = None
+
+
+def forget_registered_domains() -> None:
+    global _registry
+    with _registry_lock:
+        _registry = None
+
+
+def registered_domains(db: Session, *, now: dt.datetime | None = None) -> frozenset[str]:
+    """Every domain the collector will accept events for."""
+    global _registry
+    moment = now or dt.datetime.now(dt.UTC)
+
+    with _registry_lock:
+        cached = _registry
+    if cached is not None and moment < cached[0]:
+        return cached[1]
+
+    domains = frozenset(db.scalars(select(Site.domain)))
+    with _registry_lock:
+        _registry = (moment + REGISTRY_TTL, domains)
+    return domains
+
+
 def site_is_registered(db: Session, domain: str) -> bool:
-    return db.scalar(select(Site.id).where(Site.domain == domain)) is not None
+    return domain in registered_domains(db)
 
 
 def readable_site(db: Session, *, viewer: User | None, domain: str) -> Site | None:

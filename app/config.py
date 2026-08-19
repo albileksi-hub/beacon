@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # dev server and any deployment turn it on explicitly.
     rollup_interval_seconds: int = 0
 
+    # Days of raw events to keep. 0 keeps them forever, which is the safe
+    # default: deleting them is irreversible, and only the operator knows
+    # whether they will ever want to re-aggregate at a finer grain.
+    raw_event_retention_days: int = 0
+
     # Path to a MaxMind GeoLite2-Country.mmdb file. Without it, country
     # resolution degrades to "unknown" rather than failing.
     geoip_db_path: str | None = None

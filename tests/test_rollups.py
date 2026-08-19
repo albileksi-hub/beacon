@@ -3,8 +3,9 @@ import datetime as dt
 from sqlalchemy import delete, select
 
 from app.models import DailyStat, Event, HourlyStat
-from app.services import rollups
+from app.services import reports, rollups
 from app.services.rollups import TOTAL, VALUE_LIMIT
+from app.services.timeranges import Period, resolve
 
 DAY = dt.date(2026, 8, 18)
 NOON = dt.datetime(2026, 8, 18, 12, 0, tzinfo=dt.UTC)
@@ -135,3 +136,69 @@ def test_refresh_reaches_back_far_enough_to_catch_late_events(db_session):
     rollups.refresh(db_session, days_back=rollups.RECENT_DAYS, today=DAY)
 
     assert totals_for(db_session, day=DAY - dt.timedelta(days=1)) is not None
+
+
+def _aged_event(db, days_ago: int, visitor: str):
+    add_event(db, visitor_id=visitor, timestamp=NOON - dt.timedelta(days=days_ago))
+
+
+def test_retention_is_off_by_default(db_session):
+    _aged_event(db_session, 400, "ancient")
+    rollups.rebuild_day(db_session, site_id=SITE, day=DAY - dt.timedelta(days=400))
+
+    assert rollups.purge_expired_events(db_session, retention_days=0, today=DAY) == 0
+    assert len(db_session.scalars(select(Event)).all()) == 1
+
+
+def test_a_reckless_retention_setting_is_refused(db_session):
+    """Shorter than the refresh window would delete days still being rebuilt."""
+    _aged_event(db_session, 30, "old")
+    rollups.refresh(db_session, days_back=40, today=DAY)
+
+    deleted = rollups.purge_expired_events(
+        db_session, retention_days=rollups.MINIMUM_RETENTION_DAYS - 1, today=DAY
+    )
+
+    assert deleted == 0
+    assert db_session.scalars(select(Event)).all() != []
+
+
+def test_events_past_the_retention_window_are_deleted(db_session):
+    _aged_event(db_session, 60, "old")
+    _aged_event(db_session, 3, "recent")
+    rollups.refresh(db_session, days_back=90, today=DAY)
+
+    deleted = rollups.purge_expired_events(db_session, retention_days=30, today=DAY)
+
+    assert deleted == 1
+    remaining = db_session.scalars(select(Event)).all()
+    assert [event.visitor_id for event in remaining] == ["recent"]
+
+
+def test_a_site_without_aggregates_is_left_alone(db_session):
+    """Otherwise its history would go to a job that could not rebuild it."""
+    _aged_event(db_session, 60, "old")
+
+    deleted = rollups.purge_expired_events(db_session, retention_days=30, today=DAY)
+
+    assert deleted == 0
+    assert db_session.scalars(select(Event)).all() != []
+
+
+def test_the_dashboard_still_reports_purged_days(db_session):
+    """The whole point: the aggregates outlive the rows they were built from."""
+    for offset in (60, 61, 62):
+        _aged_event(db_session, offset, f"visitor-{offset}")
+    rollups.refresh(db_session, days_back=90, today=DAY)
+
+    before = reports.summary(
+        db_session, site_id=SITE, time_range=resolve(Period.LAST_12_MONTHS, now=NOON)
+    )
+    rollups.purge_expired_events(db_session, retention_days=30, today=DAY)
+    after = reports.summary(
+        db_session, site_id=SITE, time_range=resolve(Period.LAST_12_MONTHS, now=NOON)
+    )
+
+    assert db_session.scalars(select(Event)).all() == []
+    assert before == after
+    assert after.visitors == 3

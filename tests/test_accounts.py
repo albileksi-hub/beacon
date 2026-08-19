@@ -1,5 +1,9 @@
-import pytest
+import datetime as dt
 
+import pytest
+from sqlalchemy import delete
+
+from app.models import Site
 from app.services import accounts
 from app.services.passwords import InvalidPassword
 from tests.conftest import OWNER_EMAIL, OWNER_PASSWORD, SITE_DOMAIN
@@ -102,3 +106,34 @@ def test_unpublishing_takes_it_back(db_session, account, site):
 
 def test_a_domain_nobody_registered_is_never_readable(db_session, account):
     assert accounts.readable_site(db_session, viewer=account, domain="ghost.example") is None
+
+
+def test_the_registry_is_read_once_per_interval(db_session, site):
+    """The collector checks it on every event, so it cannot be a query each time."""
+    assert accounts.site_is_registered(db_session, SITE_DOMAIN)
+
+    # Remove it behind the cache's back; the cached answer must still stand.
+    db_session.execute(delete(Site))
+    db_session.commit()
+
+    assert accounts.site_is_registered(db_session, SITE_DOMAIN)
+
+
+def test_the_registry_refreshes_when_the_interval_lapses(db_session, site):
+    now = dt.datetime.now(dt.UTC)
+    accounts.registered_domains(db_session, now=now)
+
+    db_session.execute(delete(Site))
+    db_session.commit()
+
+    later = now + accounts.REGISTRY_TTL + dt.timedelta(seconds=1)
+    assert accounts.registered_domains(db_session, now=later) == frozenset()
+
+
+def test_adding_a_site_starts_collecting_immediately(db_session, account):
+    """Waiting out the interval before accepting events would look broken."""
+    assert not accounts.site_is_registered(db_session, "brand-new.example")
+
+    accounts.add_site(db_session, owner=account, domain="brand-new.example")
+
+    assert accounts.site_is_registered(db_session, "brand-new.example")
