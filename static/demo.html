@@ -49,13 +49,7 @@
     <p>
       <button type="button" id="buy" class="buy">Add to basket</button>
     </p>
-    <script>
-      // A custom event: the kind of thing a shop actually wants counted.
-      document.getElementById("buy").addEventListener("click", function () {
-        if (window.beacon) window.beacon("add-to-basket");
-        this.textContent = "Added";
-      });
-    </script>
+    <script src="/static/demo.js" defer></script>
     <div class="note">
       This page is instrumented with Beacon. Every view sends one event to
       <code>/api/event</code>. No cookies are set and no personal data leaves

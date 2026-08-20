@@ -12,6 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.background import lifespan
 from app.config import Settings, get_settings
 from app.dependencies import DbSession
+from app.middleware import LimitRequestSize, SecurityHeaders
 from app.observability import RequestLogging, configure_logging
 from app.routers import auth, dashboard, exports, ingest, sites, stats
 from app.templating import STATIC_DIR, templates
@@ -59,6 +60,12 @@ def create_app() -> FastAPI:
         allow_methods=["POST", "OPTIONS"],
         allow_headers=["Content-Type"],
     )
+
+    app.add_middleware(SecurityHeaders)
+
+    # Added after RequestLogging so it runs before it: an oversized body is
+    # refused without being read, and still gets logged on the way out.
+    app.add_middleware(LimitRequestSize, max_bytes=settings.max_request_bytes)
 
     # Outermost, so the timing covers everything else and every response
     # carries a request id -- including ones the error handler produces.

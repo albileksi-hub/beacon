@@ -365,6 +365,39 @@ Resolved through the same visibility rule as the dashboard: a published site's
 numbers are already served over the API, so refusing the same numbers in a
 different shape would be theatre rather than a control.
 
+## Hardening
+
+Four things found by probing the running service rather than by reading it:
+
+- **Blank event names were accepted and stored.** `name=""` and `name="   "`
+  both answered `202` and became rows, which would have shown up in the goals
+  report as empty entries. Names are now trimmed and required.
+- **A 5MB request body was read and parsed in full before validation rejected
+  it** — 5MB of memory per concurrent connection, which is an inexpensive way
+  to push a process over from the outside. Oversized bodies are now refused on
+  the `Content-Length` header, before a byte is read; a body that declares no
+  length is counted as it arrives and the connection is dropped.
+- **The payload capped `site_id` at 64 characters while the column allows 253**,
+  so a domain between those two lengths could be registered and could then
+  never send an event.
+- **No security headers.** Responses now carry `nosniff`, `X-Frame-Options:
+  DENY`, `Referrer-Policy: same-origin` and a content security policy.
+
+`Referrer-Policy` is the one that matters most here: a dashboard URL contains
+the customer's domain, so without it, following a link off the page hands that
+domain to whoever is on the other end — which on this project of all projects
+would be embarrassing.
+
+The policy keeps `script-src 'self'`, which meant moving the theme bootstrap
+out of the page into a file; it has to run before first paint, so it is a
+blocking same-origin script rather than an inline one. `style-src` still allows
+inline, because the breakdown bars carry their width as an inline style — a
+percentage of a number the server computed, never anything a visitor supplied.
+
+Also refused: a domain longer than the column allows. SQLite ignores `VARCHAR`
+lengths, so without an explicit check that is accepted in development and
+rejected in production.
+
 ## Configuration
 
 Every setting is an environment variable prefixed `BEACON_`:
@@ -383,6 +416,7 @@ Every setting is an environment variable prefixed `BEACON_`:
 | `BEACON_INGEST_FLUSH_SECONDS` | `0.25` | How long a partial batch waits |
 | `BEACON_LOG_LEVEL` | `INFO` | Root log level |
 | `BEACON_LOG_JSON` | `false` | One JSON object per line instead of human-readable text |
+| `BEACON_MAX_REQUEST_BYTES` | `65536` | Largest request body the service will read |
 | `BEACON_DEBUG` | `false` | Verbose errors |
 
 ## Accounts and tenancy
@@ -558,7 +592,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 353 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 372 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:

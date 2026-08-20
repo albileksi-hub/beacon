@@ -137,3 +137,9 @@ def test_adding_a_site_starts_collecting_immediately(db_session, account):
     accounts.add_site(db_session, owner=account, domain="brand-new.example")
 
     assert accounts.site_is_registered(db_session, "brand-new.example")
+
+
+def test_an_impossibly_long_domain_is_refused(db_session, account):
+    """SQLite ignores VARCHAR lengths, so the check has to be ours."""
+    with pytest.raises(accounts.InvalidDomain, match="too long"):
+        accounts.add_site(db_session, owner=account, domain="a" * 300 + ".example")

@@ -29,6 +29,10 @@ class InvalidDomain(ValueError):
     pass
 
 
+# The sites.domain column, and the longest a hostname can be.
+MAX_DOMAIN_LENGTH = 253
+
+
 def normalise_email(email: str) -> str:
     return email.strip().lower()
 
@@ -68,6 +72,10 @@ def add_site(db: Session, *, owner: User, domain: str) -> Site:
     hostname = normalise_domain(domain)
     if not hostname:
         raise InvalidDomain("Enter a domain.")
+    if len(hostname) > MAX_DOMAIN_LENGTH:
+        # SQLite ignores VARCHAR lengths, so without this an over-long domain
+        # is accepted in development and rejected in production.
+        raise InvalidDomain("That domain is too long.")
     if db.scalar(select(Site).where(Site.domain == hostname)) is not None:
         raise DomainAlreadyRegistered("That domain is already being tracked.")
 

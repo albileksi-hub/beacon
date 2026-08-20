@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models import Event
+from app.services import accounts
 from tests.conftest import SAFARI_IPHONE
 
 
@@ -179,3 +180,32 @@ def test_a_buffered_collector_hands_the_event_to_the_writer(client, db_session, 
     assert submitted[0]["pathname"] == "/products/blue-mug"
     # Nothing was written synchronously; the writer thread owns that now.
     assert db_session.scalars(select(Event)).all() == []
+
+
+@pytest.mark.parametrize("name", ["", "   ", "\t\n"])
+def test_a_blank_event_name_is_rejected(client, db_session, site, name):
+    """It would otherwise show up in the goals report as an empty row."""
+    response = client.post("/api/event", json=_payload(name=name))
+
+    assert response.status_code == 422
+    assert db_session.scalars(select(Event)).all() == []
+
+
+def test_an_event_name_is_trimmed(client, db_session, site):
+    client.post("/api/event", json=_payload(name="  signup  "))
+
+    assert db_session.scalars(select(Event)).one().name == "signup"
+
+
+def test_a_long_domain_can_still_send_events(client, db_session, account):
+    """The payload cap used to be shorter than the column, so it could not."""
+    long_domain = ("a" * 60 + ".") * 3 + "example.com"
+    accounts.add_site(db_session, owner=account, domain=long_domain)
+
+    response = client.post(
+        "/api/event",
+        json=_payload(site_id=long_domain, url=f"https://{long_domain}/welcome"),
+    )
+
+    assert response.status_code == 202
+    assert db_session.scalars(select(Event)).one().site_id == long_domain

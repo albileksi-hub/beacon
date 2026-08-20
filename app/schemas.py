@@ -6,11 +6,22 @@ from pydantic import BaseModel, Field, field_validator
 class EventIn(BaseModel):
     """The payload sent by the tracking script on every recorded interaction."""
 
-    site_id: str = Field(min_length=1, max_length=64)
-    name: str = Field(default="pageview", max_length=64)
+    # Matches the sites.domain column. A shorter cap here would let a domain be
+    # registered that could then never send an event.
+    site_id: str = Field(min_length=1, max_length=253)
+    name: str = Field(default="pageview", min_length=1, max_length=64)
     url: str = Field(max_length=2048)
     referrer: str | None = Field(default=None, max_length=2048)
     screen_width: int | None = Field(default=None, ge=0, le=20000)
+
+    @field_validator("name")
+    @classmethod
+    def must_name_something(cls, value: str) -> str:
+        """A blank name would show up in the goals report as an empty row."""
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("name cannot be blank")
+        return cleaned
 
     @field_validator("url")
     @classmethod
