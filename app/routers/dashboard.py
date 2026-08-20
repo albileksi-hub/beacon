@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.dependencies import CurrentUser, DbSession
-from app.services import accounts, charts, reports
+from app.services import accounts, charts, reports, zones
 from app.services.stats import BreakdownProperty
 from app.services.timeranges import Period, resolve
 from app.templating import templates
@@ -59,7 +59,7 @@ def site_dashboard(
             return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such site")
 
-    time_range = resolve(period)
+    time_range = resolve(period, timezone=site.timezone)
     series = reports.timeseries(db, site_id=site.domain, time_range=time_range)
 
     return templates.TemplateResponse(
@@ -69,6 +69,8 @@ def site_dashboard(
             "user": user,
             "site_id": site.domain,
             "is_public": site.public,
+            "timezone": site.timezone,
+            "timezones": zones.COMMON,
             "is_owner": user is not None and site.owner_id == user.id,
             "period": period,
             "period_labels": PERIOD_LABELS,

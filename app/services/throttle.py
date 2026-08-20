@@ -12,10 +12,14 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models import LoginAttempt
-from app.services.visitors import current_salt
+from app.services.visitors import current_salt, utc_today
 
 MAX_FAILURES = 5
 WINDOW = dt.timedelta(minutes=15)
+
+# Salts are per site; signing in belongs to no site. The tilde cannot appear
+# in a hostname, so this can never collide with a real one.
+SALT_SCOPE = "~login"
 
 
 def _now() -> dt.datetime:
@@ -34,7 +38,8 @@ def fingerprint(db: Session, address: str) -> str:
     address-derived value can be reproduced.
     """
     message = b"login\x00" + address.encode("utf-8")
-    return hashlib.blake2b(message, key=current_salt(db), digest_size=16).hexdigest()
+    salt = current_salt(db, site_id=SALT_SCOPE, day=utc_today())
+    return hashlib.blake2b(message, key=salt, digest_size=16).hexdigest()
 
 
 def recent_failures(db: Session, marker: str, *, now: dt.datetime | None = None) -> int:

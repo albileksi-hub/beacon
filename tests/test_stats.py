@@ -1,13 +1,13 @@
 import datetime as dt
-from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
-from sqlalchemy.dialects import postgresql, sqlite
 
 from app.models import Event
 from app.services import stats
 from app.services.stats import BreakdownProperty
-from app.services.timeranges import Interval, Period, resolve
+from app.services.timeranges import Period, resolve
+from tests.conftest import with_local_bucket
 
 NOW = dt.datetime(2026, 8, 18, 12, 0, tzinfo=dt.UTC)
 SITE = "blue-mug.example"
@@ -27,7 +27,7 @@ def add_event(db, **overrides):
         "country": "DE",
         "screen": "Desktop",
     }
-    db.add(Event(**(defaults | overrides)))
+    db.add(Event(**with_local_bucket(defaults | overrides)))
     db.commit()
 
 
@@ -158,35 +158,21 @@ def test_live_count_is_zero_on_a_quiet_site(db_session):
     assert stats.live_visitors(db_session, site_id=SITE, now=NOW).visitors == 0
 
 
-class _FakeSession:
-    """Just enough Session to answer "which dialect are we on?"."""
+def test_no_reporting_query_needs_dialect_specific_date_sql():
+    """The architectural guard that replaced two dialect tests.
 
-    def __init__(self, dialect_name):
-        self._dialect_name = dialect_name
+    Buckets are decided at ingest and stored on the event, so no query has to
+    truncate a timestamp -- which is what used to make the reporting SQL differ
+    between SQLite and Postgres. If that ever creeps back, this fails.
+    """
+    offenders = []
+    for module in (Path(__file__).parent.parent / "app").rglob("*.py"):
+        body = module.read_text(encoding="utf-8")
+        for call in ("func.strftime", "func.date_trunc", "func.to_char"):
+            if call in body:
+                offenders.append(f"{module.name}: {call}")
 
-    def get_bind(self):
-        return SimpleNamespace(dialect=SimpleNamespace(name=self._dialect_name))
-
-
-def _compiled(expression, dialect):
-    return str(expression.compile(dialect=dialect, compile_kwargs={"literal_binds": True}))
-
-
-def test_sqlite_buckets_with_strftime():
-    expression = stats.bucket_column(_FakeSession("sqlite"), Interval.DAY)
-
-    assert "strftime" in _compiled(expression, sqlite.dialect())
-
-
-def test_postgres_buckets_with_date_trunc():
-    # Postgres never runs in the test suite, so this is the only thing standing
-    # between a dialect typo and a broken dashboard in production.
-    expression = stats.bucket_column(_FakeSession("postgresql"), Interval.MONTH)
-    compiled = _compiled(expression, postgresql.dialect())
-
-    assert "date_trunc" in compiled
-    assert "to_char" in compiled
-    assert "YYYY-MM-01" in compiled
+    assert offenders == []
 
 
 def test_custom_events_do_not_count_as_pageviews(db_session, month):

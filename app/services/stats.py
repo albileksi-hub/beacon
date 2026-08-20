@@ -1,6 +1,7 @@
 """The aggregate queries behind the dashboard."""
 
 import datetime as dt
+from collections import defaultdict
 from enum import StrEnum
 from typing import Any
 
@@ -10,7 +11,7 @@ from sqlalchemy.sql.functions import Function
 
 from app.models import Event
 from app.schemas import BreakdownRow, LiveVisitors, StatsSummary, TimeseriesPoint
-from app.services.timeranges import Interval, TimeRange, bucket_labels
+from app.services.timeranges import LABEL_FORMATS, Interval, TimeRange, bucket_labels
 
 LIVE_WINDOW = dt.timedelta(minutes=5)
 
@@ -51,19 +52,6 @@ BREAKDOWN_FILTERS = {
     BreakdownProperty.EVENT: Event.name != PAGEVIEW,
 }
 
-# SQLite and Postgres disagree completely about date truncation. This module is
-# the only place in the codebase that has to know it.
-_SQLITE_BUCKETS = {
-    Interval.HOUR: "%Y-%m-%dT%H:00:00",
-    Interval.DAY: "%Y-%m-%d",
-    Interval.MONTH: "%Y-%m-01",
-}
-_POSTGRES_BUCKETS = {
-    Interval.HOUR: 'YYYY-MM-DD"T"HH24:00:00',
-    Interval.DAY: "YYYY-MM-DD",
-    Interval.MONTH: "YYYY-MM-01",
-}
-
 
 def visitor_count() -> Function[int]:
     """Unique visitors. The expensive one: a distinct count over the window."""
@@ -80,18 +68,15 @@ def pageview_count() -> Function[int]:
 
 
 def _scoped(statement: Select[Any], site_id: str, time_range: TimeRange) -> Select[Any]:
+    """Narrow to one site and one span of that site's days.
+
+    Compared on the stored local day, not on the timestamp: the range came from
+    the site's own calendar, and a day there is not a day in UTC.
+    """
     return statement.where(
         Event.site_id == site_id,
-        Event.timestamp >= time_range.start,
-        Event.timestamp <= time_range.end,
-    )
-
-
-def bucket_column(db: Session, interval: Interval) -> Function[str]:
-    if db.get_bind().dialect.name == "sqlite":
-        return func.strftime(_SQLITE_BUCKETS[interval], Event.timestamp)
-    return func.to_char(
-        func.date_trunc(interval.value, Event.timestamp), _POSTGRES_BUCKETS[interval]
+        Event.day >= time_range.start.date(),
+        Event.day <= time_range.end.date(),
     )
 
 
@@ -108,28 +93,56 @@ def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary
 
 
 def timeseries(db: Session, *, site_id: str, time_range: TimeRange) -> list[TimeseriesPoint]:
-    bucket = bucket_column(db, time_range.interval)
+    """The series, grouped on the buckets the events already carry.
 
-    rows = db.execute(
-        _scoped(
-            select(
-                bucket.label("bucket"),
-                visitor_count().label("visitors"),
-                pageview_count().label("pageviews"),
-            ),
-            site_id,
-            time_range,
-        ).group_by(bucket)
-    ).all()
+    Hours for a single day, otherwise days folded into whatever the period asks
+    for. No date truncation in SQL, so nothing here differs between databases.
+    """
+    fmt = LABEL_FORMATS[time_range.interval]
 
-    counted = {row.bucket: row for row in rows}
+    if time_range.interval is Interval.HOUR:
+        grouped = db.execute(
+            _scoped(
+                select(
+                    Event.day,
+                    Event.hour,
+                    visitor_count().label("visitors"),
+                    pageview_count().label("pageviews"),
+                ),
+                site_id,
+                time_range,
+            ).group_by(Event.day, Event.hour)
+        ).all()
+        counted = {
+            f"{row.day.isoformat()}T{row.hour:02d}:00:00": (row.visitors, row.pageviews)
+            for row in grouped
+        }
+    else:
+        grouped = db.execute(
+            _scoped(
+                select(
+                    Event.day,
+                    visitor_count().label("visitors"),
+                    pageview_count().label("pageviews"),
+                ),
+                site_id,
+                time_range,
+            ).group_by(Event.day)
+        ).all()
+
+        folded: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+        for row in grouped:
+            bucket = folded[row.day.strftime(fmt)]
+            bucket[0] += row.visitors
+            bucket[1] += row.pageviews
+        counted = {label: (values[0], values[1]) for label, values in folded.items()}
 
     # Zero-fill: a chart with holes in it reads as broken.
     return [
         TimeseriesPoint(
             bucket=label,
-            visitors=counted[label].visitors if label in counted else 0,
-            pageviews=counted[label].pageviews if label in counted else 0,
+            visitors=counted.get(label, (0, 0))[0],
+            pageviews=counted.get(label, (0, 0))[1],
         )
         for label in bucket_labels(time_range)
     ]

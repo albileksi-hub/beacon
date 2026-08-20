@@ -6,6 +6,7 @@ from app.models import DailyStat, Event, HourlyStat
 from app.services import reports, rollups
 from app.services.rollups import TOTAL, VALUE_LIMIT
 from app.services.timeranges import Period, resolve
+from tests.conftest import with_local_bucket
 
 DAY = dt.date(2026, 8, 18)
 NOON = dt.datetime(2026, 8, 18, 12, 0, tzinfo=dt.UTC)
@@ -26,7 +27,7 @@ def add_event(db, **overrides):
         "country": "DE",
         "screen": "Desktop",
     }
-    db.add(Event(**(defaults | overrides)))
+    db.add(Event(**with_local_bucket(defaults | overrides)))
     db.commit()
 
 
@@ -103,9 +104,7 @@ def test_hours_roll_up_separately(db_session):
 
     rollups.rebuild_hours(db_session, site_id=SITE, day=DAY)
 
-    by_hour = {
-        row.hour.hour: row.visitors for row in db_session.scalars(select(HourlyStat))
-    }
+    by_hour = {row.hour: row.visitors for row in db_session.scalars(select(HourlyStat))}
     assert by_hour == {9: 2, 14: 1}
 
 

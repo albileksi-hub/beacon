@@ -22,7 +22,9 @@ def read_summary(
     period: Period = Period.LAST_30_DAYS,
 ) -> StatsSummary:
     """Headline totals for the period."""
-    return reports.summary(db, site_id=site.domain, time_range=resolve(period))
+    return reports.summary(
+        db, site_id=site.domain, time_range=resolve(period, timezone=site.timezone)
+    )
 
 
 @router.get("/timeseries")
@@ -36,7 +38,9 @@ def read_timeseries(
     Bucket size follows from the period: hours for today, days for a month,
     months for a year.
     """
-    return reports.timeseries(db, site_id=site.domain, time_range=resolve(period))
+    return reports.timeseries(
+        db, site_id=site.domain, time_range=resolve(period, timezone=site.timezone)
+    )
 
 
 @router.get("/breakdown/{prop}")
@@ -49,7 +53,11 @@ def read_breakdown(
 ) -> list[BreakdownRow]:
     """Top values of one dimension: pages, sources, countries, devices."""
     return reports.breakdown(
-        db, site_id=site.domain, time_range=resolve(period), prop=prop, limit=limit
+        db,
+        site_id=site.domain,
+        time_range=resolve(period, timezone=site.timezone),
+        prop=prop,
+        limit=limit,
     )
 
 

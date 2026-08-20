@@ -95,15 +95,21 @@ def breakdown(
 
 
 def _hourly_totals(db: Session, site_id: str, time_range: TimeRange) -> dict[str, list[int]]:
-    fmt = LABEL_FORMATS[Interval.HOUR]
+    """Hours of the site's own day, keyed by the label the chart asks for."""
+    first, last = _day_span(time_range)
     rows = db.execute(
-        select(HourlyStat.hour, HourlyStat.visitors, HourlyStat.pageviews).where(
+        select(
+            HourlyStat.day, HourlyStat.hour, HourlyStat.visitors, HourlyStat.pageviews
+        ).where(
             HourlyStat.site_id == site_id,
-            HourlyStat.hour >= time_range.start,
-            HourlyStat.hour <= time_range.end,
+            HourlyStat.day >= first,
+            HourlyStat.day <= last,
         )
     )
-    return {hour.strftime(fmt): [visitors, pageviews] for hour, visitors, pageviews in rows}
+    return {
+        f"{day.isoformat()}T{hour:02d}:00:00": [visitors, pageviews]
+        for day, hour, visitors, pageviews in rows
+    }
 
 
 def _daily_totals(db: Session, site_id: str, time_range: TimeRange) -> dict[str, list[int]]:

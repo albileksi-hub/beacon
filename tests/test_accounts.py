@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import delete
 
 from app.models import Site
-from app.services import accounts
+from app.services import accounts, zones
 from app.services.passwords import InvalidPassword
 from tests.conftest import OWNER_EMAIL, OWNER_PASSWORD, SITE_DOMAIN
 
@@ -121,13 +121,13 @@ def test_the_registry_is_read_once_per_interval(db_session, site):
 
 def test_the_registry_refreshes_when_the_interval_lapses(db_session, site):
     now = dt.datetime.now(dt.UTC)
-    accounts.registered_domains(db_session, now=now)
+    accounts.tracked_sites(db_session, now=now)
 
     db_session.execute(delete(Site))
     db_session.commit()
 
     later = now + accounts.REGISTRY_TTL + dt.timedelta(seconds=1)
-    assert accounts.registered_domains(db_session, now=later) == frozenset()
+    assert accounts.tracked_sites(db_session, now=later) == {}
 
 
 def test_adding_a_site_starts_collecting_immediately(db_session, account):
@@ -143,3 +143,32 @@ def test_an_impossibly_long_domain_is_refused(db_session, account):
     """SQLite ignores VARCHAR lengths, so the check has to be ours."""
     with pytest.raises(accounts.InvalidDomain, match="too long"):
         accounts.add_site(db_session, owner=account, domain="a" * 300 + ".example")
+
+
+def test_a_new_site_starts_on_utc(site):
+    assert site.timezone == "UTC"
+
+
+def test_the_timezone_can_be_changed(db_session, site):
+    accounts.set_timezone(db_session, site=site, timezone="Europe/Berlin")
+
+    assert site.timezone == "Europe/Berlin"
+    assert accounts.timezone_for(db_session, SITE_DOMAIN) == "Europe/Berlin"
+
+
+def test_an_invented_timezone_is_refused(db_session, site):
+    with pytest.raises(zones.UnknownTimezone):
+        accounts.set_timezone(db_session, site=site, timezone="Mars/Olympus_Mons")
+
+
+def test_the_collector_sees_a_new_timezone_immediately(db_session, site):
+    """Waiting out the registry interval would put events on the wrong day."""
+    assert accounts.timezone_for(db_session, SITE_DOMAIN) == "UTC"
+
+    accounts.set_timezone(db_session, site=site, timezone="Asia/Tokyo")
+
+    assert accounts.timezone_for(db_session, SITE_DOMAIN) == "Asia/Tokyo"
+
+
+def test_an_untracked_domain_reports_utc(db_session):
+    assert accounts.timezone_for(db_session, "nobody.example") == "UTC"

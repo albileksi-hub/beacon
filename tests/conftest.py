@@ -142,3 +142,14 @@ def clear_process_caches():
     yield
     visitors.forget_cached_salts()
     accounts.forget_registered_domains()
+
+
+def with_local_bucket(values: dict) -> dict:
+    """Fill in the day and hour an event belongs to.
+
+    Production works these out at ingest, in the site's own zone. Tests build
+    rows directly, so they derive the same pair from whatever timestamp they
+    set -- and can still override either to place an event deliberately.
+    """
+    moment = values["timestamp"]
+    return {"day": moment.date(), "hour": moment.hour} | values

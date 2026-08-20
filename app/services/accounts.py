@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Site, User
+from app.services import zones
 from app.services.passwords import hash_password, verify_password
 
 SESSION_KEY = "user_id"
@@ -79,7 +80,7 @@ def add_site(db: Session, *, owner: User, domain: str) -> Site:
     if db.scalar(select(Site).where(Site.domain == hostname)) is not None:
         raise DomainAlreadyRegistered("That domain is already being tracked.")
 
-    site = Site(domain=hostname, owner_id=owner.id)
+    site = Site(domain=hostname, owner_id=owner.id, timezone=zones.DEFAULT)
     db.add(site)
     db.commit()
     # This worker starts collecting immediately rather than at the end of the
@@ -113,7 +114,7 @@ def owned_site(db: Session, *, owner: User, domain: str) -> Site | None:
 REGISTRY_TTL = dt.timedelta(seconds=30)
 
 _registry_lock = threading.Lock()
-_registry: tuple[dt.datetime, frozenset[str]] | None = None
+_registry: tuple[dt.datetime, dict[str, str]] | None = None
 
 
 def forget_registered_domains() -> None:
@@ -122,8 +123,12 @@ def forget_registered_domains() -> None:
         _registry = None
 
 
-def registered_domains(db: Session, *, now: dt.datetime | None = None) -> frozenset[str]:
-    """Every domain the collector will accept events for."""
+def tracked_sites(db: Session, *, now: dt.datetime | None = None) -> dict[str, str]:
+    """Every domain the collector accepts, mapped to the zone it reckons days in.
+
+    The zone travels with the domain because the collector needs it on every
+    event, to work out which of that site's days the event belongs to.
+    """
     global _registry
     moment = now or dt.datetime.now(dt.UTC)
 
@@ -132,14 +137,31 @@ def registered_domains(db: Session, *, now: dt.datetime | None = None) -> frozen
     if cached is not None and moment < cached[0]:
         return cached[1]
 
-    domains = frozenset(db.scalars(select(Site.domain)))
+    sites = {
+        domain: timezone
+        for domain, timezone in db.execute(select(Site.domain, Site.timezone))
+    }
     with _registry_lock:
-        _registry = (moment + REGISTRY_TTL, domains)
-    return domains
+        _registry = (moment + REGISTRY_TTL, sites)
+    return sites
 
 
 def site_is_registered(db: Session, domain: str) -> bool:
-    return domain in registered_domains(db)
+    return domain in tracked_sites(db)
+
+
+def timezone_for(db: Session, domain: str) -> str:
+    """The site's zone, or UTC for a domain that is not tracked here."""
+    return tracked_sites(db).get(domain, zones.DEFAULT)
+
+
+def set_timezone(db: Session, *, site: Site, timezone: str) -> Site:
+    site.timezone = zones.validate(timezone)
+    db.commit()
+    # The collector reads the zone on every event; it should not keep using the
+    # old one until the interval lapses.
+    forget_registered_domains()
+    return site
 
 
 def readable_site(db: Session, *, viewer: User | None, domain: str) -> Site | None:

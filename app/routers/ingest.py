@@ -6,7 +6,7 @@ from sqlalchemy import insert
 from app.dependencies import DbSession
 from app.models import Event
 from app.schemas import EventIn
-from app.services import accounts
+from app.services import accounts, zones
 from app.services.client import client_ip
 from app.services.geo import get_country_resolver
 from app.services.referrers import classify
@@ -45,12 +45,20 @@ def collect_event(payload: EventIn, request: Request, db: DbSession) -> dict[str
     address = client_ip(request)
     referrer_host, source = classify(payload.referrer, payload.url)
 
+    # Which of this site's days the event belongs to is decided here, once, in
+    # the site's own zone -- so nothing downstream has to truncate a timestamp.
+    occurred = dt.datetime.now(dt.UTC)
+    day, hour = zones.local_parts(occurred, accounts.timezone_for(db, domain))
+
     values = {
         "site_id": domain,
         "name": payload.name,
         "pathname": pathname_of(payload.url),
+        "day": day,
+        "hour": hour,
         "visitor_id": visitor_id(
-            salt=current_salt(db),
+            # Rotates at this site's midnight, not at UTC midnight.
+            salt=current_salt(db, site_id=domain, day=day),
             site_id=domain,
             ip=address,
             user_agent=user_agent,
@@ -62,7 +70,7 @@ def collect_event(payload: EventIn, request: Request, db: DbSession) -> dict[str
         "device": client.device,
         "country": get_country_resolver().country_code(address),
         "screen": screen_bucket(payload.screen_width),
-        "timestamp": dt.datetime.now(dt.UTC),
+        "timestamp": occurred,
     }
 
     writer = getattr(request.app.state, "event_writer", None)

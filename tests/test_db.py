@@ -102,9 +102,16 @@ def test_sqlite_gets_no_pool_tuning():
     assert "pool_size" not in _engine_options("sqlite:///./beacon.db")
 
 
-def test_events_carries_exactly_one_index():
-    """A second index on a prefix of this one would cost writes and buy nothing."""
-    assert {index.name for index in Event.__table__.indexes} == {"ix_events_site_visitor"}
+def test_events_carries_only_the_indexes_that_earn_their_keep():
+    """One for the live counter's window, one for the rollup builder's day.
+
+    Neither is a prefix of the other, so neither is dead weight -- which the
+    old (site_id, timestamp) index was, at a measured 40% of write throughput.
+    """
+    assert {index.name for index in Event.__table__.indexes} == {
+        "ix_events_site_visitor",
+        "ix_events_site_day",
+    }
 
 
 def test_the_session_factory_dependency_hands_back_the_real_one():

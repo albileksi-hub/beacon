@@ -20,7 +20,7 @@ def export_csv(
     already serves these numbers over the API, so refusing the same numbers in
     a different shape would be theatre rather than a control.
     """
-    time_range = resolve(period)
+    time_range = resolve(period, timezone=site.timezone)
 
     return StreamingResponse(
         exports.daily_stats_csv(sessions, site_id=site.domain, time_range=time_range),

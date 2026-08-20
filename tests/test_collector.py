@@ -18,10 +18,13 @@ SITE = "blue-mug.example"
 
 
 def _values(**overrides):
+    moment = dt.datetime.now(dt.UTC)
     payload = {
         "site_id": SITE,
         "visitor_id": "visitor-1",
-        "timestamp": dt.datetime.now(dt.UTC),
+        "timestamp": moment,
+        "day": moment.date(),
+        "hour": moment.hour,
         "name": "pageview",
         "pathname": "/",
         "source": "Direct",

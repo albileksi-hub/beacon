@@ -36,7 +36,7 @@ SALT_RETENTION_DAYS = 2
 # query on the hottest path in the system for a value that is constant.
 # Keyed weakly by engine: a disposed engine takes its entry with it, which
 # matters because tests build a fresh database per test.
-_cached_salts: WeakKeyDictionary[Any, tuple[dt.date, bytes]] = WeakKeyDictionary()
+_cached_salts: WeakKeyDictionary[Any, dict[tuple[str, dt.date], bytes]] = WeakKeyDictionary()
 _cache_lock = threading.Lock()
 
 
@@ -49,39 +49,54 @@ def utc_today() -> dt.date:
     return dt.datetime.now(dt.UTC).date()
 
 
-def current_salt(db: Session, *, today: dt.date | None = None) -> bytes:
-    """Fetch today's salt, creating it on first use."""
-    day = today or utc_today()
+def current_salt(db: Session, *, site_id: str, day: dt.date) -> bytes:
+    """The salt for one site's day, created on first use.
+
+    Keyed by site as well as day because a site's days start at its own
+    midnight. A shared salt rotating at UTC midnight would let one local day
+    contain two identities for the same person, and daily figures would stop
+    summing to the truth.
+    """
     bind = db.get_bind()
+    key = (site_id, day)
 
     with _cache_lock:
-        cached = _cached_salts.get(bind)
-    if cached is not None and cached[0] == day:
-        return cached[1]
+        cached = _cached_salts.get(bind, {}).get(key)
+    if cached is not None:
+        return cached
 
-    existing = db.scalar(select(DailySalt).where(DailySalt.day == day))
+    existing = db.scalar(
+        select(DailySalt).where(DailySalt.site_id == site_id, DailySalt.day == day)
+    )
     if existing is not None:
-        return _remember(bind, day, existing.value)
+        return _remember(bind, key, existing.value)
 
-    salt = DailySalt(day=day, value=secrets.token_bytes(SALT_BYTES))
+    salt = DailySalt(site_id=site_id, day=day, value=secrets.token_bytes(SALT_BYTES))
     db.add(salt)
     try:
         db.commit()
     except IntegrityError:
-        # Another worker created today's salt between our read and our write.
+        # Another worker created this salt between our read and our write.
         db.rollback()
-        winner = db.scalars(select(DailySalt).where(DailySalt.day == day)).one().value
-        return _remember(bind, day, winner)
+        winner = db.scalars(
+            select(DailySalt).where(DailySalt.site_id == site_id, DailySalt.day == day)
+        ).one().value
+        return _remember(bind, key, winner)
 
     # Creating a salt is also a natural moment to expire the old ones, though
     # it is no longer the only one -- see app.background.
     purge_expired_salts(db, today=day)
-    return _remember(bind, day, salt.value)
+    return _remember(bind, key, salt.value)
 
 
-def _remember(bind: Any, day: dt.date, value: bytes) -> bytes:
+def _remember(bind: Any, key: tuple[str, dt.date], value: bytes) -> bytes:
     with _cache_lock:
-        _cached_salts[bind] = (day, value)
+        for_engine = _cached_salts.setdefault(bind, {})
+        # Only the current day is worth holding; yesterday's is never asked for
+        # twice and would otherwise accumulate one entry per site per day.
+        for stale in [existing for existing in for_engine if existing[1] != key[1]]:
+            del for_engine[stale]
+        for_engine[key] = value
     return value
 
 
@@ -103,7 +118,7 @@ def purge_expired_salts(db: Session, *, today: dt.date | None = None) -> int:
 
 
 def visitor_id(*, salt: bytes, site_id: str, ip: str, user_agent: str) -> str:
-    """Derive a visitor identifier that is stable for one day and one site only.
+    """Derive a visitor identifier stable for one of that site's days only.
 
     Scoping by site means the same person visiting two customers' sites gets
     unrelated IDs, so nothing can be correlated across the customer base.

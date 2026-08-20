@@ -31,9 +31,11 @@ def test_different_addresses_are_throttled_separately(db_session):
 
 def test_a_login_marker_cannot_collide_with_a_visitor_id(db_session):
     """Domain separation: the two tables must not be cross-referenceable."""
-    salt = visitors.current_salt(db_session)
+    salt = visitors.current_salt(db_session, site_id=throttle.SALT_SCOPE, day=NOW.date())
 
-    as_visitor = visitors.visitor_id(salt=salt, site_id="login", ip=ADDRESS, user_agent="")
+    as_visitor = visitors.visitor_id(
+        salt=salt, site_id=throttle.SALT_SCOPE, ip=ADDRESS, user_agent=""
+    )
     as_login = throttle.fingerprint(db_session, ADDRESS)
 
     assert as_visitor != as_login

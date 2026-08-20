@@ -2,7 +2,7 @@ import datetime as dt
 
 from app.models import Event
 from app.services import accounts
-from tests.conftest import OWNER_PASSWORD, SITE_DOMAIN
+from tests.conftest import OWNER_PASSWORD, SITE_DOMAIN, with_local_bucket
 
 
 def add_event(db, **overrides):
@@ -21,7 +21,7 @@ def add_event(db, **overrides):
         "country": "DE",
         "screen": "Desktop",
     }
-    db.add(Event(**(defaults | overrides)))
+    db.add(Event(**with_local_bucket(defaults | overrides)))
     db.commit()
 
 

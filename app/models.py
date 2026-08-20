@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     false,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -44,7 +45,13 @@ class Event(Base):
     name: Mapped[str] = mapped_column(String(64), default="pageview")
     pathname: Mapped[str] = mapped_column(String(1024))
 
-    # Stable for one day, one site. See app.services.visitors.
+    # The site's local day and hour, decided at ingest. Storing them means no
+    # query ever truncates a timestamp, which is what kept the reporting SQL
+    # dialect-specific. See app.services.zones.
+    day: Mapped[dt.date] = mapped_column(Date)
+    hour: Mapped[int] = mapped_column(Integer)
+
+    # Stable for one of this site's days. See app.services.visitors.
     visitor_id: Mapped[str] = mapped_column(String(32))
 
     referrer_host: Mapped[str | None] = mapped_column(String(255))
@@ -58,20 +65,28 @@ class Event(Base):
     screen: Mapped[str] = mapped_column(String(16), default="Unknown")
 
     __table_args__ = (
-        # Every dashboard query filters by site, slices by time, and counts
-        # distinct visitors within that slice -- so one index covers all three,
-        # and SQLite reports it as covering.
+        # The live counter is the only query left that works in real instants,
+        # and it counts distinct visitors in a window -- so one index covers
+        # both, and SQLite reports it as covering.
         #
         # There is deliberately no shorter (site_id, timestamp) index. It would
         # be a strict prefix of this one and so could never be preferred to it,
         # while still costing a write on every event: removing it measured 40%
         # more throughput on the collector with identical query plans.
         Index("ix_events_site_visitor", "site_id", "timestamp", "visitor_id"),
+        # The rollup builder reads a site's day at a time.
+        Index("ix_events_site_day", "site_id", "day"),
     )
 
 
 class DailySalt(Base):
     """The rotating key behind visitor IDs.
+
+    One per site per local day, rather than one per UTC day. A site's daily
+    figures are summable into weeks and months precisely because a visitor
+    cannot be recognised across a rotation, so the rotation has to happen at
+    that site's midnight -- otherwise somebody browsing either side of UTC
+    midnight would count twice inside one local day.
 
     Rows are deleted after SALT_RETENTION_DAYS, at which point the visitor IDs
     derived from them can no longer be reproduced by anyone.
@@ -79,6 +94,7 @@ class DailySalt(Base):
 
     __tablename__ = "daily_salts"
 
+    site_id: Mapped[str] = mapped_column(String(253), primary_key=True)
     day: Mapped[dt.date] = mapped_column(Date, primary_key=True)
     value: Mapped[bytes] = mapped_column(LargeBinary(32))
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
@@ -114,6 +130,13 @@ class Site(Base):
     # A public site's dashboard is readable without an account. Off by default:
     # sharing has to be a decision somebody makes, never the fallback.
     public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+
+    # The zone this site's days are reckoned in. Everything downstream -- the
+    # aggregates, the chart buckets, and the visitor salt rotation -- follows
+    # from it. See app.services.zones.
+    timezone: Mapped[str] = mapped_column(
+        String(64), default="UTC", server_default=text("'UTC'")
+    )
 
     owner: Mapped[User] = relationship(back_populates="sites")
 
@@ -159,13 +182,14 @@ class HourlyStat(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     site_id: Mapped[str] = mapped_column(String(253))
-    hour: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    day: Mapped[dt.date] = mapped_column(Date)
+    hour: Mapped[int] = mapped_column(Integer)
     visitors: Mapped[int] = mapped_column(Integer)
     pageviews: Mapped[int] = mapped_column(Integer)
 
     __table_args__ = (
-        UniqueConstraint("site_id", "hour", name="uq_hourly_stats_grain"),
-        Index("ix_hourly_stats_lookup", "site_id", "hour"),
+        UniqueConstraint("site_id", "day", "hour", name="uq_hourly_stats_grain"),
+        Index("ix_hourly_stats_lookup", "site_id", "day", "hour"),
     )
 
 

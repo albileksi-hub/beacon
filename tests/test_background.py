@@ -80,6 +80,8 @@ def test_a_maintenance_run_rebuilds_the_aggregates(db_session, monkeypatch):
             site_id="blue-mug.example",
             visitor_id="a",
             timestamp=dt.datetime.now(dt.UTC),
+            day=dt.datetime.now(dt.UTC).date(),
+            hour=dt.datetime.now(dt.UTC).hour,
             name="pageview",
             pathname="/",
             source="Direct",
@@ -109,7 +111,7 @@ def test_maintenance_expires_old_data_on_a_quiet_instance(db_session, monkeypatc
     the whole time -- exactly what the rotation exists to prevent.
     """
     stale_day = dt.datetime.now(dt.UTC).date() - dt.timedelta(days=30)
-    db_session.add(DailySalt(day=stale_day, value=b"x" * 32))
+    db_session.add(DailySalt(site_id="blue-mug.example", day=stale_day, value=b"x" * 32))
     db_session.add(
         LoginAttempt(
             fingerprint="a" * 32,

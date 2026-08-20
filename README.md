@@ -398,6 +398,41 @@ Also refused: a domain longer than the column allows. SQLite ignores `VARCHAR`
 lengths, so without an explicit check that is accepted in development and
 rejected in production.
 
+## Whose day is it?
+
+A day was the atomic unit of this system before it was a feature: it is the
+grain the aggregates are built on, and the interval the visitor salt rotates
+with. It was also, until recently, always a **UTC** day — so an owner in Berlin
+read days beginning at 01:00 their time, and an owner in Los Angeles read days
+that began at four the previous afternoon.
+
+Each site now carries its own zone, and two decisions follow from that. They
+are the whole design:
+
+**The bucket is computed once, at ingest, in the site's zone.** The event
+stores the local day and hour it belongs to, so no query ever truncates a
+timestamp. That removed the single place the database dialect leaked into the
+reporting SQL — SQLite's `strftime` and Postgres's `date_trunc` have nothing in
+common — and a test now fails the build if `func.strftime`, `func.date_trunc`
+or `func.to_char` reappears anywhere in `app/`.
+
+**The salt rotates at the site's local midnight, not at UTC midnight.** This is
+the part that is easy to get wrong. Daily figures sum into weeks and months
+precisely because a visitor cannot be recognised across a rotation. Had the
+salt kept turning over at 02:00 Berlin time, somebody browsing either side of
+that hour would hold two identities inside a single Berlin day, and every
+weekly total would have drifted quietly above the truth. Salts are therefore
+per site as well as per day.
+
+[`tests/test_local_days.py`](tests/test_local_days.py) is written around exactly
+that case: two events at 23:30 and 00:30 UTC — 01:30 and 02:30 in Berlin, the
+same Berlin day — land on one day, resolve to one visitor, and roll up as one
+visitor with two pageviews.
+
+Changing a site's zone only affects events from then on. Days already
+aggregated keep the boundaries they were built with, because the raw events
+behind them may well have been deleted by retention.
+
 ## Configuration
 
 Every setting is an environment variable prefixed `BEACON_`:
@@ -592,7 +627,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 372 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 398 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:

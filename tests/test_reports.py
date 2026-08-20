@@ -59,6 +59,8 @@ def traffic(db_session):
                         site_id=SITE,
                         visitor_id=visitor_id,
                         timestamp=moment,
+                        day=moment.date(),
+                        hour=moment.hour,
                         name=random.choice(NAMES),
                         pathname=random.choice(PAGES),
                         source=random.choice(SOURCES),

@@ -17,11 +17,9 @@ from app.models import DailyStat, Event, HourlyStat
 from app.services.stats import (
     BREAKDOWN_COLUMNS,
     BREAKDOWN_FILTERS,
-    bucket_column,
     pageview_count,
     visitor_count,
 )
-from app.services.timeranges import Interval
 
 TOTAL = "total"
 VALUE_LIMIT = 512
@@ -35,15 +33,10 @@ RECENT_DAYS = 2
 MINIMUM_RETENTION_DAYS = 7
 
 
-def _day_bounds(day: dt.date) -> tuple[dt.datetime, dt.datetime]:
-    start = dt.datetime.combine(day, dt.time.min, tzinfo=dt.UTC)
-    return start, start + dt.timedelta(days=1)
-
-
 def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
     """Recompute every DailyStat row for one site and one day."""
-    start, end = _day_bounds(day)
-    scope = (Event.site_id == site_id, Event.timestamp >= start, Event.timestamp < end)
+    # The event carries the site's local day, so this is a plain equality.
+    scope = (Event.site_id == site_id, Event.day == day)
 
     db.execute(delete(DailyStat).where(DailyStat.site_id == site_id, DailyStat.day == day))
 
@@ -95,29 +88,21 @@ def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
 
 def rebuild_hours(db: Session, *, site_id: str, day: dt.date) -> int:
     """Recompute the hourly totals for one site and one day."""
-    start, end = _day_bounds(day)
-
     db.execute(
-        delete(HourlyStat).where(
-            HourlyStat.site_id == site_id, HourlyStat.hour >= start, HourlyStat.hour < end
-        )
+        delete(HourlyStat).where(HourlyStat.site_id == site_id, HourlyStat.day == day)
     )
 
-    bucket = bucket_column(db, Interval.HOUR)
     grouped = db.execute(
-        select(bucket, visitor_count(), pageview_count())
-        .where(Event.site_id == site_id, Event.timestamp >= start, Event.timestamp < end)
-        .group_by(bucket)
+        select(Event.hour, visitor_count(), pageview_count())
+        .where(Event.site_id == site_id, Event.day == day)
+        .group_by(Event.hour)
     )
 
     rows = [
         HourlyStat(
-            site_id=site_id,
-            hour=dt.datetime.fromisoformat(label).replace(tzinfo=dt.UTC),
-            visitors=visitors,
-            pageviews=pageviews,
+            site_id=site_id, day=day, hour=hour, visitors=visitors, pageviews=pageviews
         )
-        for label, visitors, pageviews in grouped
+        for hour, visitors, pageviews in grouped
     ]
 
     db.add_all(rows)
@@ -162,7 +147,9 @@ def purge_expired_events(
         return 0
 
     last_day = today or dt.datetime.now(dt.UTC).date()
-    cutoff, _ = _day_bounds(last_day - dt.timedelta(days=retention_days))
+    cutoff = dt.datetime.combine(
+        last_day - dt.timedelta(days=retention_days), dt.time.min, tzinfo=dt.UTC
+    )
 
     aggregated = select(DailyStat.site_id).distinct()
     result = cast(

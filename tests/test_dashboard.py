@@ -2,7 +2,7 @@ import datetime as dt
 
 from app.models import Event
 from app.services import accounts
-from tests.conftest import OWNER_PASSWORD, SITE_DOMAIN
+from tests.conftest import OWNER_PASSWORD, SITE_DOMAIN, with_local_bucket
 
 
 def add_event(db, **overrides):
@@ -19,7 +19,7 @@ def add_event(db, **overrides):
         "country": "DE",
         "screen": "Desktop",
     }
-    db.add(Event(**(defaults | overrides)))
+    db.add(Event(**with_local_bucket(defaults | overrides)))
     db.commit()
 
 
@@ -204,3 +204,50 @@ def test_the_goals_panel_explains_itself_when_empty(signed_in, site):
 
     assert "Goals" in body
     assert "No custom events yet" in body
+
+
+def test_the_owner_can_set_the_timezone(signed_in, db_session, site):
+    response = signed_in.post(
+        f"/sites/{SITE_DOMAIN}/timezone",
+        data={"timezone": "Europe/Berlin"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    db_session.refresh(site)
+    assert site.timezone == "Europe/Berlin"
+
+
+def test_an_invented_timezone_is_refused(signed_in, db_session, site):
+    response = signed_in.post(
+        f"/sites/{SITE_DOMAIN}/timezone",
+        data={"timezone": "Mars/Olympus_Mons"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 422
+    db_session.refresh(site)
+    assert site.timezone == "UTC"
+
+
+def test_a_stranger_cannot_set_somebody_elses_timezone(signed_in, db_session):
+    stranger = accounts.register(db_session, email="stranger@example.com", password=OWNER_PASSWORD)
+    theirs = accounts.add_site(db_session, owner=stranger, domain="theirs.example")
+
+    response = signed_in.post(
+        "/sites/theirs.example/timezone",
+        data={"timezone": "Asia/Tokyo"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 404
+    db_session.refresh(theirs)
+    assert theirs.timezone == "UTC"
+
+
+def test_the_dashboard_says_which_clock_it_is_using(signed_in, db_session, site):
+    accounts.set_timezone(db_session, site=site, timezone="Asia/Tokyo")
+
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
+
+    assert "days here start at midnight in Asia/Tokyo" in body

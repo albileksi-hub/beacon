@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from app.db import SessionLocal, upgrade_database  # noqa: E402
 from app.models import DailyStat, Event, HourlyStat, Site, User  # noqa: E402
-from app.services import accounts, screens  # noqa: E402
+from app.services import accounts, screens, zones  # noqa: E402
 
 PAGES = [
     ("/", 34),
@@ -89,6 +89,12 @@ def _pick(weighted):
     return random.choices(values, weights=weights, k=1)[0]
 
 
+def _bucket(moment: dt.datetime, timezone: str) -> dict:
+    """The three time fields an event carries, as the collector would set them."""
+    day, hour = zones.local_parts(moment, timezone)
+    return {"timestamp": moment, "day": day, "hour": hour}
+
+
 def _visitors_for(day: dt.date, baseline: int) -> int:
     # Quieter at weekends, with a slow upward trend and one viral spike.
     weekday_factor = 0.62 if day.weekday() >= 5 else 1.0
@@ -101,6 +107,7 @@ def _rows_for_day(
     visitors: int,
     now: dt.datetime,
     goal_rate: float,
+    timezone: str,
 ) -> list[dict]:
     """One day's events. Built a day at a time so memory stays flat."""
     rows: list[dict] = []
@@ -123,7 +130,7 @@ def _rows_for_day(
 
         # Everything that stays the same for one visitor, merged into each of
         # their events rather than rebuilt per row.
-        base = {
+        base: dict = {
             "site_id": site_id,
             "visitor_id": visitor,
             "referrer_host": None,
@@ -140,7 +147,10 @@ def _rows_for_day(
             rows.append(
                 base
                 | {
-                    "timestamp": arrived + dt.timedelta(minutes=step * random.randrange(1, 4)),
+                    **_bucket(
+                        arrived + dt.timedelta(minutes=step * random.randrange(1, 4)),
+                        timezone,
+                    ),
                     "name": "pageview",
                     "pathname": _pick(PAGES),
                     # Only the entry page carries the referring source.
@@ -153,7 +163,7 @@ def _rows_for_day(
             rows.append(
                 base
                 | {
-                    "timestamp": arrived + dt.timedelta(minutes=depth * 3),
+                    **_bucket(arrived + dt.timedelta(minutes=depth * 3), timezone),
                     "name": random.choice(GOALS),
                     "pathname": _pick(PAGES),
                     "source": "Direct",
@@ -171,6 +181,7 @@ def generate(
 
     with SessionLocal() as session:
         _ensure_site(session, site_id)
+        timezone = accounts.timezone_for(session, site_id)
 
     if reset:
         with SessionLocal() as session:
@@ -190,7 +201,7 @@ def generate(
             if offset == spike_day:
                 visitors *= 4  # somebody posted a link
 
-            rows = _rows_for_day(site_id, midnight, visitors, now, goal_rate)
+            rows = _rows_for_day(site_id, midnight, visitors, now, goal_rate, timezone)
 
             # Core inserts rather than ORM objects: at this size the identity
             # map and unit of work cost far more than the database write does.

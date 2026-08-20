@@ -41,6 +41,17 @@
     <p class="muted">{{ period_labels[period] | lower }}, compared with the period before</p>
 
     {% if is_owner %}
+      <form method="post" action="/sites/{{ site_id }}/timezone" class="visibility">
+        <label class="sr-only" for="timezone">Timezone</label>
+        <select name="timezone" id="timezone" class="select">
+          {% for name in timezones %}
+            <option value="{{ name }}" {% if name == timezone %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="link-button">Set timezone</button>
+        <span class="muted">days here start at midnight in {{ timezone }}</span>
+      </form>
+
       <a class="link-button export"
          href="/sites/{{ site_id }}/export.csv?period={{ period }}">Download CSV</a>
       <form method="post" action="/sites/{{ site_id }}/visibility" class="visibility">

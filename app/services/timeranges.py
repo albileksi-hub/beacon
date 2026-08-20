@@ -9,6 +9,8 @@ import datetime as dt
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.services import zones
+
 
 class Period(StrEnum):
     TODAY = "today"
@@ -53,13 +55,19 @@ def _months_before(moment: dt.datetime, count: int) -> dt.datetime:
     )
 
 
-def resolve(period: Period, *, now: dt.datetime | None = None) -> TimeRange:
-    """Expand a period into the window it covers.
+def resolve(
+    period: Period, *, now: dt.datetime | None = None, timezone: str = zones.DEFAULT
+) -> TimeRange:
+    """Expand a period into the window it covers, in the site's own zone.
+
+    "Today" has to mean today where the site is, not where the server is: a
+    dashboard in Los Angeles that rolls over at four in the afternoon is simply
+    wrong.
 
     Ranges are inclusive of the current bucket, so "7d" means today plus the
     six days before it -- seven points on the chart, not eight.
     """
-    end = now or dt.datetime.now(dt.UTC)
+    end = (now or dt.datetime.now(dt.UTC)).astimezone(zones.zone(timezone))
 
     match period:
         case Period.TODAY:
