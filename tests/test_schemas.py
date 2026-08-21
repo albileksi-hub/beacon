@@ -4,13 +4,23 @@ from app.schemas import Change, StatsSummary
 
 
 def test_views_per_visitor_is_derived():
-    summary = StatsSummary.of(visitors=4, pageviews=10)
+    summary = StatsSummary.of(visitors=4, pageviews=10, bounces=0)
 
     assert summary.views_per_visitor == 2.5
 
 
 def test_views_per_visitor_of_an_empty_period_is_zero_not_a_crash():
-    assert StatsSummary.of(visitors=0, pageviews=0).views_per_visitor == 0.0
+    assert StatsSummary.of(visitors=0, pageviews=0, bounces=0).views_per_visitor == 0.0
+
+
+def test_bounce_rate_is_a_percentage_of_visitors():
+    summary = StatsSummary.of(visitors=8, pageviews=11, bounces=5)
+
+    assert summary.bounce_rate == 62.5
+
+
+def test_bounce_rate_of_an_empty_period_is_zero_not_a_crash():
+    assert StatsSummary.of(visitors=0, pageviews=0, bounces=0).bounce_rate == 0.0
 
 
 @pytest.mark.parametrize(

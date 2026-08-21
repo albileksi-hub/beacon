@@ -11,12 +11,12 @@ from sqlalchemy.sql.functions import Function
 
 from app.models import Event
 from app.schemas import BreakdownRow, LiveVisitors, StatsSummary, TimeseriesPoint
+from app.services import visits
 from app.services.timeranges import LABEL_FORMATS, Interval, TimeRange, bucket_labels
+from app.services.visits import PAGEVIEW
 
 LIVE_WINDOW = dt.timedelta(minutes=5)
 
-# The event name every tracking script sends on a page load.
-PAGEVIEW = "pageview"
 DEFAULT_BREAKDOWN_LIMIT = 10
 
 
@@ -31,6 +31,8 @@ class BreakdownProperty(StrEnum):
     EVENT = "event"
     MEDIUM = "medium"
     CAMPAIGN = "campaign"
+    ENTRY_PAGE = "entry_page"
+    EXIT_PAGE = "exit_page"
 
 
 # A whitelist, so a request parameter never reaches a column name directly.
@@ -47,6 +49,14 @@ BREAKDOWN_COLUMNS = {
     BreakdownProperty.EVENT: Event.name,
     BreakdownProperty.MEDIUM: Event.medium,
     BreakdownProperty.CAMPAIGN: Event.campaign,
+}
+
+# Dimensions that are not a column at all: they are the first and last page of
+# a visit, which only exists once the events are grouped into visits. Handled
+# by app.services.visits, in both this module and the rollup builder.
+BOUNDARY_EDGES = {
+    BreakdownProperty.ENTRY_PAGE: visits.Edge.START,
+    BreakdownProperty.EXIT_PAGE: visits.Edge.END,
 }
 
 # Dimensions that count only a subset of events. Applied by both the raw
@@ -88,6 +98,11 @@ def _scoped(statement: Select[Any], site_id: str, time_range: TimeRange) -> Sele
     )
 
 
+def _days(time_range: TimeRange) -> tuple[dt.date, dt.date]:
+    """The site's own calendar days the range covers, inclusive."""
+    return time_range.start.date(), time_range.end.date()
+
+
 def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary:
     row = db.execute(
         _scoped(
@@ -97,7 +112,13 @@ def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary
         )
     ).one()
 
-    return StatsSummary.of(visitors=row.visitors, pageviews=row.pageviews)
+    first, last = _days(time_range)
+
+    return StatsSummary.of(
+        visitors=row.visitors,
+        pageviews=row.pageviews,
+        bounces=visits.bounce_count(db, site_id=site_id, first_day=first, last_day=last),
+    )
 
 
 def timeseries(db: Session, *, site_id: str, time_range: TimeRange) -> list[TimeseriesPoint]:
@@ -164,6 +185,23 @@ def breakdown(
     prop: BreakdownProperty,
     limit: int = DEFAULT_BREAKDOWN_LIMIT,
 ) -> list[BreakdownRow]:
+    edge = BOUNDARY_EDGES.get(prop)
+    if edge is not None:
+        # Not a column: the first and last page of a visit only exist once the
+        # events have been grouped into visits.
+        first, last = _days(time_range)
+        return [
+            BreakdownRow(value=value, visitors=visit_count, pageviews=pageviews)
+            for value, visit_count, pageviews in visits.boundary_pages(
+                db,
+                site_id=site_id,
+                first_day=first,
+                last_day=last,
+                edge=edge,
+                limit=limit,
+            )
+        ]
+
     column = BREAKDOWN_COLUMNS[prop]
     visitors = visitor_count()
 

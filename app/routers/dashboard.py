@@ -13,6 +13,8 @@ router = APIRouter(tags=["dashboard"], include_in_schema=False)
 # Tab key, heading, and the dimension behind it.
 PANELS = (
     ("page", "Pages", BreakdownProperty.PAGE),
+    ("entry_page", "Entry pages", BreakdownProperty.ENTRY_PAGE),
+    ("exit_page", "Exit pages", BreakdownProperty.EXIT_PAGE),
     ("source", "Sources", BreakdownProperty.SOURCE),
     ("country", "Countries", BreakdownProperty.COUNTRY),
     ("device", "Devices", BreakdownProperty.DEVICE),

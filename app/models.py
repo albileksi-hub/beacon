@@ -171,6 +171,13 @@ class DailyStat(Base):
     visitors: Mapped[int] = mapped_column(Integer)
     pageviews: Mapped[int] = mapped_column(Integer)
 
+    # Visits that read one page and went no further. Only ever set on the total
+    # row: a bounce is a property of a visit, not of a dimension value, so
+    # counting one against every breakdown a visit touches would sum to several
+    # times the truth. Additive across days, like everything else here, because
+    # a visit cannot straddle midnight.
+    bounces: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+
     __table_args__ = (
         UniqueConstraint("site_id", "day", "dimension", "value", name="uq_daily_stats_grain"),
         Index("ix_daily_stats_lookup", "site_id", "dimension", "day"),

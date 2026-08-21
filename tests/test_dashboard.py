@@ -251,3 +251,31 @@ def test_the_dashboard_says_which_clock_it_is_using(signed_in, db_session, site)
     body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
 
     assert "days here start at midnight in Asia/Tokyo" in body
+
+
+def test_dashboard_shows_the_bounce_rate(signed_in, db_session, rebuild_rollups, site):
+    add_event(db_session, visitor_id="a")
+    add_event(db_session, visitor_id="a", pathname="/about")
+    add_event(db_session, visitor_id="b")
+
+    rebuild_rollups()
+
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
+
+    assert "Bounce rate" in body
+    # One of two visitors read a single page and went no further.
+    assert "50.0%" in body
+
+
+def test_dashboard_has_entry_and_exit_panels(signed_in, db_session, rebuild_rollups, site):
+    add_event(db_session, visitor_id="a", pathname="/landing")
+    add_event(db_session, visitor_id="a", pathname="/goodbye")
+
+    rebuild_rollups()
+
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
+
+    assert "Entry pages" in body
+    assert "Exit pages" in body
+    assert "/landing" in body
+    assert "/goodbye" in body
