@@ -1,6 +1,6 @@
 /* Light/dark toggle. The stored choice is applied inline in <head>; this only
-   handles switching it afterwards. With no choice stored the page follows the
-   system setting, which is the default. */
+   handles switching it afterwards. With no choice stored the page is dark,
+   which is the default in the stylesheet too. */
 (function () {
   "use strict";
 
@@ -10,9 +10,11 @@
   var STORAGE_KEY = "beacon-theme";
 
   function currentlyDark() {
-    var explicit = document.documentElement.dataset.theme;
-    if (explicit) return explicit === "dark";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    // Dark unless someone has asked for light. This has to agree with the
+    // stylesheet, where dark is what bare :root carries -- reading the system
+    // preference here instead would make the first click on a light-preferring
+    // machine appear to do nothing, because the page is already dark.
+    return document.documentElement.dataset.theme !== "light";
   }
 
   toggle.addEventListener("click", function () {
