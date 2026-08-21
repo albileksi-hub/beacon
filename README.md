@@ -89,8 +89,9 @@ true.
 
 ```bash
 python -m venv .venv
-.venv/Scripts/python.exe -m pip install -e ".[dev]"
-.venv/Scripts/python.exe run.py
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install -e ".[dev]"
+python run.py
 ```
 
 Then open http://localhost:8100 for the dashboard, or
@@ -102,11 +103,11 @@ migrations, creates a demo account, registers the site, and generates a year of
 plausible traffic:
 
 ```bash
-.venv/Scripts/python.exe seed.py --days 365 --site demo.example --reset
+python seed.py --days 365 --site demo.example --reset
 ```
 
 ```bash
-.venv/Scripts/python.exe manage.py rollup --days 370
+python manage.py rollup --days 370
 ```
 
 It prints the demo credentials it creates. The schema is only ever built by
@@ -117,7 +118,7 @@ works locally and fails on deploy.
 Tests:
 
 ```bash
-.venv/Scripts/python.exe -m pytest --cov=app --cov-report=term-missing
+python -m pytest --cov=app --cov-report=term-missing
 ```
 
 ## How it fits together
@@ -497,7 +498,8 @@ into the reporting layer, which is exactly what the timezone work removed. It
 is a real feature and it is missing on purpose; the note is here so the gap
 reads as a decision rather than an oversight.
 
-The tracking script is **1,510 bytes gzipped** with all of this in it.
+The tracking script is **2,148 bytes gzipped** (`gzip -9`), comments and all —
+it is served as written rather than minified, so the reasoning travels with it.
 
 ## Telling crawlers from people
 
