@@ -20,6 +20,8 @@ PANELS = (
     ("os", "Systems", BreakdownProperty.OS),
     ("screen", "Screens", BreakdownProperty.SCREEN),
     ("event", "Goals", BreakdownProperty.EVENT),
+    ("campaign", "Campaigns", BreakdownProperty.CAMPAIGN),
+    ("medium", "Mediums", BreakdownProperty.MEDIUM),
 )
 
 PERIOD_LABELS = {

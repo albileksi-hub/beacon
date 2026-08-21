@@ -38,6 +38,7 @@ filter later:
 | --- | --- |
 | `https://shop.com/checkout?email=a@b.com` | `/checkout` |
 | `https://mail.example/inbox?user=a@b.com` | `mail.example` |
+| `?utm_source=hn&email=a@b.com` | `hn`; the rest of the query is never read |
 | Full `User-Agent` string | `Chrome` / `macOS` / `desktop` |
 | IP address | two-letter country code, then discarded |
 | Viewport width of `1437` | `Laptop` |
@@ -439,6 +440,40 @@ Changing a site's zone only affects events from then on. Days already
 aggregated keep the boundaries they were built with, because the raw events
 behind them may well have been deleted by retention.
 
+## Campaigns, downloads, and what was left out
+
+Reading what the established privacy-first tools do — Plausible, Umami,
+GoatCounter — turned up one real gap and a couple of cheap wins.
+
+**Campaign tags were being thrown away.** Every one of those tools reports
+`utm_source`, `utm_medium` and `utm_campaign`; this one discarded the whole
+query string, tags included. It now reads exactly those three parameters by
+name and still drops everything else in the query unread — a stricter position
+than storing the query and filtering it later, and the same argument
+`pathname_of` already makes. A campaign tag is not personal either:
+`utm_campaign=spring-sale` describes the link, not whoever clicked it.
+
+A tag beats the referrer when both are present, because the tag is a
+deliberate statement about where a visit came from and a referrer is an
+accident of how someone arrived. Both new breakdowns filter out untagged
+traffic — a "(none)" row would otherwise dwarf every real campaign on every
+site — which the existing `BREAKDOWN_FILTERS` mechanism already supported.
+
+**File downloads are tracked automatically.** A download is same-origin by
+definition, so its path is a path on the site like any other and it needs no
+schema this project does not already have. A site serving its own error page
+can add `data-404` to the script tag.
+
+**Outbound link clicks are deliberately not tracked.** The useful part of an
+outbound click is *where it went*, and there is nowhere in this schema to put a
+destination host. Adding a JSON properties column would do it, and would put
+dialect-specific SQL — SQLite's `json_extract` against Postgres's `->>` — back
+into the reporting layer, which is exactly what the timezone work removed. It
+is a real feature and it is missing on purpose; the note is here so the gap
+reads as a decision rather than an oversight.
+
+The tracking script is **1,510 bytes gzipped** with all of this in it.
+
 ## Configuration
 
 Every setting is an environment variable prefixed `BEACON_`:
@@ -566,7 +601,7 @@ real error page; the API keeps answering JSON.
 | `POST /api/event` | The collector. Answers `202` to everything, including bots. |
 | `GET /api/stats/{site}/summary` | Visitors, pageviews, views per visitor |
 | `GET /api/stats/{site}/timeseries` | One point per bucket, zero-filled |
-| `GET /api/stats/{site}/breakdown/{prop}` | Top pages, sources, countries, devices, browsers, systems, screens, or goals |
+| `GET /api/stats/{site}/breakdown/{prop}` | Top pages, sources, countries, devices, browsers, systems, screens, goals, campaigns, or mediums |
 | `GET /api/stats/{site}/live` | Visitors in the last five minutes |
 
 `period` accepts `today`, `7d`, `30d`, `6mo`, `12mo`. Bucket size follows from
@@ -633,7 +668,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 398 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 420 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:

@@ -20,11 +20,11 @@
 
   if (navigator.doNotTrack === "1" || window.doNotTrack === "1") return;
 
-  function send(name) {
+  function send(name, url) {
     var payload = JSON.stringify({
       site_id: siteId,
       name: name,
-      url: location.href,
+      url: url || location.href,
       referrer: document.referrer || null,
       screen_width: window.innerWidth
     });
@@ -81,4 +81,28 @@
   watchHistory("pushState");
   watchHistory("replaceState");
   window.addEventListener("popstate", onNavigation);
+
+  // Downloads are recorded as an event named for the file, which needs no
+  // schema this project does not already have: a download is same-origin by
+  // definition, so its path is a path on this site like any other.
+  var DOWNLOADS = /\.(pdf|docx?|xlsx?|pptx?|csv|txt|rtf|zip|rar|7z|gz|dmg|pkg|exe|mp3|wav|mp4|mov|avi)$/i;
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      var link = event.target && event.target.closest && event.target.closest("a[href]");
+      if (!link) return;
+
+      var target = new URL(link.href, location.href);
+      if (target.origin === location.origin && DOWNLOADS.test(target.pathname)) {
+        send("download", target.href);
+      }
+    },
+    // Capturing, so it still runs if the page stops the event on its way up.
+    true
+  );
+
+  // A site that serves its own error page can say so, and the missing path is
+  // recorded as an ordinary path.
+  if (script.hasAttribute("data-404")) send("404");
 })();

@@ -57,6 +57,12 @@ class Event(Base):
     referrer_host: Mapped[str | None] = mapped_column(String(255))
     source: Mapped[str] = mapped_column(String(255), default="Direct")
 
+    # Campaign tags, when the link carried them. Null for ordinary traffic,
+    # which is why the campaign breakdowns filter nulls out rather than
+    # reporting a vast "(none)" row on every site.
+    medium: Mapped[str | None] = mapped_column(String(128))
+    campaign: Mapped[str | None] = mapped_column(String(128))
+
     browser: Mapped[str] = mapped_column(String(64), default="Unknown")
     os: Mapped[str] = mapped_column(String(64), default="Unknown")
     device: Mapped[str] = mapped_column(String(16), default="unknown")

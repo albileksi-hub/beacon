@@ -207,3 +207,20 @@ def test_the_goals_breakdown_leaves_out_page_reads(db_session, month):
         ("signup", 2),
         ("add-to-basket", 1),
     ]
+
+
+def test_the_campaign_breakdown_ignores_untagged_traffic(db_session, month):
+    """A "(none)" row would otherwise dwarf every real campaign on every site."""
+    add_event(db_session, visitor_id="a", campaign="spring", medium="email")
+    add_event(db_session, visitor_id="b", campaign="spring", medium="email")
+    add_event(db_session, visitor_id="c")  # ordinary visit, no tags
+
+    campaigns_seen = stats.breakdown(
+        db_session, site_id=SITE, time_range=month, prop=BreakdownProperty.CAMPAIGN
+    )
+    mediums = stats.breakdown(
+        db_session, site_id=SITE, time_range=month, prop=BreakdownProperty.MEDIUM
+    )
+
+    assert [(row.value, row.visitors) for row in campaigns_seen] == [("spring", 2)]
+    assert [(row.value, row.visitors) for row in mediums] == [("email", 2)]

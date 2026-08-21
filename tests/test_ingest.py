@@ -209,3 +209,59 @@ def test_a_long_domain_can_still_send_events(client, db_session, account):
 
     assert response.status_code == 202
     assert db_session.scalars(select(Event)).one().site_id == long_domain
+
+
+def test_campaign_tags_are_recorded(client, db_session, site):
+    client.post(
+        "/api/event",
+        json=_payload(
+            url="https://blue-mug.example/sale?utm_source=newsletter"
+            "&utm_medium=email&utm_campaign=spring",
+            referrer=None,
+        ),
+    )
+
+    event = db_session.scalars(select(Event)).one()
+    assert (event.source, event.medium, event.campaign) == ("newsletter", "email", "spring")
+
+
+def test_a_campaign_tag_beats_the_referrer(client, db_session, site):
+    """The tag is a deliberate statement about the visit; the referrer is not."""
+    client.post(
+        "/api/event",
+        json=_payload(
+            url="https://blue-mug.example/sale?utm_source=newsletter",
+            referrer="https://www.google.com/search?q=mugs",
+        ),
+    )
+
+    assert db_session.scalars(select(Event)).one().source == "newsletter"
+
+
+def test_the_referrer_still_wins_when_there_is_no_tag(client, db_session, site):
+    client.post("/api/event", json=_payload(referrer="https://www.google.com/"))
+
+    assert db_session.scalars(select(Event)).one().source == "Google"
+
+
+def test_the_rest_of_the_query_is_still_thrown_away(client, db_session, site):
+    client.post(
+        "/api/event",
+        json=_payload(
+            url="https://blue-mug.example/sale?utm_source=hn&email=a@b.com&token=s3cr3t"
+        ),
+    )
+
+    event = db_session.scalars(select(Event)).one()
+    stored = str(event.__dict__)
+    assert event.pathname == "/sale"
+    assert "a@b.com" not in stored
+    assert "s3cr3t" not in stored
+
+
+def test_ordinary_traffic_carries_no_campaign(client, db_session, site):
+    client.post("/api/event", json=_payload())
+
+    event = db_session.scalars(select(Event)).one()
+    assert event.medium is None
+    assert event.campaign is None

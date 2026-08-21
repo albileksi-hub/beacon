@@ -6,7 +6,7 @@ from sqlalchemy import insert
 from app.dependencies import DbSession
 from app.models import Event
 from app.schemas import EventIn
-from app.services import accounts, zones
+from app.services import accounts, campaigns, zones
 from app.services.client import client_ip
 from app.services.geo import get_country_resolver
 from app.services.referrers import classify
@@ -45,6 +45,12 @@ def collect_event(payload: EventIn, request: Request, db: DbSession) -> dict[str
     address = client_ip(request)
     referrer_host, source = classify(payload.referrer, payload.url)
 
+    # A campaign tag is a deliberate statement about where a visit came from,
+    # so it wins over whatever the referrer happened to be.
+    tags = campaigns.from_url(payload.url)
+    if tags.source:
+        source = tags.source
+
     # Which of this site's days the event belongs to is decided here, once, in
     # the site's own zone -- so nothing downstream has to truncate a timestamp.
     occurred = dt.datetime.now(dt.UTC)
@@ -65,6 +71,8 @@ def collect_event(payload: EventIn, request: Request, db: DbSession) -> dict[str
         ),
         "referrer_host": referrer_host,
         "source": source,
+        "medium": tags.medium,
+        "campaign": tags.campaign,
         "browser": client.browser,
         "os": client.os,
         "device": client.device,

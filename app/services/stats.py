@@ -29,6 +29,8 @@ class BreakdownProperty(StrEnum):
     OS = "os"
     SCREEN = "screen"
     EVENT = "event"
+    MEDIUM = "medium"
+    CAMPAIGN = "campaign"
 
 
 # A whitelist, so a request parameter never reaches a column name directly.
@@ -43,6 +45,8 @@ BREAKDOWN_COLUMNS = {
     BreakdownProperty.OS: Event.os,
     BreakdownProperty.SCREEN: Event.screen,
     BreakdownProperty.EVENT: Event.name,
+    BreakdownProperty.MEDIUM: Event.medium,
+    BreakdownProperty.CAMPAIGN: Event.campaign,
 }
 
 # Dimensions that count only a subset of events. Applied by both the raw
@@ -50,6 +54,10 @@ BREAKDOWN_COLUMNS = {
 BREAKDOWN_FILTERS = {
     # Goals are about what people did besides reading a page.
     BreakdownProperty.EVENT: Event.name != PAGEVIEW,
+    # Most visits carry no campaign tag, and a "(none)" row dwarfing every real
+    # campaign would make the panel useless.
+    BreakdownProperty.MEDIUM: Event.medium.is_not(None),
+    BreakdownProperty.CAMPAIGN: Event.campaign.is_not(None),
 }
 
 

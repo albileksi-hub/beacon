@@ -487,7 +487,9 @@ h2 {
 .tabs > .tab-input:nth-of-type(5):checked ~ .tab-bar > .tab:nth-child(5),
 .tabs > .tab-input:nth-of-type(6):checked ~ .tab-bar > .tab:nth-child(6),
 .tabs > .tab-input:nth-of-type(7):checked ~ .tab-bar > .tab:nth-child(7),
-.tabs > .tab-input:nth-of-type(8):checked ~ .tab-bar > .tab:nth-child(8) {
+.tabs > .tab-input:nth-of-type(8):checked ~ .tab-bar > .tab:nth-child(8),
+.tabs > .tab-input:nth-of-type(9):checked ~ .tab-bar > .tab:nth-child(9),
+.tabs > .tab-input:nth-of-type(10):checked ~ .tab-bar > .tab:nth-child(10) {
   color: var(--accent);
   background: var(--accent-soft);
   font-weight: 580;
@@ -500,7 +502,9 @@ h2 {
 .tabs > .tab-input:nth-of-type(5):checked ~ .tab-panel:nth-of-type(5),
 .tabs > .tab-input:nth-of-type(6):checked ~ .tab-panel:nth-of-type(6),
 .tabs > .tab-input:nth-of-type(7):checked ~ .tab-panel:nth-of-type(7),
-.tabs > .tab-input:nth-of-type(8):checked ~ .tab-panel:nth-of-type(8) {
+.tabs > .tab-input:nth-of-type(8):checked ~ .tab-panel:nth-of-type(8),
+.tabs > .tab-input:nth-of-type(9):checked ~ .tab-panel:nth-of-type(9),
+.tabs > .tab-input:nth-of-type(10):checked ~ .tab-panel:nth-of-type(10) {
   display: block;
 }
 
