@@ -65,19 +65,22 @@ def collect_event(payload: EventPayload, request: Request, db: DbSession) -> dic
     Answers 202 rather than 201: the visitor's browser gets an immediate
     acknowledgement and never waits on our storage layer.
     """
+    # The cheapest rejection first. Recognising a crawler means matching against
+    # 1,500 patterns, and there is no reason to spend that on traffic aimed at a
+    # domain nobody registered.
+    domain = accounts.normalise_domain(payload.site_id)
+    if not accounts.site_is_registered(db, domain):
+        # Unregistered domain: nothing stored, same answer as everything else.
+        # Replying differently would let anyone probe which sites are tracked
+        # here, and would turn the collector into an open write endpoint.
+        return ACCEPTED
+
     user_agent = request.headers.get("user-agent", "")
     client = profile(user_agent)
 
     if client.is_bot:
         # Dropped silently, and with the same response a real browser gets, so
         # that a crawler learns nothing about being filtered.
-        return ACCEPTED
-
-    domain = accounts.normalise_domain(payload.site_id)
-    if not accounts.site_is_registered(db, domain):
-        # Unregistered domain: nothing stored, same answer as everything else.
-        # Replying differently would let anyone probe which sites are tracked
-        # here, and would turn the collector into an open write endpoint.
         return ACCEPTED
 
     address = client_ip(request)

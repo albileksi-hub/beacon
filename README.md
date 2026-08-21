@@ -499,6 +499,41 @@ reads as a decision rather than an oversight.
 
 The tracking script is **1,510 bytes gzipped** with all of this in it.
 
+## Telling crawlers from people
+
+Bot filtering was a list of about sixteen substrings written from memory. Tested
+against 2,118 real crawler user-agent strings from a maintained dataset, it
+recognised **65.5%** of them. The third it missed included `ChatGPT-User`,
+`Applebot`, `Bytespider` and Meta's fetchers — traffic that barely existed when
+most such lists were written, and that every site running one of them is
+counting as people.
+
+The patterns now come from
+[monperrus/crawler-user-agents](https://github.com/monperrus/crawler-user-agents)
+(MIT), vendored by `python refresh_bots.py` rather than fetched at runtime: the
+collector should not make a network call to decide whether an event counts, a
+build should not fail because someone else's repository is down, and a change
+in what counts as a bot should show up in a diff like any other change.
+
+**1,500 patterns, 100% of those strings recognised, and no real browser
+misclassified** — including the Cubot phone that a naive `"bot" in ua` check
+eats.
+
+Doing it naively cost 625µs per call against a browser string, which would have
+made bot detection the slowest thing in the request. Two changes fixed that:
+
+- **Literals are matched by substring, not by the regex engine.** Two thirds of
+  the dataset is plain text with no metacharacters, and pulling those out of the
+  alternation took a cold call from 625µs to 273µs.
+- **Answers are cached.** A few thousand distinct strings account for almost all
+  real traffic, so a warm call is **0.09µs** — a hundred times quicker than the
+  sixteen-substring version, because the cache also skips parsing. The cache is
+  bounded, since the header is supplied by the caller.
+
+The collector also now rejects unregistered domains *before* touching the user
+agent. There is no reason to match 1,500 patterns against traffic aimed at a
+site nobody registered.
+
 ## Configuration
 
 Every setting is an environment variable prefixed `BEACON_`:
@@ -693,7 +728,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 427 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 441 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:
