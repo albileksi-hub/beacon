@@ -5,5 +5,8 @@ __pycache__/
 .coverage
 htmlcov/
 *.db
+# WAL mode writes alongside the database, and these hold real contents.
+*.db-wal
+*.db-shm
 .env
 .ruff_cache/
