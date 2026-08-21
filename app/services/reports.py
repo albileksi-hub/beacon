@@ -6,7 +6,6 @@ the two agree across every period and dimension, so the optimisation cannot
 drift away from the truth unnoticed.
 """
 
-import datetime as dt
 from collections import defaultdict
 
 from sqlalchemy import func, select
@@ -37,12 +36,8 @@ from app.services.timeranges import (
 live_visitors = stats.live_visitors
 
 
-def _day_span(time_range: TimeRange) -> tuple[dt.date, dt.date]:
-    return time_range.start.date(), time_range.end.date()
-
-
 def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary:
-    first, last = _day_span(time_range)
+    first, last = time_range.days
 
     visitors, pageviews, bounces = db.execute(
         select(
@@ -71,7 +66,7 @@ def breakdown(
     prop: BreakdownProperty,
     limit: int = DEFAULT_BREAKDOWN_LIMIT,
 ) -> list[BreakdownRow]:
-    first, last = _day_span(time_range)
+    first, last = time_range.days
     visitors = func.sum(DailyStat.visitors)
 
     rows = db.execute(
@@ -100,7 +95,7 @@ def breakdown(
 
 def _hourly_totals(db: Session, site_id: str, time_range: TimeRange) -> dict[str, list[int]]:
     """Hours of the site's own day, keyed by the label the chart asks for."""
-    first, last = _day_span(time_range)
+    first, last = time_range.days
     rows = db.execute(
         select(
             HourlyStat.day, HourlyStat.hour, HourlyStat.visitors, HourlyStat.pageviews
@@ -122,7 +117,7 @@ def _daily_totals(db: Session, site_id: str, time_range: TimeRange) -> dict[str,
     Summing days into a month is only sound because the visitor salt rotates
     at midnight -- see the note on models.DailyStat.
     """
-    first, last = _day_span(time_range)
+    first, last = time_range.days
     fmt = LABEL_FORMATS[time_range.interval]
 
     rows = db.execute(

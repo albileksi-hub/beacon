@@ -39,6 +39,16 @@ class TimeRange:
     end: dt.datetime
     interval: Interval
 
+    @property
+    def days(self) -> tuple[dt.date, dt.date]:
+        """The site's own calendar days this range covers, both inclusive.
+
+        Every query below the reporting layer compares against the stored
+        local day rather than the timestamp, so this is the form they all
+        want -- it was being spelled out by hand in five places.
+        """
+        return self.start.date(), self.end.date()
+
 
 def _start_of_day(moment: dt.datetime) -> dt.datetime:
     return moment.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -124,5 +134,6 @@ def preceding(time_range: TimeRange) -> TimeRange:
     up to this same time, which is the honest one -- comparing a half-finished
     day against a whole one would show a fall every morning.
     """
-    span = dt.timedelta(days=(time_range.end.date() - time_range.start.date()).days + 1)
+    first, last = time_range.days
+    span = dt.timedelta(days=(last - first).days + 1)
     return TimeRange(time_range.start - span, time_range.end - span, time_range.interval)

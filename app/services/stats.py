@@ -13,7 +13,6 @@ from app.models import Event
 from app.schemas import BreakdownRow, LiveVisitors, StatsSummary, TimeseriesPoint
 from app.services import visits
 from app.services.timeranges import LABEL_FORMATS, Interval, TimeRange, bucket_labels
-from app.services.visits import PAGEVIEW
 
 LIVE_WINDOW = dt.timedelta(minutes=5)
 
@@ -63,7 +62,7 @@ BOUNDARY_EDGES = {
 # queries and the rollup builder, so the two cannot disagree about scope.
 BREAKDOWN_FILTERS = {
     # Goals are about what people did besides reading a page.
-    BreakdownProperty.EVENT: Event.name != PAGEVIEW,
+    BreakdownProperty.EVENT: Event.name != visits.PAGEVIEW,
     # Most visits carry no campaign tag, and a "(none)" row dwarfing every real
     # campaign would make the panel useless.
     BreakdownProperty.MEDIUM: Event.medium.is_not(None),
@@ -82,7 +81,7 @@ def pageview_count() -> Function[int]:
     Custom events share this table, so counting rows would inflate every site's
     pageview figure the moment somebody started tracking sign-ups.
     """
-    return func.coalesce(func.sum(case((Event.name == PAGEVIEW, 1), else_=0)), 0)
+    return func.coalesce(func.sum(case((Event.name == visits.PAGEVIEW, 1), else_=0)), 0)
 
 
 def _scoped(statement: Select[Any], site_id: str, time_range: TimeRange) -> Select[Any]:
@@ -91,16 +90,8 @@ def _scoped(statement: Select[Any], site_id: str, time_range: TimeRange) -> Sele
     Compared on the stored local day, not on the timestamp: the range came from
     the site's own calendar, and a day there is not a day in UTC.
     """
-    return statement.where(
-        Event.site_id == site_id,
-        Event.day >= time_range.start.date(),
-        Event.day <= time_range.end.date(),
-    )
-
-
-def _days(time_range: TimeRange) -> tuple[dt.date, dt.date]:
-    """The site's own calendar days the range covers, inclusive."""
-    return time_range.start.date(), time_range.end.date()
+    first, last = time_range.days
+    return statement.where(Event.site_id == site_id, Event.day >= first, Event.day <= last)
 
 
 def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary:
@@ -112,7 +103,7 @@ def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary
         )
     ).one()
 
-    first, last = _days(time_range)
+    first, last = time_range.days
 
     return StatsSummary.of(
         visitors=row.visitors,
@@ -189,7 +180,7 @@ def breakdown(
     if edge is not None:
         # Not a column: the first and last page of a visit only exist once the
         # events have been grouped into visits.
-        first, last = _days(time_range)
+        first, last = time_range.days
         return [
             BreakdownRow(value=value, visitors=visit_count, pageviews=pageviews)
             for value, visit_count, pageviews in visits.boundary_pages(
