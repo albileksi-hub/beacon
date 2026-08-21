@@ -339,3 +339,29 @@ def test_the_tracking_script_offers_an_opt_out():
     # Reading only: writing would be storage, and storage is what would drag
     # this back under the consent rule it is exempt from.
     assert "localStorage.setItem" not in script
+
+
+def test_the_public_api_survives_every_reason_the_script_gives_up():
+    """beacon("signup") must not throw on a page that is not being counted.
+
+    The API was installed at the bottom of the script, after the checks for Do
+    Not Track, the opt-out flag and a missing site id had already returned. A
+    site following the documented API therefore threw a ReferenceError on the
+    host page -- for precisely the visitors who had asked not to be counted,
+    and on a project whose stated rule is that analytics must never break the
+    site it measures.
+
+    Asserted structurally rather than by running the script, because there is
+    no JavaScript toolchain here and this is the property that matters: the
+    assignment comes first.
+    """
+    script = (Path(__file__).parent.parent / "static" / "beacon.js").read_text(encoding="utf-8")
+
+    installed = script.index("window.beacon = function")
+    for bail_out in (
+        "document.currentScript",
+        "data-site-id",
+        "doNotTrack",
+        'localStorage.getItem("beacon_ignore")',
+    ):
+        assert installed < script.index(bail_out), f"{bail_out} can return before the API exists"

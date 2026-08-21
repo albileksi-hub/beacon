@@ -5,6 +5,14 @@
 (function () {
   "use strict";
 
+  // Defined before anything below can bail out. A site that follows the
+  // documented API calls beacon("signup") from its own code, and every reason
+  // this script has to stop -- Do Not Track, an opt-out, a missing site id --
+  // would otherwise leave that call throwing a ReferenceError on the host
+  // page. Analytics must never break the site it measures, and least of all
+  // for the visitor who asked not to be counted.
+  window.beacon = function () {};
+
   var script = document.currentScript;
   if (!script) return;
 
@@ -88,7 +96,9 @@
     };
   }
 
-  // Public API for anything that is not a page being read:
+  // The real implementation now that the script is definitely running,
+  // replacing the no-op installed at the top. For anything that is not a page
+  // being read:
   //     beacon("signup")
   // Refuses the name "pageview" so a site cannot inflate its own view count
   // through the same call.
