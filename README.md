@@ -187,7 +187,7 @@ A two-second dashboard render becomes ten milliseconds.
 ## The database
 
 Everything below was measured against a seeded year of traffic for one
-mid-sized site: **4,432,316 events, 1.1 GB of SQLite**. `python analyse.py`
+mid-sized site: **4,465,603 events, 1.1 GB of SQLite**. `python analyse.py`
 reproduces it — it hooks the engine, runs the real service functions, captures
 every statement they issue and asks the database to explain each one, so the
 plans below are what the application actually does rather than SQL retyped by
@@ -198,11 +198,17 @@ a full scan.
 
 | Query | Raw events | Rollups |
 | --- | --- | --- |
-| 30-day summary | 1546 ms | 0.62 ms |
-| 12-month summary | — | 0.77 ms |
-| 12-month time series | — | 3.08 ms |
-| Top pages, 30 days | — | 1.09 ms |
-| Live visitors (last 5 min) | 0.46 ms | reads raw, by design |
+| 30-day summary | 997 ms | 0.74 ms |
+| 12-month summary | — | 0.90 ms |
+| 12-month time series | — | 2.85 ms |
+| Top pages, 30 days | — | 0.95 ms |
+| Live visitors (last 5 min) | 0.54 ms | reads raw, by design |
+| Is this domain registered | — | 0.01 ms, no SQL at all |
+
+Two of those moved when days became local. Grouping on a stored, indexed `day`
+beats truncating a timestamp: rebuilding a year of rollups went from **120s to
+49s**, and the raw 30-day summary from 1546 ms to 997 ms. The registry cache
+means the collector's domain check now issues no statement whatsoever.
 
 Every one is index-backed. `events` carries a single composite index on
 `(site_id, timestamp, visitor_id)`, which SQLite reports as *covering* for both
@@ -223,7 +229,7 @@ the promise that the event is safe. That makes commit latency the whole game:
 | Starting point | 140 |
 | + WAL journal | 782 |
 | + `synchronous=NORMAL` | 8,328 (raw insert) |
-| Through the real collector path, all changes | **1,916** |
+| Through the real collector path, all changes | **2,022** |
 
 `journal_mode=WAL` stops readers blocking the writer and stops every commit
 rewriting a rollback journal. `synchronous=NORMAL` under WAL is still durable

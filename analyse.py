@@ -142,11 +142,15 @@ def ingest_rate(site: str, count: int) -> None:
     Batching would go faster, but it would also lose events on a crash, and
     the collector answers 202 on the promise that the event is safe.
     """
+    from app.services import zones
     from app.services.visitors import current_salt, visitor_id
 
     now = dt.datetime.now(dt.UTC)
     with SessionLocal() as session:
-        salt = current_salt(session)
+        # Exactly what the collector works out per event.
+        timezone = accounts.timezone_for(session, site)
+        day, hour = zones.local_parts(now, timezone)
+        salt = current_salt(session, site_id=site, day=day)
 
         started = time.perf_counter()
         for index in range(count):
@@ -159,6 +163,8 @@ def ingest_rate(site: str, count: int) -> None:
                         salt=salt, site_id=site, ip=f"203.0.113.{index % 255}", user_agent="probe"
                     ),
                     timestamp=now,
+                    day=day,
+                    hour=hour,
                     name="pageview",
                     pathname="/ingest-probe",
                     source="Direct",
