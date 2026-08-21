@@ -4,28 +4,29 @@
    preference and once for an explicit toggle -- so both directions win. */
 
 :root {
-  --bg: #f7f7f9;
-  --bg-tint: #eeeef3;
+  --bg: #f6f8f8;
+  --bg-tint: #eaefef;
   --panel: #ffffff;
-  --panel-soft: #f3f3f6;
-  --text: #0e0e13;
-  --text-soft: #3f3f4a;
-  --muted: #6d6d7c;
-  --border: #e4e4ea;
-  --border-strong: #d4d4dd;
-  --accent: #5348e0;
-  --accent-hover: #4339ce;
-  --accent-soft: #eceafc;
-  --accent-line: #c9c4f6;
-  --up: #10794a;
-  --down: #bc2f3a;
-  --live: #16a34a;
+  --panel-soft: #f1f5f5;
+  --text: #0b1213;
+  --text-soft: #38484a;
+  --muted: #5f7275;
+  --border: #e2e8e8;
+  --border-strong: #cfdada;
+  --accent: #0f766e;
+  --accent-hover: #0c5f59;
+  --accent-soft: #e6f4f2;
+  --accent-line: #a7d8d2;
+  --on-accent: #ffffff;
+  --up: #0f766e;
+  --down: #b91c1c;
+  --live: #14b8a6;
   --danger-text: #b0212c;
-  --danger-bg: #fdf1f2;
-  --danger-border: #f6ced2;
-  --shadow-sm: 0 1px 2px rgba(14, 14, 19, 0.05);
-  --shadow-md: 0 1px 2px rgba(14, 14, 19, 0.04), 0 6px 16px -6px rgba(14, 14, 19, 0.1);
-  --ring: 0 0 0 3px rgba(83, 72, 224, 0.28);
+  --danger-bg: #fdf2f2;
+  --danger-border: #f6d2d2;
+  --shadow-sm: 0 1px 2px rgba(11, 18, 19, 0.05);
+  --shadow-md: 0 1px 2px rgba(11, 18, 19, 0.04), 0 6px 16px -6px rgba(11, 18, 19, 0.1);
+  --ring: 0 0 0 3px rgba(15, 118, 110, 0.28);
 
   --radius: 14px;
   --radius-sm: 8px;
@@ -33,54 +34,56 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #08080b;
-    --bg-tint: #101016;
-    --panel: #121218;
-    --panel-soft: #1b1b23;
-    --text: #f4f4f6;
-    --text-soft: #c9c9d2;
-    --muted: #8e8e9d;
-    --border: #232330;
-    --border-strong: #32323f;
-    --accent: #8b83fa;
-    --accent-hover: #9d96fb;
-    --accent-soft: #1c1936;
-    --accent-line: #3b3568;
-    --up: #4ade80;
+    --bg: #07090a;
+    --bg-tint: #0e1314;
+    --panel: #101516;
+    --panel-soft: #171f1f;
+    --text: #f2f6f6;
+    --text-soft: #c4d1d1;
+    --muted: #87999a;
+    --border: #1e2a2b;
+    --border-strong: #2c3b3c;
+    --accent: #2dd4bf;
+    --accent-hover: #5eead4;
+    --accent-soft: #0c2b28;
+    --accent-line: #1d4f49;
+    --on-accent: #052e2b;
+    --up: #34d399;
     --down: #fb7185;
-    --live: #4ade80;
+    --live: #2dd4bf;
     --danger-text: #fca5a5;
-    --danger-bg: #26151a;
-    --danger-border: #4a1f27;
+    --danger-bg: #251617;
+    --danger-border: #4a2224;
     --shadow-sm: none;
     --shadow-md: none;
-    --ring: 0 0 0 3px rgba(139, 131, 250, 0.32);
+    --ring: 0 0 0 3px rgba(45, 212, 191, 0.32);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #08080b;
-  --bg-tint: #101016;
-  --panel: #121218;
-  --panel-soft: #1b1b23;
-  --text: #f4f4f6;
-  --text-soft: #c9c9d2;
-  --muted: #8e8e9d;
-  --border: #232330;
-  --border-strong: #32323f;
-  --accent: #8b83fa;
-  --accent-hover: #9d96fb;
-  --accent-soft: #1c1936;
-  --accent-line: #3b3568;
-  --up: #4ade80;
+  --bg: #07090a;
+  --bg-tint: #0e1314;
+  --panel: #101516;
+  --panel-soft: #171f1f;
+  --text: #f2f6f6;
+  --text-soft: #c4d1d1;
+  --muted: #87999a;
+  --border: #1e2a2b;
+  --border-strong: #2c3b3c;
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --accent-soft: #0c2b28;
+  --accent-line: #1d4f49;
+  --on-accent: #052e2b;
+  --up: #34d399;
   --down: #fb7185;
-  --live: #4ade80;
+  --live: #2dd4bf;
   --danger-text: #fca5a5;
-  --danger-bg: #26151a;
-  --danger-border: #4a1f27;
+  --danger-bg: #251617;
+  --danger-border: #4a2224;
   --shadow-sm: none;
   --shadow-md: none;
-  --ring: 0 0 0 3px rgba(139, 131, 250, 0.32);
+  --ring: 0 0 0 3px rgba(45, 212, 191, 0.32);
 }
 
 * { box-sizing: border-box; }
@@ -683,7 +686,9 @@ h2 {
 .button:active { transform: translateY(1px); }
 
 .button.primary {
-  color: #fff;
+  /* Not white: the dark theme's accent is a bright teal, and white on it is
+     1.9:1. The token flips with the palette so the button stays readable. */
+  color: var(--on-accent);
   background: var(--accent);
   box-shadow: var(--shadow-sm);
 }
