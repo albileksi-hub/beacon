@@ -3,6 +3,16 @@ import pytest
 from app.services import charts
 
 
+def plot(values, labels, **kwargs):
+    """A chart with no axis furniture around it.
+
+    The gutter and the axis band are insets that hold the labels, so a test
+    about where the curve lands says so by switching them off rather than
+    doing the arithmetic around them.
+    """
+    return charts.build(values, labels, gutter=0, axis_band=0, **kwargs)
+
+
 def test_no_data_produces_an_empty_chart():
     chart = charts.build([], [])
 
@@ -13,14 +23,14 @@ def test_no_data_produces_an_empty_chart():
 
 def test_a_flat_zero_series_still_draws_a_baseline():
     # The scale falls back to 1 rather than dividing by a zero peak.
-    chart = charts.build([0, 0, 0], ["a", "b", "c"], height=100, padding=10)
+    chart = plot([0, 0, 0], ["a", "b", "c"], height=100, padding=10)
 
     assert chart.is_empty
     assert [point.y for point in chart.points] == [90.0, 90.0, 90.0]
 
 
 def test_the_peak_reaches_the_top_of_the_plot_area():
-    chart = charts.build([0, 5, 10], ["a", "b", "c"], height=100, padding=10)
+    chart = plot([0, 5, 10], ["a", "b", "c"], height=100, padding=10)
 
     assert chart.peak == 10
     assert chart.points[-1].y == 10.0  # the padding line
@@ -29,13 +39,13 @@ def test_the_peak_reaches_the_top_of_the_plot_area():
 
 
 def test_points_are_evenly_spaced_across_the_width():
-    chart = charts.build([1, 1, 1], ["a", "b", "c"], width=100, padding=10)
+    chart = plot([1, 1, 1], ["a", "b", "c"], width=100, padding=10)
 
     assert [point.x for point in chart.points] == [10.0, 50.0, 90.0]
 
 
 def test_a_single_point_is_centred():
-    chart = charts.build([3], ["only"], width=100, padding=10)
+    chart = plot([3], ["only"], width=100, padding=10)
 
     assert [point.x for point in chart.points] == [50.0]
 
@@ -50,10 +60,10 @@ def test_labels_and_values_travel_with_their_points():
 
 
 def test_the_area_path_is_closed_along_the_baseline():
-    chart = charts.build([1, 2], ["a", "b"], width=100, height=50, padding=10)
+    chart = plot([1, 2], ["a", "b"], width=100, height=50, padding=10)
 
-    assert chart.area.startswith("M 10.00,50")
-    assert chart.area.endswith("L 90.00,50 Z")
+    assert chart.area.startswith("M 10.00,40.00")
+    assert chart.area.endswith("L 90.00,40.00 Z")
 
 
 def test_the_area_follows_the_same_curve_as_the_stroke():
@@ -98,7 +108,7 @@ def test_the_curve_never_overshoots_the_data():
     A spike surrounded by zeroes makes a naive curve bulge below the baseline,
     drawing visitor counts that never happened.
     """
-    chart = charts.build([0, 0, 100, 0, 0], list("abcde"), height=100, padding=0)
+    chart = plot([0, 0, 100, 0, 0], list("abcde"), height=100, padding=0)
 
     # SVG y runs downwards: 100 is a count of zero, 0 is the peak.
     heights = _sample(chart.curve)
@@ -107,7 +117,7 @@ def test_the_curve_never_overshoots_the_data():
 
 
 def test_a_rising_series_stays_rising():
-    chart = charts.build([1, 2, 3, 4, 5], list("abcde"), height=100, padding=0)
+    chart = plot([1, 2, 3, 4, 5], list("abcde"), height=100, padding=0)
 
     heights = _sample(chart.curve)
     assert heights == sorted(heights, reverse=True)
@@ -153,15 +163,15 @@ def test_the_axis_rounds_up_to_a_number_a_person_would_choose(peak, expected):
 
 
 def test_gridlines_span_the_axis():
-    chart = charts.build([0, 5, 10], ["a", "b", "c"], height=100, padding=10)
+    chart = plot([0, 5, 10], ["a", "b", "c"], height=100, padding=10)
 
-    assert [line.value for line in chart.gridlines] == [10, 5, 0]
-    assert [line.y for line in chart.gridlines] == [10.0, 50.0, 90.0]
+    assert [line.value for line in chart.gridlines] == [0, 2, 4, 6, 8, 10]
+    assert [line.y for line in chart.gridlines] == [90.0, 74.0, 58.0, 42.0, 26.0, 10.0]
 
 
 def test_points_are_scaled_to_the_axis_not_the_peak():
     # Peak 96 draws against an axis of 100, so it stops just short of the top.
-    chart = charts.build([96], ["a"], height=100, padding=0)
+    chart = plot([96], ["a"], height=100, padding=0)
 
     assert chart.ceiling == 100
     assert chart.points[0].y == 4.0
@@ -178,8 +188,91 @@ def test_a_cliff_edge_has_its_tangents_clamped():
     far steeper than the segment before it, and without clamping the curve
     swings well below the first value on its way up.
     """
-    chart = charts.build([0, 1, 100], ["a", "b", "c"], height=100, padding=0)
+    chart = plot([0, 1, 100], ["a", "b", "c"], height=100, padding=0)
 
     heights = _sample(chart.curve)
     assert max(heights) <= 100.0 + 1e-6, "the curve dipped below zero visitors"
     assert min(heights) >= 0.0 - 1e-6, "the curve rose above the peak"
+
+
+@pytest.mark.parametrize(
+    ("ceiling", "divisions"),
+    [
+        (125, 5),
+        (100, 5),
+        (200, 5),
+        (400, 5),
+        (12, 4),
+        (9, 3),
+        (2, 2),
+        # Nothing divides it, so the axis is just its two ends.
+        (1, 1),
+        (7, 1),
+    ],
+)
+def test_the_axis_is_cut_into_bands_that_divide_it_wholly(ceiling, divisions):
+    """Why the gridlines are not simply halved.
+
+    Halving a ceiling of 125 draws a line at 62.5 and labels it 62, so the
+    line sits slightly off the value it claims. Choosing a divisor the ceiling
+    actually divides by means every gridline is exactly where its label says.
+    """
+    assert charts.grid_divisions(ceiling) == divisions
+    assert ceiling % divisions == 0
+
+
+def test_every_gridline_lands_on_a_whole_number():
+    chart = charts.build([0, 125], ["a", "b"])
+
+    assert [line.value for line in chart.gridlines] == [0, 25, 50, 75, 100, 125]
+
+
+def test_the_axis_furniture_is_inset_rather_than_drawn_over_the_plot():
+    """The labels used to sit inside the plot, on top of the curve."""
+    chart = charts.build([1, 2], ["a", "b"], width=200, height=100, padding=10)
+
+    assert chart.plot_left == 10 + charts.DEFAULT_GUTTER
+    assert chart.baseline == 100 - 10 - charts.DEFAULT_AXIS_BAND
+    # No point starts left of the gutter or below the baseline.
+    assert min(point.x for point in chart.points) >= chart.plot_left
+    assert max(point.y for point in chart.points) <= chart.baseline
+
+
+def test_an_empty_chart_still_reports_where_its_axis_would_be():
+    """The template reads these before it knows whether there is data."""
+    chart = charts.build([], [])
+
+    assert chart.plot_left > 0
+    assert chart.baseline > 0
+    assert chart.ticks == []
+
+
+@pytest.mark.parametrize(
+    ("count", "expected"),
+    [
+        (1, [0]),
+        (4, [0, 1, 2, 3]),
+        (7, [0, 1, 2, 3, 4, 5, 6]),
+        (13, [0, 2, 4, 6, 8, 10, 12]),
+        (30, [0, 5, 10, 14, 19, 24, 29]),
+    ],
+)
+def test_ticks_are_evenly_spaced_and_keep_both_ends(count, expected):
+    positions = charts.tick_positions(count)
+
+    assert positions == expected
+    assert positions[0] == 0
+    assert positions[-1] == count - 1
+    assert len(positions) <= charts.MAX_TICKS
+
+
+def test_ticks_are_points_so_a_label_stays_with_its_x():
+    """A tick drawn at an x that belongs to a different bucket is a lie."""
+    labels = [f"2026-08-{day:02d}" for day in range(1, 21)]
+    chart = charts.build(list(range(20)), labels)
+
+    assert len(chart.ticks) == charts.MAX_TICKS
+    assert chart.ticks[0] is chart.points[0]
+    assert chart.ticks[-1] is chart.points[-1]
+    for tick in chart.ticks:
+        assert tick in chart.points

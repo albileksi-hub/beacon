@@ -17,6 +17,16 @@ DEFAULT_WIDTH = 820
 DEFAULT_HEIGHT = 240
 DEFAULT_PADDING = 10
 
+# Room down the left for the y-axis labels, and along the bottom for the x-axis
+# ones. They used to be drawn inside the plot, over the top of the curve, which
+# is a heads-up display rather than an axis.
+DEFAULT_GUTTER = 40
+DEFAULT_AXIS_BAND = 22
+
+# As many x-axis ticks as fit without the labels colliding at the widths this
+# is rendered at.
+MAX_TICKS = 7
+
 SPARKLINE_WIDTH = 120
 SPARKLINE_HEIGHT = 28
 
@@ -50,6 +60,11 @@ class Chart:
     area: str
     points: list[Point]
     gridlines: list[Gridline]
+    # Where the plot starts, so the axis labels can be placed beside it.
+    plot_left: float
+    baseline: float
+    # The subset of points whose labels the x-axis shows.
+    ticks: list[Point]
 
     @property
     def is_empty(self) -> bool:
@@ -70,6 +85,30 @@ def axis_ceiling(peak: int) -> int:
             return candidate
 
     return magnitude * 10
+
+
+def grid_divisions(ceiling: int) -> int:
+    """How many bands to cut the axis into, so every gridline is a whole number.
+
+    The axis used to be halved regardless, which labelled a ceiling of 125 as
+    "125 / 62 / 0" -- a gridline drawn at 62.5 and rounded in the label, so it
+    sat slightly off the value it claimed. Choosing a divisor the ceiling
+    actually divides by means every line is exactly where its label says.
+    """
+    for divisions in (5, 4, 3, 2):
+        if ceiling % divisions == 0:
+            return divisions
+
+    return 1
+
+
+def tick_positions(count: int, most: int = MAX_TICKS) -> list[int]:
+    """Evenly spaced indices, always including the first and the last."""
+    if count <= most:
+        return list(range(count))
+
+    step = (count - 1) / (most - 1)
+    return sorted({round(index * step) for index in range(most)})
 
 
 def _tangents(xs: list[float], ys: list[float]) -> list[float]:
@@ -133,23 +172,38 @@ def _curve_through(points: list[Point]) -> str:
 
 
 def _plot(
-    values: list[int], labels: list[str], *, width: int, height: int, padding: int
-) -> tuple[list[Point], int, int]:
+    values: list[int],
+    labels: list[str],
+    *,
+    width: int,
+    height: int,
+    padding: int,
+    gutter: int = 0,
+    axis_band: int = 0,
+) -> tuple[list[Point], int, int, float]:
+    """Place the series inside the plot, returning the baseline with it.
+
+    The gutter and the axis band are insets rather than part of the plot, so
+    the curve never runs under its own labels. Sparklines pass neither and get
+    the whole box, which is the point of a sparkline.
+    """
     peak = max(values)
     ceiling = axis_ceiling(peak)
-    usable_height = height - 2 * padding
-    span = width - 2 * padding
+    baseline = height - padding - axis_band
+    usable_height = baseline - padding
+    left = padding + gutter
+    span = width - left - padding
 
     points = [
         Point(
-            x=padding + (span * index / (len(values) - 1) if len(values) > 1 else span / 2),
-            y=height - padding - (value / ceiling) * usable_height,
+            x=left + (span * index / (len(values) - 1) if len(values) > 1 else span / 2),
+            y=baseline - (value / ceiling) * usable_height,
             value=value,
             label=label,
         )
         for index, (value, label) in enumerate(zip(values, labels, strict=True))
     ]
-    return points, peak, ceiling
+    return points, peak, ceiling, baseline
 
 
 def build(
@@ -159,8 +213,11 @@ def build(
     width: int = DEFAULT_WIDTH,
     height: int = DEFAULT_HEIGHT,
     padding: int = DEFAULT_PADDING,
+    gutter: int = DEFAULT_GUTTER,
+    axis_band: int = DEFAULT_AXIS_BAND,
 ) -> Chart:
-    """Turn a series into a curve, a filled area, and gridlines."""
+    """Turn a series into a curve, a filled area, gridlines and axis ticks."""
+    plot_left = float(padding + gutter)
     if not values:
         return Chart(
             width=width,
@@ -171,29 +228,41 @@ def build(
             area="",
             points=[],
             gridlines=[],
+            plot_left=plot_left,
+            baseline=float(height - padding - axis_band),
+            ticks=[],
         )
 
-    points, peak, ceiling = _plot(
-        values, labels, width=width, height=height, padding=padding
+    points, peak, ceiling, baseline = _plot(
+        values,
+        labels,
+        width=width,
+        height=height,
+        padding=padding,
+        gutter=gutter,
+        axis_band=axis_band,
     )
     curve = _curve_through(points)
 
     # The fill reuses the stroke's path, dropped to the baseline at both ends,
-    # so the two can never disagree about where the line runs.
+    # so the two can never disagree about where the line runs. It stops at the
+    # zero gridline rather than the bottom of the box, which is where the axis
+    # says the data ends.
     area = (
-        f"M {points[0].x:.2f},{height} L {points[0].x:.2f},{points[0].y:.2f} "
+        f"M {points[0].x:.2f},{baseline:.2f} L {points[0].x:.2f},{points[0].y:.2f} "
         + curve[curve.index("C") :]
-        + f" L {points[-1].x:.2f},{height} Z"
+        + f" L {points[-1].x:.2f},{baseline:.2f} Z"
         if len(points) > 1
         else ""
     )
 
+    divisions = grid_divisions(ceiling)
     gridlines = [
         Gridline(
-            y=round(height - padding - fraction * (height - 2 * padding), 2),
-            value=int(ceiling * fraction),
+            y=round(baseline - (step / divisions) * (baseline - padding), 2),
+            value=ceiling * step // divisions,
         )
-        for fraction in (1.0, 0.5, 0.0)
+        for step in range(divisions + 1)
     ]
 
     return Chart(
@@ -205,6 +274,9 @@ def build(
         area=area,
         points=points,
         gridlines=gridlines,
+        plot_left=plot_left,
+        baseline=baseline,
+        ticks=[points[index] for index in tick_positions(len(points))],
     )
 
 
@@ -219,7 +291,7 @@ def sparkline(
     if not values or max(values) <= 0:
         return ""
 
-    points, _, _ = _plot(
+    points, _, _, _ = _plot(
         values, [""] * len(values), width=width, height=height, padding=padding
     )
     return _curve_through(points)
