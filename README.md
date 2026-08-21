@@ -725,18 +725,20 @@ Light and dark follow the system preference until someone chooses, and the
 choice is applied inline in `<head>` so there is no flash of the wrong theme on
 load.
 
-The palette is teal on cool neutrals, and it lives entirely in tokens: three
-blocks, light on a bare `:root` and dark twice over so that the system
+The palette is burnt orange on warm neutrals, and it lives entirely in tokens:
+three blocks, light on a bare `:root` and dark twice over so that the system
 preference and the explicit toggle both win. Everything downstream follows
 `--accent` without knowing what it is — the chart line and its gradient, the
 sparklines, the breakdown bars, the focus ring and the brand mark.
 
 One token exists only because contrast does not survive a palette swap.
 `--on-accent` is the colour of text sitting *on* the accent, white in the light
-theme and near-black in the dark one: the dark accent is a bright teal, and
-white on it is 1.9:1, which is the primary button on every sign-in and sign-up
-form. Both themes now clear WCAG AA on every text pair, the tightest being
-4.75:1. Static assets carry a hash of their contents in the URL, so a browser
+theme and near-black in the dark one — that is the primary button on every
+sign-in and sign-up form, and orange is exactly the hue where getting it wrong
+is easiest: a vivid `#f97316` carries white at 2.8:1. The light accent is
+therefore a burnt `#c2410c` rather than a brighter orange. Both themes clear
+WCAG AA on every text pair, the tightest being 5.02:1, and the live dot clears
+the 3:1 that applies to it as a graphic rather than as text. Static assets carry a hash of their contents in the URL, so a browser
 holding yesterday's stylesheet cannot render new markup against it.
 
 A signed-out visitor gets a page explaining what Beacon is, rather than being
