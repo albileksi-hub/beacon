@@ -324,3 +324,18 @@ def test_the_tracking_script_labels_its_body_safelisted():
     assert '"Content-Type": "text/plain"' in script
     # Quoted, so the comment explaining why it must not be used does not match.
     assert '"application/json"' not in script
+
+
+def test_the_tracking_script_offers_an_opt_out():
+    """Exempt from consent still means the visitor must be able to refuse.
+
+    The script only reads the flag; writing it belongs to the site, which keeps
+    the script itself free of any device storage.
+    """
+    script = (Path(__file__).parent.parent / "static" / "beacon.js").read_text(encoding="utf-8")
+
+    assert 'localStorage.getItem("beacon_ignore")' in script
+    assert "doNotTrack" in script
+    # Reading only: writing would be storage, and storage is what would drag
+    # this back under the consent rule it is exempt from.
+    assert "localStorage.setItem" not in script

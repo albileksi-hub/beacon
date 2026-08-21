@@ -11,7 +11,8 @@ Add one line to a page and you get numbers:
 <script src="https://your-host/static/beacon.js" data-site-id="yoursite.com" defer></script>
 ```
 
-No cookies. No consent banner. No personal data at rest.
+No cookies. No personal data at rest. No consent banner — with a caveat
+worth reading, below.
 
 ## Why it is built this way
 
@@ -30,6 +31,30 @@ regulation turns on.
 The trade is deliberate and total: there is no cross-day visitor tracking, and
 the same person on two devices counts twice. That is the cost of not needing a
 cookie banner.
+
+### What "no consent banner" does and does not mean
+
+The cookie-consent rule in ePrivacy Article 5(3) is about storing or reading
+things on someone's device. Beacon does neither, so on the usual reading it
+does not trigger that rule, and no consent banner is required for it.
+
+That is a narrower statement than "compliant", and the difference matters:
+
+- **Exemption from consent is not exemption from telling people.** Regulators
+  that exempt audience measurement still expect a site to disclose it and to
+  offer a way to refuse. Beacon reads `localStorage.beacon_ignore === "true"`
+  and stays silent when it is set — a site puts its own control in front of
+  that flag. The script only ever *reads* it; writing is the site's job, which
+  is what keeps the script itself free of device storage.
+- **The conditions are cumulative.** The exemption assumes measurement for the
+  publisher alone, aggregate statistics, no combining with other datasets, and
+  no tracking across sites. Beacon's hashes are salted per site, so the same
+  person on two customers' sites is uncorrelatable — but an operator who
+  exports the data and joins it to something else has left the exemption
+  behind, and no amount of design here can stop that.
+- **National rules differ and move.** This is a description of the design, not
+  legal advice, and it is not a substitute for someone qualified looking at how
+  a particular site uses it.
 
 Everything else follows the same rule — reduce at the boundary, never store and
 filter later:
@@ -668,7 +693,7 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 420 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 427 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:

@@ -20,6 +20,20 @@
 
   if (navigator.doNotTrack === "1" || window.doNotTrack === "1") return;
 
+  // An explicit opt-out. Regulators that exempt audience measurement from
+  // consent still expect the visitor to be told and to be able to refuse, and
+  // Do Not Track alone is no longer offered by most browsers.
+  //
+  // The script only ever reads this flag. Writing it is the site's job, from
+  // whatever control it puts in front of the visitor -- so this script still
+  // stores nothing on the device, which is the reason it needs no consent in
+  // the first place.
+  try {
+    if (localStorage.getItem("beacon_ignore") === "true") return;
+  } catch (e) {
+    /* storage unavailable: nothing to opt out of, carry on */
+  }
+
   function send(name, url) {
     var payload = JSON.stringify({
       site_id: siteId,
