@@ -707,9 +707,19 @@ operating systems.
 
 Almost none of it needs JavaScript:
 
-- **The chart is inline SVG** whose geometry — points, area path, and gridlines
-  on a rounded axis — is computed in Python. No charting library, and no Node
-  toolchain to build one.
+- **The chart is inline SVG** whose geometry — points, area path, gridlines and
+  axis ticks — is computed in Python. No charting library, and no Node toolchain
+  to build one.
+- **The axis is cut into bands the ceiling divides by**, so every gridline is a
+  whole number. Halving a ceiling of 125 drew a line at 62.5 and labelled it 62,
+  which is a gridline sitting slightly off the value it claims; it now reads
+  0/25/50/75/100/125. The labels live in a gutter beside the plot rather than
+  over the top of the curve, and the x-axis carries up to seven ticks aligned to
+  the buckets they name instead of a start and end date underneath.
+- **The chrome is deliberately recessive.** Solid hairline gridlines rather than
+  dashes, which read as a threshold when they are just a grid; no glow on the
+  curve; a fill at a tenth of its old opacity. A saturated line over a heavy
+  gradient on near-black is a game HUD, not an instrument.
 - **The breakdown tabs are radio inputs and sibling selectors**, so switching
   between six dimensions works with scripting turned off.
 - **Growth from zero shows no percentage.** A jump from nothing is not a

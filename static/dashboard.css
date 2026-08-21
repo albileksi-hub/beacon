@@ -348,7 +348,6 @@ h2 {
   font-size: 2.05rem;
   font-weight: 680;
   letter-spacing: -0.04em;
-  font-variant-numeric: tabular-nums;
   line-height: 1.08;
 }
 
@@ -370,10 +369,10 @@ h2 {
   height: 26px;
   margin-top: 0.45rem;
   color: var(--accent);
-  opacity: 0.5;
+  opacity: 0.42;
 }
 
-.tile:hover .spark { opacity: 0.85; }
+.tile:hover .spark { opacity: 0.7; }
 
 .pulse {
   width: 0.46rem;
@@ -412,19 +411,21 @@ h2 {
 .gridline {
   stroke: var(--border);
   stroke-width: 1;
-  stroke-dasharray: 2 4;
   vector-effect: non-scaling-stroke;
 }
 
-.grid-label {
+/* The zero line is the one the data sits on, so it reads a shade stronger
+   than the rest of the grid. */
+.gridline.base { stroke: var(--border-strong); }
+
+.axis-label {
   fill: var(--muted);
   font-size: 10.5px;
   font-family: inherit;
   font-weight: 500;
+  /* Equal-width digits, because these do line up vertically down the axis. */
   font-variant-numeric: tabular-nums;
 }
-
-.chart-curve { filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--accent) 22%, transparent)); }
 
 .dot {
   fill: var(--panel);
@@ -436,15 +437,6 @@ h2 {
 
 .chart:hover .dot { opacity: 0.45; }
 .dot:hover { opacity: 1; }
-
-.axis {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.5rem;
-  font-size: 0.73rem;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
 
 /* ---- tabbed breakdowns ---- */
 
@@ -540,13 +532,8 @@ h2 {
 .bar {
   position: absolute;
   inset: 0 auto 0 0;
-  background: linear-gradient(
-    to right,
-    var(--accent-soft),
-    color-mix(in srgb, var(--accent-soft) 55%, transparent)
-  );
-  border-left: 2px solid var(--accent-line);
-  border-radius: 3px var(--radius-sm) var(--radius-sm) 3px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
   z-index: 0;
 }
 

@@ -78,6 +78,8 @@ def site_dashboard(
             "is_owner": user is not None and site.owner_id == user.id,
             "period": period,
             "period_labels": PERIOD_LABELS,
+            # The axis ticks are shortened differently per grain.
+            "interval": time_range.interval,
             "comparison": reports.summary_with_comparison(
                 db, site_id=site.domain, time_range=time_range
             ),
