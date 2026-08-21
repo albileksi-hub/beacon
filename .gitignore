@@ -1,6 +1,8 @@
 .venv/
 __pycache__/
 *.py[cod]
+# Left behind by the editable install the README asks for.
+*.egg-info/
 .pytest_cache/
 .coverage
 htmlcov/
