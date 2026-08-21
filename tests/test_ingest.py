@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -265,3 +267,60 @@ def test_ordinary_traffic_carries_no_campaign(client, db_session, site):
     event = db_session.scalars(select(Event)).one()
     assert event.medium is None
     assert event.campaign is None
+
+
+@pytest.mark.parametrize(
+    "content_type",
+    [
+        # What sendBeacon must use: anything outside the CORS safelist makes the
+        # request preflighted and credentialed, and a browser then refuses it
+        # against a wildcard origin -- so no event ever arrives from a customer
+        # site. This is the whole reason the collector parses the body itself.
+        "text/plain",
+        "text/plain;charset=UTF-8",
+        # Still accepted, for anything posting to the API directly.
+        "application/json",
+    ],
+)
+def test_a_json_body_is_read_whatever_it_is_labelled(client, db_session, site, content_type):
+    response = client.post(
+        "/api/event",
+        content=json.dumps(_payload()),
+        headers={"content-type": content_type},
+    )
+
+    assert response.status_code == 202
+    assert db_session.scalars(select(Event)).one().pathname == "/products/blue-mug"
+
+
+def test_a_body_that_is_not_json_is_still_a_422(client, site):
+    response = client.post(
+        "/api/event", content="not json at all", headers={"content-type": "text/plain"}
+    )
+
+    assert response.status_code == 422
+
+
+def test_a_json_body_missing_required_fields_is_still_a_422(client, db_session, site):
+    response = client.post(
+        "/api/event", content='{"url": "https://blue-mug.example/"}',
+        headers={"content-type": "text/plain"},
+    )
+
+    assert response.status_code == 422
+    assert db_session.scalars(select(Event)).all() == []
+
+
+def test_the_tracking_script_labels_its_body_safelisted():
+    """A guard on the other half of the fix.
+
+    The server accepting text/plain is useless if the script goes back to
+    announcing application/json, and that failure is invisible unless the page
+    is served from a different origin than the collector.
+    """
+    script = (Path(__file__).parent.parent / "static" / "beacon.js").read_text(encoding="utf-8")
+
+    assert 'type: "text/plain"' in script
+    assert '"Content-Type": "text/plain"' in script
+    # Quoted, so the comment explaining why it must not be used does not match.
+    assert '"application/json"' not in script

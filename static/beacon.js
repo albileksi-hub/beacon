@@ -29,15 +29,19 @@
       screen_width: window.innerWidth
     });
 
-    // sendBeacon survives page unload and never blocks rendering.
+    // text/plain, not application/json. Anything outside the CORS safelist
+    // makes this a preflighted request with credentials, which a browser then
+    // refuses against a wildcard origin -- so the event never arrives from any
+    // site other than the one serving the collector. The body is still JSON;
+    // only the label changes.
     if (navigator.sendBeacon) {
-      navigator.sendBeacon(endpoint, new Blob([payload], { type: "application/json" }));
+      navigator.sendBeacon(endpoint, new Blob([payload], { type: "text/plain" }));
       return;
     }
 
     fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "text/plain" },
       body: payload,
       keepalive: true
     }).catch(function () {

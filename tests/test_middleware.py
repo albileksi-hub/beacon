@@ -34,11 +34,7 @@ def test_an_ordinary_event_is_unaffected(client, site):
 
 
 def test_a_body_that_hides_its_size_is_still_capped(client, site, db_session):
-    """Chunked uploads declare no length, so they are counted as they arrive.
-
-    Hanging up on one surfaces as a 400 rather than a 413: by then the request
-    is already in flight and there is no status left to negotiate with.
-    """
+    """Chunked uploads declare no length, so they are counted as they arrive."""
 
     def chunks():
         for _ in range(4):
@@ -48,7 +44,7 @@ def test_a_body_that_hides_its_size_is_still_capped(client, site, db_session):
         "/api/event", content=chunks(), headers={"content-type": "application/json"}
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 413
     assert db_session.scalars(select(Event)).all() == []
 
 

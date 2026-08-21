@@ -1,7 +1,11 @@
 import datetime as dt
+from typing import Annotated
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy import insert
+from starlette.requests import ClientDisconnect
 
 from app.dependencies import DbSession
 from app.models import Event
@@ -20,8 +24,42 @@ router = APIRouter(tags=["ingest"])
 ACCEPTED = {"status": "accepted"}
 
 
+async def event_payload(request: Request) -> EventIn:
+    """Read the body as JSON whatever the browser labelled it.
+
+    navigator.sendBeacon can only send a CORS-safelisted content type without
+    turning the request into a preflighted, credentialed one -- and a browser
+    refuses a credentialed request against a wildcard origin, so the event is
+    blocked outright. Every real customer site is cross-origin, so the collector
+    accepts text/plain and parses it itself.
+
+    An async dependency rather than an async endpoint: the body is read on the
+    event loop, while the handler stays synchronous and keeps running in the
+    threadpool, where its blocking database work belongs.
+    """
+    try:
+        raw = await request.body()
+    except ClientDisconnect as error:
+        # LimitRequestSize hung up on a body that never declared its length and
+        # then exceeded the cap. There is no request left to validate, and the
+        # honest answer is the one the limiter would have given.
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Request body too large"
+        ) from error
+
+    try:
+        return EventIn.model_validate_json(raw)
+    except ValidationError as error:
+        # Re-raised as FastAPI's own, so a malformed payload still answers 422
+        # in exactly the shape it always did.
+        raise RequestValidationError(error.errors()) from error
+
+
+EventPayload = Annotated[EventIn, Depends(event_payload)]
+
+
 @router.post("/api/event", status_code=status.HTTP_202_ACCEPTED)
-def collect_event(payload: EventIn, request: Request, db: DbSession) -> dict[str, str]:
+def collect_event(payload: EventPayload, request: Request, db: DbSession) -> dict[str, str]:
     """Record one interaction.
 
     Answers 202 rather than 201: the visitor's browser gets an immediate
