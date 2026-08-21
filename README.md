@@ -731,13 +731,15 @@ Almost none of it needs JavaScript:
 The two scripts that do exist are small: one refreshes the live visitor count
 and pauses while the tab is hidden, the other toggles the theme.
 
-Light and dark follow the system preference until someone chooses, and the
-choice is applied inline in `<head>` so there is no flash of the wrong theme on
-load.
+Dark is the default whatever the visitor's system is set to, and light is there
+for anyone who asks for it with the toggle. The choice is applied inline in
+`<head>` so there is no flash of the wrong theme on load.
 
 The palette is burnt orange on warm neutrals, and it lives entirely in tokens:
-three blocks, light on a bare `:root` and dark twice over so that the system
-preference and the explicit toggle both win. Everything downstream follows
+dark on a bare `:root`, light on `[data-theme="light"]`. Following
+`prefers-color-scheme` instead needed the dark palette written out twice, once
+for the media query and once for the explicit choice; committing to a default
+took a whole block out. Everything downstream follows
 `--accent` without knowing what it is — the chart line and its gradient, the
 sparklines, the breakdown bars, the focus ring and the brand mark.
 

@@ -1,66 +1,11 @@
 /* Beacon dashboard styles.
-   Themed with tokens. The light palette is defined on bare :root so it is
-   always present; the dark palette is redefined twice -- once for the system
-   preference and once for an explicit toggle -- so both directions win. */
+   Themed with tokens. Dark is the default and sits on bare :root, so it is
+   what a visitor gets whatever their system is set to; light applies only when
+   someone asks for it with the toggle. That is one block fewer than following
+   prefers-color-scheme, which needed the dark palette written out twice --
+   once for the media query and once for the explicit choice. */
 
 :root {
-  --bg: #faf8f5;
-  --bg-tint: #f2ece4;
-  --panel: #ffffff;
-  --panel-soft: #f7f2ec;
-  --text: #1a1410;
-  --text-soft: #4a3f36;
-  --muted: #736556;
-  --border: #ebe3d9;
-  --border-strong: #dbcfc0;
-  --accent: #c2410c;
-  --accent-hover: #9a3412;
-  --accent-soft: #fdf0e8;
-  --accent-line: #f3c9ae;
-  --on-accent: #ffffff;
-  --up: #15803d;
-  --down: #b91c1c;
-  --live: #ea580c;
-  --danger-text: #b0212c;
-  --danger-bg: #fdf2f0;
-  --danger-border: #f6d6cc;
-  --shadow-sm: 0 1px 2px rgba(26, 20, 16, 0.05);
-  --shadow-md: 0 1px 2px rgba(26, 20, 16, 0.04), 0 6px 16px -6px rgba(26, 20, 16, 0.1);
-  --ring: 0 0 0 3px rgba(194, 65, 12, 0.28);
-
-  --radius: 14px;
-  --radius-sm: 8px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0b0906;
-    --bg-tint: #17120c;
-    --panel: #17130d;
-    --panel-soft: #221a12;
-    --text: #f7f3ee;
-    --text-soft: #d6cabb;
-    --muted: #9c8b78;
-    --border: #2a2318;
-    --border-strong: #3b3122;
-    --accent: #fb923c;
-    --accent-hover: #fdba74;
-    --accent-soft: #2a1a0b;
-    --accent-line: #5c3d19;
-    --on-accent: #2a1a05;
-    --up: #4ade80;
-    --down: #fb7185;
-    --live: #fb923c;
-    --danger-text: #fca5a5;
-    --danger-bg: #2a1616;
-    --danger-border: #4a2222;
-    --shadow-sm: none;
-    --shadow-md: none;
-    --ring: 0 0 0 3px rgba(251, 146, 60, 0.32);
-  }
-}
-
-:root[data-theme="dark"] {
   --bg: #0b0906;
   --bg-tint: #17120c;
   --panel: #17130d;
@@ -84,6 +29,35 @@
   --shadow-sm: none;
   --shadow-md: none;
   --ring: 0 0 0 3px rgba(251, 146, 60, 0.32);
+
+  --radius: 14px;
+  --radius-sm: 8px;
+}
+
+:root[data-theme="light"] {
+  --bg: #faf8f5;
+  --bg-tint: #f2ece4;
+  --panel: #ffffff;
+  --panel-soft: #f7f2ec;
+  --text: #1a1410;
+  --text-soft: #4a3f36;
+  --muted: #736556;
+  --border: #ebe3d9;
+  --border-strong: #dbcfc0;
+  --accent: #c2410c;
+  --accent-hover: #9a3412;
+  --accent-soft: #fdf0e8;
+  --accent-line: #f3c9ae;
+  --on-accent: #ffffff;
+  --up: #15803d;
+  --down: #b91c1c;
+  --live: #ea580c;
+  --danger-text: #b0212c;
+  --danger-bg: #fdf2f0;
+  --danger-border: #f6d6cc;
+  --shadow-sm: 0 1px 2px rgba(26, 20, 16, 0.05);
+  --shadow-md: 0 1px 2px rgba(26, 20, 16, 0.04), 0 6px 16px -6px rgba(26, 20, 16, 0.1);
+  --ring: 0 0 0 3px rgba(194, 65, 12, 0.28);
 }
 
 * { box-sizing: border-box; }
