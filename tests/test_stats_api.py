@@ -35,7 +35,13 @@ def test_summary_endpoint(signed_in, db_session, rebuild_rollups, site):
     response = signed_in.get(f"/api/stats/{SITE_DOMAIN}/summary")
 
     assert response.status_code == 200
-    assert response.json() == {"visitors": 2, "pageviews": 3, "views_per_visitor": 1.5}
+    # "b" read one page and left; "a" read two. One bounce out of two visitors.
+    assert response.json() == {
+        "visitors": 2,
+        "pageviews": 3,
+        "views_per_visitor": 1.5,
+        "bounce_rate": 50.0,
+    }
 
 
 def test_timeseries_endpoint_returns_a_full_series(signed_in, db_session, rebuild_rollups, site):
@@ -142,3 +148,27 @@ def test_unpublishing_closes_it_again(client, db_session, site):
     accounts.set_visibility(db_session, site=site, public=False)
 
     assert client.get(f"/api/stats/{SITE_DOMAIN}/summary").status_code == 404
+
+
+def test_entry_and_exit_page_endpoints(signed_in, db_session, rebuild_rollups, site):
+    """The two dimensions that are not columns, served like any other."""
+    add_event(db_session, visitor_id="a", pathname="/landing")
+    add_event(db_session, visitor_id="a", pathname="/checkout")
+    add_event(db_session, visitor_id="b", pathname="/landing")
+
+    rebuild_rollups()
+
+    entries = signed_in.get(f"/api/stats/{SITE_DOMAIN}/breakdown/entry_page")
+    exits = signed_in.get(f"/api/stats/{SITE_DOMAIN}/breakdown/exit_page")
+
+    # Both visits landed on /landing; between them they read three pages.
+    assert entries.json() == [{"value": "/landing", "visitors": 2, "pageviews": 3}]
+    assert exits.json() == [
+        {"value": "/checkout", "visitors": 1, "pageviews": 2},
+        {"value": "/landing", "visitors": 1, "pageviews": 1},
+    ]
+
+
+def test_a_breakdown_the_whitelist_does_not_know_is_refused(signed_in, site):
+    """The property is an enum, not a column name."""
+    assert signed_in.get(f"/api/stats/{SITE_DOMAIN}/breakdown/passwords").status_code == 422

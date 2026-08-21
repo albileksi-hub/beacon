@@ -44,10 +44,11 @@ def _day_span(time_range: TimeRange) -> tuple[dt.date, dt.date]:
 def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary:
     first, last = _day_span(time_range)
 
-    visitors, pageviews = db.execute(
+    visitors, pageviews, bounces = db.execute(
         select(
             func.coalesce(func.sum(DailyStat.visitors), 0),
             func.coalesce(func.sum(DailyStat.pageviews), 0),
+            func.coalesce(func.sum(DailyStat.bounces), 0),
         ).where(
             DailyStat.site_id == site_id,
             DailyStat.dimension == TOTAL,
@@ -56,7 +57,10 @@ def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary
         )
     ).one()
 
-    return StatsSummary.of(visitors=visitors, pageviews=pageviews)
+    # Summing bounces and dividing at the end, rather than averaging each day's
+    # rate: a day with four visits would otherwise weigh as heavily as a day
+    # with forty thousand.
+    return StatsSummary.of(visitors=visitors, pageviews=pageviews, bounces=bounces)
 
 
 def breakdown(

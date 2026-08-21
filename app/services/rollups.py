@@ -14,7 +14,9 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.models import DailyStat, Event, HourlyStat
+from app.services import visits
 from app.services.stats import (
+    BOUNDARY_EDGES,
     BREAKDOWN_COLUMNS,
     BREAKDOWN_FILTERS,
     pageview_count,
@@ -54,6 +56,12 @@ def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
                 value="",
                 visitors=visitors,
                 pageviews=pageviews,
+                # Only on this row. A visit bounced or it did not; attributing
+                # one to each dimension value it touched would count it several
+                # times over.
+                bounces=visits.bounce_count(
+                    db, site_id=site_id, first_day=day, last_day=day
+                ),
             )
         )
 
@@ -79,6 +87,25 @@ def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
                 pageviews=group_pageviews,
             )
             for value, group_visitors, group_pageviews in grouped
+        )
+
+    # The two dimensions that are not columns. Computed a day at a time here
+    # and summed over ranges by the report layer, which is sound for the same
+    # reason the rest of this table is: a visit cannot straddle midnight, so
+    # every entrance and exit belongs to exactly one day.
+    for prop, edge in BOUNDARY_EDGES.items():
+        rows.extend(
+            DailyStat(
+                site_id=site_id,
+                day=day,
+                dimension=prop.value,
+                value=value[:VALUE_LIMIT],
+                visitors=boundary_visits,
+                pageviews=boundary_pageviews,
+            )
+            for value, boundary_visits, boundary_pageviews in visits.boundary_pages(
+                db, site_id=site_id, first_day=day, last_day=day, edge=edge
+            )
         )
 
     db.add_all(rows)

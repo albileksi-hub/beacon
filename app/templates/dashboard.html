@@ -89,6 +89,11 @@
       <span class="delta flat">&nbsp;</span>
     </div>
     <div class="card tile">
+      <span class="tile-label">Bounce rate</span>
+      <span class="tile-value">{{ comparison.summary.bounce_rate }}%</span>
+      <span class="delta flat">read one page only</span>
+    </div>
+    <div class="card tile">
       <span class="tile-label"><span class="pulse" aria-hidden="true"></span>Live now</span>
       <span class="tile-value" id="live-count" data-site-id="{{ site_id }}">{{ live.visitors }}</span>
       <span class="delta flat">last {{ live.window_minutes }} min</span>

@@ -611,6 +611,79 @@ Two decisions in that one line:
   rows, and the same narrowing is applied by the rollup builder, so the
   aggregates cover exactly what the definition covers.
 
+## What a visit is, and what follows from it
+
+Reading the established tools again — Plausible, Umami, Matomo — the gap this
+time was not a dimension but a *shape*. All three report on the visit rather
+than the pageview: where it started, where it ended, and whether it went
+anywhere at all. This reported only the pageview.
+
+A visit here is a **visitor-day**, and that is less a choice than a
+consequence. The salt behind a visitor ID rotates at the site's own midnight,
+so an identity cannot outlive the day it was minted in. There is no session to
+hang these metrics on and there cannot be one without giving up the rotation,
+which is the entire privacy argument.
+
+It turns out to be the convenient unit rather than a limiting one, because it
+is already the grain the aggregates are built on:
+
+- **Bounce rate** — the share of visitors who read one page and went no
+  further. Stored as a count of bounces on the daily total row, never as a
+  rate, because rates do not add up: a day with four visits would otherwise
+  weigh as heavily in a monthly figure as a day with forty thousand.
+- **Entry pages** — the first page of each visit. The landing pages.
+- **Exit pages** — the last page of each visit.
+
+All three are additive across days for exactly the same reason unique visitors
+are, and a visit cannot straddle midnight, so a day's numbers are complete on
+their own. No session table, no thirty-minute inactivity timer, no sketch.
+Entrances and exits needed no schema at all — they are new dimension values in
+`daily_stats`, so they roll up, export to CSV and age out with everything else.
+
+Two details worth pointing at:
+
+- **The second column on an entry page is what the visit went on to read**, not
+  a repeat of the first. Two landing pages can pull the same number of visits
+  and be worth entirely different amounts, and visits alone cannot tell them
+  apart.
+- **The ranking breaks ties on the primary key, not just the timestamp.**
+  Batched writes can land two of a visitor's pageviews in the same instant, and
+  without a total order the first page of that visit is whichever row the
+  database felt like returning — so the rollups and the raw queries would
+  disagree at random, which is the one failure `tests/test_reports.py` exists to
+  catch.
+
+### Visit duration is missing on purpose
+
+Every one of those tools reports it, and it is the obvious fourth metric. It is
+absent because it cannot be computed honestly against this unit.
+
+A session in Plausible or Matomo ends after half an hour of inactivity, so the
+last timestamp minus the first is a real number. Here the unit runs to
+midnight, so the same arithmetic would report the gap between somebody's
+breakfast reading and their evening reading as one seven-hour visit — and
+inflate the site average with it, invisibly, in a way no one looking at the
+dashboard could detect. A number that is wrong where nobody can see it is worse
+than a number that is missing.
+
+Measuring it properly means a session identity that survives a gap, which means
+a salt that does not rotate, which is the one thing this project will not
+trade. The note is here so the gap reads as a decision rather than an oversight.
+
+### Upgrading an existing install
+
+Bounce counts are computed when a day is rolled up, and the routine refresh
+only reaches back two days. Days aggregated before this change will read as a
+0% bounce rate until they are rebuilt, which is one command:
+
+```bash
+python manage.py rollup --days 400
+```
+
+Entry and exit pages are in the same position, and the same rebuild fills them
+in. Nothing needs re-ingesting: both are derived from raw events that are still
+there, subject to whatever retention is set.
+
 ## Sharing a dashboard
 
 A site is private until its owner publishes it, at which point the dashboard
@@ -627,7 +700,8 @@ than `401`, so the response cannot be used to discover which domains exist here.
 
 Server-rendered Jinja2 at `/sites/{site_id}`: headline tiles with
 period-over-period movement, a visitors chart, and tabbed breakdowns across
-pages, sources, countries, devices, browsers and operating systems.
+pages, entry and exit pages, sources, countries, devices, browsers and
+operating systems.
 
 Almost none of it needs JavaScript:
 
@@ -661,7 +735,7 @@ real error page; the API keeps answering JSON.
 | `POST /api/event` | The collector. Answers `202` to everything, including bots. |
 | `GET /api/stats/{site}/summary` | Visitors, pageviews, views per visitor |
 | `GET /api/stats/{site}/timeseries` | One point per bucket, zero-filled |
-| `GET /api/stats/{site}/breakdown/{prop}` | Top pages, sources, countries, devices, browsers, systems, screens, goals, campaigns, or mediums |
+| `GET /api/stats/{site}/breakdown/{prop}` | Top pages, entry pages, exit pages, sources, countries, devices, browsers, systems, screens, goals, campaigns, or mediums |
 | `GET /api/stats/{site}/live` | Visitors in the last five minutes |
 
 `period` accepts `today`, `7d`, `30d`, `6mo`, `12mo`. Bucket size follows from
@@ -728,13 +802,17 @@ Four jobs, on every push and pull request:
 
 ## Status
 
-Feature-complete and tested: 441 tests, 100% coverage of `app/`, clean under
+Feature-complete and tested: 466 tests, 100% coverage of `app/`, clean under
 `mypy --strict`, running on both SQLite and Postgres in CI.
 
 Ideas worth doing next, roughly in order of how much they would add:
 
-- **Retention** — dropping raw events past a certain age, since the rollups
-  already hold everything the dashboard needs.
+- **Funnels** — the one thing Plausible and Umami have that this does not, and
+  the goals table already holds the events they would be built from. Ordering
+  steps within a visit is the same window function the entry and exit pages
+  already use.
+- **Visit duration**, if the visit ever stops being the whole day. It cannot be
+  measured honestly against the current unit; see above.
 - **HyperLogLog sketches**, if cross-day unique visitors were ever wanted. They
   would need the salt rotation to go, which is the entire privacy argument, so
   this is a genuine product decision rather than an engineering one.

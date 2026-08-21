@@ -36,13 +36,25 @@ class StatsSummary(BaseModel):
     visitors: int
     pageviews: int
     views_per_visitor: float
+    bounce_rate: float
 
     @classmethod
-    def of(cls, *, visitors: int, pageviews: int) -> "StatsSummary":
+    def of(cls, *, visitors: int, pageviews: int, bounces: int) -> "StatsSummary":
+        """Derive the rates, guarding the empty period rather than dividing by it.
+
+        ``bounces`` is required rather than defaulted. A forgotten argument
+        would render as a confident 0.0% on every dashboard, which is a worse
+        failure than the TypeError this raises instead.
+        """
         return cls(
             visitors=visitors,
             pageviews=pageviews,
             views_per_visitor=round(pageviews / visitors, 2) if visitors else 0.0,
+            # Against visitors rather than against visits-with-a-pageview. The
+            # two differ only for someone who fired a custom event without ever
+            # loading a page, who did not bounce and so belongs in the
+            # denominator but not the numerator.
+            bounce_rate=round(bounces / visitors * 100, 1) if visitors else 0.0,
         )
 
 
