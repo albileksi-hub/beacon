@@ -48,9 +48,8 @@ class _Line:
 
 
 def filename_for(site_id: str, time_range: TimeRange) -> str:
-    start = time_range.start.date().isoformat()
-    end = time_range.end.date().isoformat()
-    return f"beacon-{site_id}-{start}-to-{end}.csv"
+    start, end = time_range.days
+    return f"beacon-{site_id}-{start.isoformat()}-to-{end.isoformat()}.csv"
 
 
 def daily_stats_csv(
@@ -65,6 +64,7 @@ def daily_stats_csv(
     line = _Line()
     yield line.of(COLUMNS)
 
+    first, last = time_range.days
     statement = (
         select(
             DailyStat.day,
@@ -75,8 +75,8 @@ def daily_stats_csv(
         )
         .where(
             DailyStat.site_id == site_id,
-            DailyStat.day >= time_range.start.date(),
-            DailyStat.day <= time_range.end.date(),
+            DailyStat.day >= first,
+            DailyStat.day <= last,
         )
         .order_by(DailyStat.day, DailyStat.dimension, DailyStat.value)
     )

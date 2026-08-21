@@ -198,11 +198,20 @@ def test_the_visit_shape_compiles_on_postgres():
     years, but nothing else in this project uses one, so the compile is worth
     pinning down here rather than discovering it in the Postgres job.
     """
-    shape = visits._visit_shape(SITE_DOMAIN, DAY, DAY)
-    statement = select(shape.c.pathname, shape.c.views).where(shape.c.from_start == 1)
+    shape = visits._visit_shape(SITE_DOMAIN, DAY, DAY, edge=Edge.START)
+    statement = select(shape.c.pathname, shape.c.views).where(shape.c.rank == 1)
 
     sql = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "row_number() OVER" in sql
     assert "PARTITION BY" in sql
     assert "count(*) OVER" in sql
+
+    # And only the ranking that was asked for: the other end costs a second
+    # sort for a column nothing reads.
+    assert sql.count("row_number() OVER") == 1
+    assert "row_number() OVER" not in str(
+        select(visits._visit_shape(SITE_DOMAIN, DAY, DAY).c.views).compile(
+            dialect=postgresql.dialect()
+        )
+    )
