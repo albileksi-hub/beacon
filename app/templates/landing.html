@@ -3,19 +3,35 @@
 
 {% block content %}
 <section class="hero">
-  {# A rotating 3D chart, built from CSS transforms alone. No script, so it
-     obeys the same content security policy as everything else and still turns
-     with JavaScript disabled; no library, so nothing is fetched to draw it. #}
+  {# A product shot in the drinks-advert style: a branded can turning under a
+     fixed studio light, glare sweeping past, motes drifting. CSS transforms
+     only -- no script, no library, and it still turns with JavaScript off. #}
   <div class="hero-scene" aria-hidden="true">
-    <div class="scene-tilt">
-      <div class="scene-spin">
-        {% for rise in [58, 96, 74, 128, 66, 108, 82, 140, 60, 118, 90, 104] %}
-          <span class="scene-bar" style="--a: {{ loop.index0 * 30 }}deg; --rise: {{ rise }}px"></span>
-        {% endfor %}
+    {% for mx, my, ms, md in [
+      ("6%", "20%", "5px", "3.4s"), ("15%", "62%", "3px", "4.1s"),
+      ("24%", "9%", "4px", "3.0s"), ("76%", "14%", "3px", "4.6s"),
+      ("86%", "56%", "5px", "3.7s"), ("93%", "28%", "3px", "3.2s"),
+      ("70%", "76%", "4px", "4.3s"),
+    ] %}
+      <span class="mote" style="--mx: {{ mx }}; --my: {{ my }}; --ms: {{ ms }}; --md: {{ md }}"></span>
+    {% endfor %}
+    <span class="can-shadow"></span>
+    <div class="can-float">
+      <div class="can-stage">
+        <div class="can-tilt">
+          <div class="can-spin">
+            <span class="can-base"></span>
+            {% for i in range(36) %}<span class="can-facet" style="--i: {{ i }}"></span>{% endfor %}
+            {% for i in range(36) %}<span class="shoulder-facet" style="--i: {{ i }}"></span>{% endfor %}
+            {% for i in range(36) %}<span class="neck-facet" style="--i: {{ i }}"></span>{% endfor %}
+            <span class="can-lid"></span>
+          </div>
+        </div>
       </div>
-      <span class="scene-beam"></span>
+      <span class="can-light"></span>
+      <span class="neck-light"></span>
+      <span class="can-sweep"></span>
     </div>
-    <div class="scene-ground"></div>
   </div>
 
   <p class="eyebrow">Open-source web analytics</p>

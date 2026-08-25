@@ -364,8 +364,11 @@ h2 {
 
 @media (prefers-reduced-motion: reduce) {
   .pulse { animation: none; }
-  .scene-spin { animation: none; transform: rotateY(-24deg); }
-  .scene-beam { animation: none; }
+  .can-spin { animation: none; transform: rotateY(-30deg); }
+  .can-float { animation: none; }
+  .can-sweep::after { animation: none; opacity: 0; }
+  .can-shadow { animation: none; }
+  .mote { animation: none; }
   * { transition: none !important; }
 }
 
@@ -568,86 +571,233 @@ h2 {
   pointer-events: none;
 }
 
-/* ---- the rotating chart on the landing page ----
-   A carousel of translucent bars: each is rotated about the ring's axis and
-   pushed outward, the parent spins, and perspective does the rest. Pure CSS,
-   because the content security policy allows no third-party script and the
-   page promises to work without any script at all. */
+/* ---- the product shot on the landing page ----
+   A can, the way a drinks advert renders one: the object turns, the studio
+   light stays still.
+
+   Three surfaces of revolution, each approximated by 36 flat facets. The
+   body is a cylinder of radius 56, and each of its facets shows one
+   9.7738px slice of a single wrapped SVG label. The shoulder is a real
+   cone rather than a step: its facets are trapezoids, narrowing from the body
+   chord to the neck chord, leaned inward by 28.07deg so their edges meet
+   exactly. The neck is a short cylinder of radius 40, capped by the lid.
+
+   The lighting is a fixed overlay sized to each cylinder rather than to the
+   whole box, so it shades the metal without laying a dark rectangle across the
+   transparent space around it.
+
+   CSS transforms only: the content security policy allows no third-party
+   script, and the cover works with scripting disabled. The label is a data:
+   image, which img-src already permits. */
 
 .hero-scene {
   position: relative;
-  width: min(300px, 70vw);
-  height: 190px;
-  margin: 0 auto 1.25rem;
-  perspective: 800px;
+  width: min(330px, 80vw);
+  height: 300px;
+  margin: 0 auto 1rem;
   pointer-events: none;
 }
 
-.scene-tilt {
+.mote {
   position: absolute;
-  inset: 0;
-  transform: rotateX(12deg);
-  transform-style: preserve-3d;
+  left: var(--mx);
+  top: var(--my);
+  width: var(--ms);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 80%, #fff);
+  filter: blur(1px);
+  opacity: 0.7;
+  animation: mote-drift var(--md) ease-in-out infinite alternate;
 }
 
-.scene-spin {
+.can-float {
   position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-  animation: scene-turn 28s linear infinite;
-}
-
-.scene-bar {
-  position: absolute;
-  bottom: 14px;
   left: 50%;
-  width: 22px;
-  height: var(--rise);
-  margin-left: -11px;
-  border-radius: 7px 7px 3px 3px;
-  transform: rotateY(var(--a)) translateZ(96px);
+  top: 8px;
+  width: 130px;
+  height: 250px;
+  margin-left: -65px;
+  animation: can-bob 5.5s ease-in-out infinite;
+}
+
+.can-stage {
+  position: absolute;
+  inset: 0;
+  perspective: 1000px;
+}
+
+.can-tilt {
+  position: absolute;
+  inset: 0;
+  transform: rotateX(7deg);
+  transform-style: preserve-3d;
+}
+
+.can-spin {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation: can-turn 11s linear infinite;
+}
+
+/* Only the near half of each surface is drawn, which is what makes it read as
+   a solid object rather than a wire cage. */
+.can-facet,
+.shoulder-facet,
+.neck-facet {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10.21px;
+  margin-left: -5.105px;
+  backface-visibility: hidden;
+}
+
+.can-facet {
+  height: 180px;
+  margin-top: -90px;
+  transform: translateY(35px) rotateY(calc(var(--i) * 10deg)) translateZ(56px);
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27352%27%20height%3D%27180%27%20viewBox%3D%270%200%20352%20180%27%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%27b%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%270%27%20y2%3D%271%27%3E%20%3Cstop%20offset%3D%270%27%20stop-color%3D%27%23ffc184%27%2F%3E%20%3Cstop%20offset%3D%270.40%27%20stop-color%3D%27%23fb923c%27%2F%3E%20%3Cstop%20offset%3D%271%27%20stop-color%3D%27%23b8380a%27%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Crect%20width%3D%27352%27%20height%3D%27180%27%20fill%3D%27url%28%23b%29%27%2F%3E%20%3Crect%20y%3D%27173%27%20width%3D%27352%27%20height%3D%277%27%20fill%3D%27%234a1a00%27%20fill-opacity%3D%270.42%27%2F%3E%20%3Cg%20stroke%3D%27%23fff%27%20stroke-opacity%3D%270.12%27%20stroke-width%3D%271%27%3E%20%3Cline%20x1%3D%270.5%27%20y1%3D%278%27%20x2%3D%270.5%27%20y2%3D%27170%27%2F%3E%20%3Cline%20x1%3D%27176.5%27%20y1%3D%278%27%20x2%3D%27176.5%27%20y2%3D%27170%27%2F%3E%20%3C%2Fg%3E%20%3Cg%20fill%3D%27%23fff%27%3E%20%3Ccircle%20cx%3D%2788%27%20cy%3D%2740%27%20r%3D%277%27%2F%3E%20%3Ccircle%20cx%3D%2788%27%20cy%3D%2740%27%20r%3D%2713%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-opacity%3D%270.42%27%20stroke-width%3D%272%27%2F%3E%20%3Ccircle%20cx%3D%27264%27%20cy%3D%2740%27%20r%3D%277%27%2F%3E%20%3Ccircle%20cx%3D%27264%27%20cy%3D%2740%27%20r%3D%2713%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-opacity%3D%270.42%27%20stroke-width%3D%272%27%2F%3E%20%3C%2Fg%3E%20%3Cg%20font-family%3D%27Arial%2C%20Helvetica%2C%20sans-serif%27%20text-anchor%3D%27middle%27%20fill%3D%27%23fff%27%3E%20%3Ctext%20x%3D%2788%27%20y%3D%27106%27%20font-size%3D%2729%27%20font-weight%3D%27800%27%20letter-spacing%3D%272.5%27%3EBEACON%3C%2Ftext%3E%20%3Ctext%20x%3D%27264%27%20y%3D%27106%27%20font-size%3D%2729%27%20font-weight%3D%27800%27%20letter-spacing%3D%272.5%27%3EBEACON%3C%2Ftext%3E%20%3Ctext%20x%3D%2788%27%20y%3D%27128%27%20font-size%3D%278.5%27%20font-weight%3D%27600%27%20letter-spacing%3D%273.2%27%20fill-opacity%3D%270.85%27%3ENO%20COOKIES%3C%2Ftext%3E%20%3Ctext%20x%3D%27264%27%20y%3D%27128%27%20font-size%3D%278.5%27%20font-weight%3D%27600%27%20letter-spacing%3D%273.2%27%20fill-opacity%3D%270.85%27%3ENO%20COOKIES%3C%2Ftext%3E%20%3C%2Fg%3E%20%3C%2Fsvg%3E");
+  background-size: 352px 100%;
+  background-position: calc(var(--i) * -9.7738px) 0;
+  background-repeat: repeat-x;
+}
+
+/* The trapezoid: 9.76px across at the body, 6.97px at the neck. */
+.shoulder-facet {
+  height: 34px;
+  margin-top: -17px;
+  transform: translateY(-70px) rotateY(calc(var(--i) * 10deg))
+    translateZ(48px) rotateX(28.07deg);
+  clip-path: polygon(15.85% 0, 84.15% 0, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom, #a89f96, #e0994e 42%, #ffc184);
+}
+
+.neck-facet {
+  height: 12px;
+  margin-top: -6px;
+  transform: translateY(-91px) rotateY(calc(var(--i) * 10deg)) translateZ(40px);
+  background: linear-gradient(to bottom, #b3aba3, #837b73);
+}
+
+.can-lid {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 80px;
+  height: 80px;
+  margin: -40px 0 0 -40px;
+  border-radius: 50%;
+  transform: translateY(-97px) rotateX(90deg);
+  background: radial-gradient(circle, #6e6760 30%, #8b837b 54%, #6a635c 76%, #46413b 100%);
+  box-shadow: inset 0 0 0 3px #7e766e, inset 0 0 0 5px #4a443e;
+}
+
+.can-base {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border-radius: 50%;
+  transform: translateY(125px) rotateX(90deg);
+  background: radial-gradient(circle, #5b2a08, #341504 70%);
+}
+
+/* The light does not turn with the can. A bright specular band a third of the
+   way across, falling off to darkened edges, is what reads as a cylinder.
+   Each overlay is sized to its own cylinder so it never spills. */
+.can-light,
+.neck-light {
+  position: absolute;
+  left: 50%;
   background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--accent) 72%, transparent),
-    color-mix(in srgb, var(--accent) 12%, transparent)
+    90deg,
+    rgba(28, 8, 0, 0.52) 0%,
+    rgba(28, 8, 0, 0.15) 11%,
+    rgba(255, 255, 255, 0.34) 27%,
+    rgba(255, 255, 255, 0.09) 37%,
+    rgba(28, 8, 0, 0) 52%,
+    rgba(28, 8, 0, 0.32) 82%,
+    rgba(28, 8, 0, 0.58) 100%
   );
-  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
-.scene-beam {
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  width: 7px;
-  height: 130px;
-  margin-left: -3.5px;
-  border-radius: 999px;
-  background: linear-gradient(to top, var(--accent), transparent);
-  animation: beam-pulse 3.2s ease-in-out infinite;
+.can-light {
+  top: 70px;
+  width: 112px;
+  margin-left: -56px;
+  height: 180px;
 }
 
-.scene-ground {
+.neck-light {
+  top: 28px;
+  width: 80px;
+  margin-left: -40px;
+  height: 12px;
+}
+
+.can-sweep {
   position: absolute;
   left: 50%;
-  bottom: -6px;
-  width: 250px;
-  height: 46px;
+  top: 70px;
+  width: 112px;
+  height: 180px;
+  margin-left: -56px;
+  overflow: hidden;
+}
+
+.can-sweep::after {
+  content: "";
+  position: absolute;
+  top: -20%;
+  left: -45%;
+  width: 32%;
+  height: 140%;
+  transform: skewX(-16deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+  animation: can-glare 7s ease-in-out infinite;
+}
+
+.can-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  width: 170px;
+  height: 26px;
   transform: translateX(-50%);
-  background: radial-gradient(
-    50% 50% at 50% 50%,
-    color-mix(in srgb, var(--accent) 20%, transparent),
-    transparent 70%
-  );
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.5), transparent 70%);
+  filter: blur(5px);
+  animation: shadow-breathe 5.5s ease-in-out infinite;
 }
 
-@keyframes scene-turn {
+@keyframes can-turn {
   from { transform: rotateY(0deg); }
-  to { transform: rotateY(360deg); }
+  to { transform: rotateY(-360deg); }
 }
 
-@keyframes beam-pulse {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 0.4; }
+@keyframes can-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+
+@keyframes shadow-breathe {
+  0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
+  50% { transform: translateX(-50%) scale(0.88); opacity: 0.75; }
+}
+
+@keyframes can-glare {
+  0%, 55% { left: -45%; opacity: 0; }
+  62% { opacity: 1; }
+  78%, 100% { left: 115%; opacity: 0; }
+}
+
+@keyframes mote-drift {
+  from { transform: translateY(6px); opacity: 0.35; }
+  to { transform: translateY(-12px); opacity: 0.8; }
 }
 
 .eyebrow {
@@ -848,6 +998,7 @@ h2 {
   .tile-value { font-size: 1.75rem; }
   .share { display: none; }
   .hero { margin-top: 1.5rem; }
-  .hero-scene { height: 160px; }
+  .hero-scene { height: 258px; }
+  .can-float { transform: scale(0.82); transform-origin: top center; }
   .points { margin-top: 3rem; }
 }
