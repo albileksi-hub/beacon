@@ -1,0 +1,36 @@
+# Render Blueprint: a web service and a Postgres database, deployable from the
+# repository without any dashboard configuration.
+#
+# The database URL Render injects begins "postgres://", which SQLAlchemy 2.0
+# rejects; app.config rewrites the scheme so it can be passed through as-is.
+#
+# After the first deploy, seed the public demo dashboard with:
+#   python seed.py --days 90 --site demo.example
+services:
+  - type: web
+    name: beacon
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: BEACON_DATABASE_URL
+        fromDatabase:
+          name: beacon-db
+          property: connectionString
+      - key: BEACON_SESSION_SECRET
+        generateValue: true
+      - key: BEACON_SESSION_HTTPS_ONLY
+        value: "true"
+      # Render terminates TLS and overwrites X-Forwarded-For, which is the only
+      # condition under which trusting that header is safe.
+      - key: BEACON_TRUST_PROXY_HEADERS
+        value: "true"
+      - key: BEACON_ROLLUP_INTERVAL_SECONDS
+        value: "60"
+      - key: BEACON_LOG_JSON
+        value: "true"
+
+databases:
+  - name: beacon-db
+    plan: free
