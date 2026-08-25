@@ -3,6 +3,21 @@
 
 {% block content %}
 <section class="hero">
+  {# A rotating 3D chart, built from CSS transforms alone. No script, so it
+     obeys the same content security policy as everything else and still turns
+     with JavaScript disabled; no library, so nothing is fetched to draw it. #}
+  <div class="hero-scene" aria-hidden="true">
+    <div class="scene-tilt">
+      <div class="scene-spin">
+        {% for rise in [58, 96, 74, 128, 66, 108, 82, 140, 60, 118, 90, 104] %}
+          <span class="scene-bar" style="--a: {{ loop.index0 * 30 }}deg; --rise: {{ rise }}px"></span>
+        {% endfor %}
+      </div>
+      <span class="scene-beam"></span>
+    </div>
+    <div class="scene-ground"></div>
+  </div>
+
   <p class="eyebrow">Open-source web analytics</p>
   <h1>Know what your visitors read.<br />Learn nothing else about them.</h1>
   <p class="lede">

@@ -364,6 +364,8 @@ h2 {
 
 @media (prefers-reduced-motion: reduce) {
   .pulse { animation: none; }
+  .scene-spin { animation: none; transform: rotateY(-24deg); }
+  .scene-beam { animation: none; }
   * { transition: none !important; }
 }
 
@@ -566,6 +568,88 @@ h2 {
   pointer-events: none;
 }
 
+/* ---- the rotating chart on the landing page ----
+   A carousel of translucent bars: each is rotated about the ring's axis and
+   pushed outward, the parent spins, and perspective does the rest. Pure CSS,
+   because the content security policy allows no third-party script and the
+   page promises to work without any script at all. */
+
+.hero-scene {
+  position: relative;
+  width: min(300px, 70vw);
+  height: 190px;
+  margin: 0 auto 1.25rem;
+  perspective: 800px;
+  pointer-events: none;
+}
+
+.scene-tilt {
+  position: absolute;
+  inset: 0;
+  transform: rotateX(12deg);
+  transform-style: preserve-3d;
+}
+
+.scene-spin {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation: scene-turn 28s linear infinite;
+}
+
+.scene-bar {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  width: 22px;
+  height: var(--rise);
+  margin-left: -11px;
+  border-radius: 7px 7px 3px 3px;
+  transform: rotateY(var(--a)) translateZ(96px);
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--accent) 72%, transparent),
+    color-mix(in srgb, var(--accent) 12%, transparent)
+  );
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.scene-beam {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  width: 7px;
+  height: 130px;
+  margin-left: -3.5px;
+  border-radius: 999px;
+  background: linear-gradient(to top, var(--accent), transparent);
+  animation: beam-pulse 3.2s ease-in-out infinite;
+}
+
+.scene-ground {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 250px;
+  height: 46px;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    color-mix(in srgb, var(--accent) 20%, transparent),
+    transparent 70%
+  );
+}
+
+@keyframes scene-turn {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+
+@keyframes beam-pulse {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.4; }
+}
+
 .eyebrow {
   display: inline-block;
   margin: 0 0 1rem;
@@ -764,5 +848,6 @@ h2 {
   .tile-value { font-size: 1.75rem; }
   .share { display: none; }
   .hero { margin-top: 1.5rem; }
+  .hero-scene { height: 160px; }
   .points { margin-top: 3rem; }
 }
