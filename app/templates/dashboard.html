@@ -150,18 +150,18 @@
 
   {# Radio inputs rather than JavaScript, so the tabs work with scripting off. #}
   <div class="card tabs">
-    {% for key, title, rows in panels %}
-      <input type="radio" name="panel" id="tab-{{ key }}" class="tab-input"
-             {% if loop.first %}checked{% endif %} />
-    {% endfor %}
-
     <nav class="tab-bar" aria-label="Breakdown">
       {% for key, title, rows in panels %}
         <label class="tab" for="tab-{{ key }}" tabindex="0">{{ title }}</label>
       {% endfor %}
     </nav>
 
+    {# Each input immediately precedes the panel it controls, so the stylesheet
+       needs one rule rather than one per tab -- which is what silently hid the
+       eleventh and twelfth. #}
     {% for key, title, rows in panels %}
+      <input type="radio" name="panel" id="tab-{{ key }}" class="tab-input"
+             {% if loop.first %}checked{% endif %} />
       <div class="tab-panel">
         {% if rows %}
           {% set widest = rows[0].visitors or 1 %}

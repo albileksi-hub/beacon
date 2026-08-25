@@ -1,6 +1,9 @@
 import datetime as dt
+import re
+from pathlib import Path
 
 from app.models import Event
+from app.routers import dashboard
 from app.services import accounts
 from tests.conftest import OWNER_PASSWORD, SITE_DOMAIN, with_local_bucket
 
@@ -279,3 +282,31 @@ def test_dashboard_has_entry_and_exit_panels(signed_in, db_session, rebuild_roll
     assert "Exit pages" in body
     assert "/landing" in body
     assert "/goodbye" in body
+
+
+def test_every_tab_input_is_immediately_followed_by_its_panel(signed_in, db_session, site):
+    """The invariant the stylesheet's one visibility rule depends on.
+
+    `.tab-input:checked + .tab-panel` only works while each input sits directly
+    before the panel it controls. The version this replaced needed a selector
+    per tab and fell two behind, so the last two tabs opened onto nothing --
+    invisible to every test, because all panels are in the document regardless.
+    """
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}").text
+    tabs = body.count('class="tab-input"')
+    paired = len(re.findall(r'class="tab-input"[^>]*/>\s*<div class="tab-panel">', body))
+
+    assert tabs == len(dashboard.PANELS)
+    assert paired == tabs, "an input is not directly followed by its panel"
+
+
+def test_the_stylesheet_can_highlight_every_tab():
+    """Panel visibility no longer counts tabs, but the active label still must.
+
+    CSS cannot match a label to a checked input by shared name, so the
+    highlight is correlated by position and has an upper bound.
+    """
+    css = (Path(__file__).parent.parent / "static" / "dashboard.css").read_text(encoding="utf-8")
+    highest = max(int(n) for n in re.findall(r"nth-of-type\((\d+)\):checked", css))
+
+    assert highest >= len(dashboard.PANELS)

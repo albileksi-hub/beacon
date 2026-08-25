@@ -448,33 +448,37 @@ h2 {
 
 .tab-panel { display: none; }
 
-/* One rule per tab: the nth input selects the nth label and the nth panel. */
-.tabs > .tab-input:nth-of-type(1):checked ~ .tab-bar > .tab:nth-child(1),
-.tabs > .tab-input:nth-of-type(2):checked ~ .tab-bar > .tab:nth-child(2),
-.tabs > .tab-input:nth-of-type(3):checked ~ .tab-bar > .tab:nth-child(3),
-.tabs > .tab-input:nth-of-type(4):checked ~ .tab-bar > .tab:nth-child(4),
-.tabs > .tab-input:nth-of-type(5):checked ~ .tab-bar > .tab:nth-child(5),
-.tabs > .tab-input:nth-of-type(6):checked ~ .tab-bar > .tab:nth-child(6),
-.tabs > .tab-input:nth-of-type(7):checked ~ .tab-bar > .tab:nth-child(7),
-.tabs > .tab-input:nth-of-type(8):checked ~ .tab-bar > .tab:nth-child(8),
-.tabs > .tab-input:nth-of-type(9):checked ~ .tab-bar > .tab:nth-child(9),
-.tabs > .tab-input:nth-of-type(10):checked ~ .tab-bar > .tab:nth-child(10) {
+/* Panel visibility needs no count: each input sits immediately before the
+   panel it controls, so this one rule covers however many tabs there are.
+   The version this replaced listed a selector per tab, and fell two behind
+   when campaigns and mediums were added -- both tabs opened onto nothing,
+   which no test noticed because every panel is in the document either way. */
+.tab-input:checked + .tab-panel {
+  display: block;
+}
+
+/* The active label still has to be correlated by position, because CSS cannot
+   match a label to a checked input by shared name. Generous, and
+   tests/test_dashboard.py fails if the tabs ever outgrow it. */
+.tabs:has(.tab-input:nth-of-type(1):checked) .tab:nth-child(1),
+.tabs:has(.tab-input:nth-of-type(2):checked) .tab:nth-child(2),
+.tabs:has(.tab-input:nth-of-type(3):checked) .tab:nth-child(3),
+.tabs:has(.tab-input:nth-of-type(4):checked) .tab:nth-child(4),
+.tabs:has(.tab-input:nth-of-type(5):checked) .tab:nth-child(5),
+.tabs:has(.tab-input:nth-of-type(6):checked) .tab:nth-child(6),
+.tabs:has(.tab-input:nth-of-type(7):checked) .tab:nth-child(7),
+.tabs:has(.tab-input:nth-of-type(8):checked) .tab:nth-child(8),
+.tabs:has(.tab-input:nth-of-type(9):checked) .tab:nth-child(9),
+.tabs:has(.tab-input:nth-of-type(10):checked) .tab:nth-child(10),
+.tabs:has(.tab-input:nth-of-type(11):checked) .tab:nth-child(11),
+.tabs:has(.tab-input:nth-of-type(12):checked) .tab:nth-child(12),
+.tabs:has(.tab-input:nth-of-type(13):checked) .tab:nth-child(13),
+.tabs:has(.tab-input:nth-of-type(14):checked) .tab:nth-child(14),
+.tabs:has(.tab-input:nth-of-type(15):checked) .tab:nth-child(15),
+.tabs:has(.tab-input:nth-of-type(16):checked) .tab:nth-child(16) {
   color: var(--accent);
   background: var(--accent-soft);
   font-weight: 580;
-}
-
-.tabs > .tab-input:nth-of-type(1):checked ~ .tab-panel:nth-of-type(1),
-.tabs > .tab-input:nth-of-type(2):checked ~ .tab-panel:nth-of-type(2),
-.tabs > .tab-input:nth-of-type(3):checked ~ .tab-panel:nth-of-type(3),
-.tabs > .tab-input:nth-of-type(4):checked ~ .tab-panel:nth-of-type(4),
-.tabs > .tab-input:nth-of-type(5):checked ~ .tab-panel:nth-of-type(5),
-.tabs > .tab-input:nth-of-type(6):checked ~ .tab-panel:nth-of-type(6),
-.tabs > .tab-input:nth-of-type(7):checked ~ .tab-panel:nth-of-type(7),
-.tabs > .tab-input:nth-of-type(8):checked ~ .tab-panel:nth-of-type(8),
-.tabs > .tab-input:nth-of-type(9):checked ~ .tab-panel:nth-of-type(9),
-.tabs > .tab-input:nth-of-type(10):checked ~ .tab-panel:nth-of-type(10) {
-  display: block;
 }
 
 .tab-input:focus-visible ~ .tab-bar > .tab { box-shadow: none; }
