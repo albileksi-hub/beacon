@@ -310,3 +310,25 @@ def test_the_stylesheet_can_highlight_every_tab():
     highest = max(int(n) for n in re.findall(r"nth-of-type\((\d+)\):checked", css))
 
     assert highest >= len(dashboard.PANELS)
+
+
+def test_the_landing_page_carries_the_animated_scene(client):
+    """The rotating chart on the cover, and the terms it exists under.
+
+    It is decorative, so it must be hidden from screen readers; and it is
+    built from CSS transforms alone, because the content security policy
+    forbids outside libraries and the page promises to work without script.
+    """
+    body = client.get("/").text
+
+    assert 'class="hero-scene" aria-hidden="true"' in body
+    assert body.count('class="scene-bar"') == 12
+
+
+def test_the_scene_stands_still_for_reduced_motion():
+    """A spinning object is exactly what that preference exists to stop."""
+    css = (Path(__file__).parent.parent / "static" / "dashboard.css").read_text(encoding="utf-8")
+    reduced = css.split("prefers-reduced-motion", 1)[1].split("}\n}", 1)[0]
+
+    assert ".scene-spin { animation: none;" in reduced
+    assert ".scene-beam { animation: none;" in reduced
