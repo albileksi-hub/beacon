@@ -28,7 +28,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from sqlalchemy import event, func, select  # noqa: E402
 
-from app.db import SessionLocal, engine  # noqa: E402
+from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.models import DailyStat, Event, HourlyStat  # noqa: E402
 from app.services import accounts, reports, rollups, stats  # noqa: E402
 from app.services.stats import BreakdownProperty  # noqa: E402
@@ -36,6 +36,13 @@ from app.services.timeranges import Period, resolve  # noqa: E402
 
 # Statements too trivial to be worth a plan, and noisy in the output.
 BORING = ("BEGIN", "COMMIT", "ROLLBACK", "PRAGMA", "SAVEPOINT", "RELEASE")
+
+# Only a scan of a real table is a problem. A query with a window function
+# materialises its own result and then scans that -- reported as
+# "SCAN (subquery-3)" or "SCAN anon_1" -- which is unavoidable and says nothing
+# about indexing. Flagging it made the tool cry wolf on a correctly indexed
+# query, and a check that cries wolf gets ignored.
+TABLES = frozenset(Base.metadata.tables)
 
 
 @dataclass
@@ -93,6 +100,16 @@ def explain(captured: Captured) -> list[str]:
             "EXPLAIN QUERY PLAN " + captured.sql, captured.parameters or ()
         ).fetchall()
     return [row[-1] for row in rows]
+
+
+def _scans_a_table(plan_line: str) -> bool:
+    """True only for a scan of a stored table, not of a derived result."""
+    if "SCAN" not in plan_line or "USING" in plan_line:
+        return False
+
+    # "SCAN events", "SCAN events AS e" -- the word after SCAN is the target.
+    target = plan_line.split("SCAN", 1)[1].strip().split()
+    return bool(target) and target[0] in TABLES
 
 
 def scenarios(site: str) -> list[tuple[str, Callable[[], object]]]:
@@ -227,7 +244,7 @@ def main() -> int:
     for name, work in scenarios(args.site):
         result = measure(name, work, args.runs)
         plans = [line for captured in result.statements for line in explain(captured)]
-        full_scans = [line for line in plans if "SCAN" in line and "USING" not in line]
+        full_scans = [line for line in plans if _scans_a_table(line)]
         if full_scans:
             scanned.append(name)
 
