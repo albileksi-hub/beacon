@@ -3,6 +3,7 @@ from sqlalchemy import create_engine, delete, insert, inspect, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.config import Settings
 from app.db import Base, _engine_options, configure_sqlite, get_db, upgrade_database
 from app.models import Event, Site, User
 
@@ -120,3 +121,24 @@ def test_the_session_factory_dependency_hands_back_the_real_one():
     from app.dependencies import get_session_factory
 
     assert get_session_factory() is SessionLocal
+
+
+@pytest.mark.parametrize(
+    ("given", "expected"),
+    [
+        # What Render, Fly and Heroku actually inject.
+        ("postgres://u:p@host/db", "postgresql+psycopg://u:p@host/db"),
+        # Valid for SQLAlchemy, but selects psycopg2, which is not installed.
+        ("postgresql://u:p@host/db", "postgresql+psycopg://u:p@host/db"),
+        # Already explicit, and left alone.
+        ("postgresql+psycopg://u:p@host/db", "postgresql+psycopg://u:p@host/db"),
+        ("sqlite:///./beacon.db", "sqlite:///./beacon.db"),
+    ],
+)
+def test_the_database_url_scheme_is_normalised(given: str, expected: str) -> None:
+    """A managed host's own connection string has to work unedited.
+
+    Both rejected shapes fail at import time, on boot, in the one environment
+    where nobody can attach a debugger.
+    """
+    assert Settings(database_url=given).database_url == expected

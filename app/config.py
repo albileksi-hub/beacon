@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -54,6 +55,24 @@ class Settings(BaseSettings):
     # set that header themselves, so trusting it while directly exposed lets
     # anyone spoof their address.
     trust_proxy_headers: bool = False
+
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalise_database_url(cls, url: str) -> str:
+        """Accept the URL shape managed Postgres hosts actually hand out.
+
+        Render, Fly and Heroku all inject "postgres://", which SQLAlchemy 2.0
+        refuses outright; and a bare "postgresql://" selects psycopg2, which is
+        not a dependency -- this project uses psycopg 3. Both fail at import
+        time, on boot, in the one environment nobody can attach a debugger to.
+        Rewriting the scheme here means a deployment can pass the host's own
+        connection string through untouched.
+        """
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix) :]
+        return url
 
 
 @lru_cache

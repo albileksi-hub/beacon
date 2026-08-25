@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from app.db import SessionLocal, upgrade_database  # noqa: E402
 from app.models import DailyStat, Event, HourlyStat, Site, User  # noqa: E402
-from app.services import accounts, screens, zones  # noqa: E402
+from app.services import accounts, rollups, screens, zones  # noqa: E402
 
 PAGES = [
     ("/", 34),
@@ -235,6 +235,14 @@ def main() -> int:
         args.site, args.days, args.baseline, args.seed, args.reset, args.goal_rate
     )
     print(f"seeded {written:,} events for {args.site} across {args.days} days")
+
+    # The dashboard reads rollups, not raw events, and the background loop only
+    # ever revisits the last couple of days -- so without this the whole seeded
+    # history is invisible on a fresh install, which is exactly what somebody
+    # trying the project out would see first.
+    with SessionLocal() as session:
+        days = rollups.refresh(session, days_back=args.days + 1)
+    print(f"aggregated {days:,} site-days")
     return 0
 
 
