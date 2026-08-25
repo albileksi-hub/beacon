@@ -322,7 +322,11 @@ def test_the_landing_page_carries_the_animated_scene(client):
     body = client.get("/").text
 
     assert 'class="hero-scene" aria-hidden="true"' in body
-    assert body.count('class="scene-bar"') == 12
+    # Three surfaces of revolution, 36 facets each: body, conical shoulder, neck.
+    for surface in ("can-facet", "shoulder-facet", "neck-facet"):
+        assert body.count(f'class="{surface}"') == 36, surface
+    assert 'class="can-lid"' in body
+    assert body.count('class="mote"') == 7
 
 
 def test_the_scene_stands_still_for_reduced_motion():
@@ -330,5 +334,5 @@ def test_the_scene_stands_still_for_reduced_motion():
     css = (Path(__file__).parent.parent / "static" / "dashboard.css").read_text(encoding="utf-8")
     reduced = css.split("prefers-reduced-motion", 1)[1].split("}\n}", 1)[0]
 
-    assert ".scene-spin { animation: none;" in reduced
-    assert ".scene-beam { animation: none;" in reduced
+    for still in (".can-spin", ".can-float", ".can-shadow", ".mote"):
+        assert f"{still} {{ animation: none;" in reduced
