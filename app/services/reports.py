@@ -7,8 +7,9 @@ drift away from the truth unnoticed.
 """
 
 from collections import defaultdict
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.models import DailyStat, HourlyStat
@@ -36,19 +37,36 @@ from app.services.timeranges import (
 live_visitors = stats.live_visitors
 
 
-def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary:
-    first, last = time_range.days
+def _scoped(
+    statement: Select[Any], site_id: str, time_range: TimeRange, dimension: str
+) -> Select[Any]:
+    """Narrow to one site, one dimension, and one span of that site's days.
 
+    The sibling of stats._scoped, which does the same for raw events. Three
+    queries here spelled the same four predicates out by hand; a query that
+    forgot one of the day bounds would read another period's numbers and look
+    entirely plausible doing it.
+    """
+    first, last = time_range.days
+    return statement.where(
+        DailyStat.site_id == site_id,
+        DailyStat.dimension == dimension,
+        DailyStat.day >= first,
+        DailyStat.day <= last,
+    )
+
+
+def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary:
     visitors, pageviews, bounces = db.execute(
-        select(
-            func.coalesce(func.sum(DailyStat.visitors), 0),
-            func.coalesce(func.sum(DailyStat.pageviews), 0),
-            func.coalesce(func.sum(DailyStat.bounces), 0),
-        ).where(
-            DailyStat.site_id == site_id,
-            DailyStat.dimension == TOTAL,
-            DailyStat.day >= first,
-            DailyStat.day <= last,
+        _scoped(
+            select(
+                func.coalesce(func.sum(DailyStat.visitors), 0),
+                func.coalesce(func.sum(DailyStat.pageviews), 0),
+                func.coalesce(func.sum(DailyStat.bounces), 0),
+            ),
+            site_id,
+            time_range,
+            TOTAL,
         )
     ).one()
 
@@ -66,20 +84,18 @@ def breakdown(
     prop: BreakdownProperty,
     limit: int = DEFAULT_BREAKDOWN_LIMIT,
 ) -> list[BreakdownRow]:
-    first, last = time_range.days
     visitors = func.sum(DailyStat.visitors)
 
     rows = db.execute(
-        select(
-            DailyStat.value,
-            visitors.label("visitors"),
-            func.sum(DailyStat.pageviews).label("pageviews"),
-        )
-        .where(
-            DailyStat.site_id == site_id,
-            DailyStat.dimension == prop.value,
-            DailyStat.day >= first,
-            DailyStat.day <= last,
+        _scoped(
+            select(
+                DailyStat.value,
+                visitors.label("visitors"),
+                func.sum(DailyStat.pageviews).label("pageviews"),
+            ),
+            site_id,
+            time_range,
+            prop.value,
         )
         .group_by(DailyStat.value)
         # Ties broken by value so the ordering is stable between requests.
@@ -117,15 +133,14 @@ def _daily_totals(db: Session, site_id: str, time_range: TimeRange) -> dict[str,
     Summing days into a month is only sound because the visitor salt rotates
     at midnight -- see the note on models.DailyStat.
     """
-    first, last = time_range.days
     fmt = LABEL_FORMATS[time_range.interval]
 
     rows = db.execute(
-        select(DailyStat.day, DailyStat.visitors, DailyStat.pageviews).where(
-            DailyStat.site_id == site_id,
-            DailyStat.dimension == TOTAL,
-            DailyStat.day >= first,
-            DailyStat.day <= last,
+        _scoped(
+            select(DailyStat.day, DailyStat.visitors, DailyStat.pageviews),
+            site_id,
+            time_range,
+            TOTAL,
         )
     )
 
