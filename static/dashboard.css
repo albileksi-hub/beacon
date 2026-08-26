@@ -1184,3 +1184,51 @@ h2 {
   .beacon-sway { transform: rotateY(-9deg) !important; }
   .beam-spin { transform: rotate(28deg) !important; }
 }
+
+
+/* ---- API keys on the account page ---- */
+
+.reveal {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.reveal-note {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.key-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.key-list li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.5rem 0.62rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.89rem;
+}
+
+.key-list li:hover { background: var(--panel-soft); }
+
+.key-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-soft);
+}
+
+.key-used { font-size: 0.78rem; }

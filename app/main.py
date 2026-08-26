@@ -14,7 +14,7 @@ from app.config import Settings, get_settings
 from app.dependencies import DbSession
 from app.middleware import LimitRequestSize, SecurityHeaders
 from app.observability import RequestLogging, configure_logging
-from app.routers import auth, dashboard, exports, ingest, sites, stats
+from app.routers import auth, dashboard, exports, ingest, keys, sites, stats
 from app.templating import STATIC_DIR, templates
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(ingest.router)
     app.include_router(stats.router)
     app.include_router(sites.router)
+    app.include_router(keys.router)
     app.include_router(exports.router)
     app.include_router(dashboard.router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

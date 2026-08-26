@@ -41,5 +41,49 @@
   {% else %}
     <p class="muted">No sites yet — add your first one above.</p>
   {% endif %}
+
+  <div class="card">
+    <h2>API keys</h2>
+    <p class="muted">
+      Read the stats API without a browser. Send the key as
+      <code>Authorization: Bearer &lt;key&gt;</code>. A key reads numbers and
+      cannot change anything.
+    </p>
+
+    {% if new_token %}
+      {# The only time this string exists anywhere but the holder's clipboard:
+         what is stored is a hash of it, so it cannot be shown again. #}
+      <div class="reveal">
+        <p class="reveal-note">Copy this now — it will not be shown again.</p>
+        <pre class="snippet"><code>{{ new_token }}</code></pre>
+      </div>
+    {% endif %}
+
+    {% if tokens %}
+      <ul class="key-list">
+        {% for token in tokens %}
+          <li>
+            <span class="key-name">{{ token.name }}</span>
+            <span class="muted key-used">
+              {% if token.last_used_on %}
+                last used {{ token.last_used_on }}
+              {% else %}
+                never used
+              {% endif %}
+            </span>
+            <form method="post" action="/keys/{{ token.id }}/revoke">
+              <button type="submit" class="link-button">Revoke</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    <form method="post" action="/keys" class="form inline-form">
+      <input type="text" name="name" placeholder="Laptop, CI, status page…"
+             aria-label="What this key is for" maxlength="64" required />
+      <button type="submit" class="button primary">Create key</button>
+    </form>
+  </div>
 </section>
 {% endblock %}
