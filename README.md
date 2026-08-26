@@ -1,5 +1,7 @@
 # Beacon
 
+<img src="docs/lighthouse.gif" alt="The Beacon cover: a lighthouse turning, its beam sweeping" align="right" width="300">
+
 **Privacy-first, cookieless web analytics.** A self-hosted alternative to Google
 Analytics that answers what a site owner actually asks — how many people came,
 what they read, where they came from — without collecting anything that
@@ -7,6 +9,8 @@ identifies them.
 
 No cookies. No personal data at rest. No consent banner, because there is
 nothing to consent to.
+
+<br clear="right">
 
 ![The Beacon dashboard](docs/dashboard.png)
 
