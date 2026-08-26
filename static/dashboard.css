@@ -362,16 +362,6 @@ h2 {
   50% { opacity: 0.28; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pulse { animation: none; }
-  .can-spin { animation: none; transform: rotateY(-30deg); }
-  .can-float { animation: none; }
-  .can-sweep::after { animation: none; opacity: 0; }
-  .can-shadow { animation: none; }
-  .mote { animation: none; }
-  * { transition: none !important; }
-}
-
 /* ---- chart ---- */
 
 .chart-card { padding: 1.25rem 1.3rem 0.9rem; }
@@ -1001,4 +991,43 @@ h2 {
   .hero-scene { height: 258px; }
   .can-float { transform: scale(0.82); transform-origin: top center; }
   .points { margin-top: 3rem; }
+}
+
+
+/* Reduced motion. Last in the file, and matching everything, on purpose.
+
+   A media query carries no specificity of its own, so a rule inside one beats
+   a rule outside it only by coming after it. This block used to sit near the
+   top and name each animated class by hand -- and every class it named was
+   defined two hundred lines below, so each `animation: none` lost the cascade
+   and did nothing at all. Only `.pulse` obeyed it, and only because `.pulse`
+   happens to be declared above rather than below. Someone who had asked their
+   operating system for less motion still got a rotating can, a bobbing crate,
+   drifting motes, a breathing shadow and a sweeping glare.
+
+   Naming classes was the other half of it: the cover page arrived with five
+   animations and the list had to be extended by hand each time, which is the
+   same trap the tab selectors fell into. A universal selector needs nobody to
+   remember anything.
+
+   Animations are collapsed to nothing rather than removed, which is the
+   conventional form -- a zero-length animation still fires its events, so
+   anything waiting on `animationend` is not left waiting forever. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Resting poses. These need !important because a collapsed animation still
+     applies its first keyframe, and an animation outranks a normal
+     declaration -- only an important one outranks the animation. Without it
+     the can sits at rotateY(0deg), facing dead-on instead of three-quarter,
+     which is measurably true rather than a guess. */
+  .can-spin { transform: rotateY(-30deg) !important; }
+  .can-sweep::after { opacity: 0 !important; }
 }

@@ -330,9 +330,51 @@ def test_the_landing_page_carries_the_animated_scene(client):
 
 
 def test_the_scene_stands_still_for_reduced_motion():
-    """A spinning object is exactly what that preference exists to stop."""
-    css = (Path(__file__).parent.parent / "static" / "dashboard.css").read_text(encoding="utf-8")
-    reduced = css.split("prefers-reduced-motion", 1)[1].split("}\n}", 1)[0]
+    """A spinning object is exactly what that preference exists to stop.
 
-    for still in (".can-spin", ".can-float", ".can-shadow", ".mote"):
-        assert f"{still} {{ animation: none;" in reduced
+    This used to assert the block contained `.can-spin { animation: none;` and
+    three more like it. Every one of those strings was present and none of them
+    did anything, which is how the bug shipped under a green suite -- the test
+    checked that the declaration had been written, not that it survived the
+    cascade. It now checks the properties that decide the outcome.
+
+    Matching everything rather than a list of classes is the point: the list
+    fell behind the moment the cover page arrived with five animations, and a
+    universal selector needs nobody to remember anything.
+    """
+    css = (Path(__file__).parent.parent / "static" / "dashboard.css").read_text(encoding="utf-8")
+    reduced = css[css.index("@media (prefers-reduced-motion: reduce)") :]
+
+    assert "*::before" in reduced and "*::after" in reduced
+    assert "animation-duration: 0.01ms !important" in reduced
+    assert "animation-iteration-count: 1 !important" in reduced
+    # A collapsed animation still applies its first keyframe, and an animation
+    # outranks a normal declaration -- so a resting pose has to be important or
+    # the can faces dead-on instead of three-quarter.
+    assert "transform: rotateY(-30deg) !important" in reduced
+
+
+def test_reduced_motion_is_declared_after_the_animations_it_cancels():
+    """The cascade rule this block's whole effect depends on.
+
+    A media query carries no specificity of its own, so a rule inside one beats
+    a rule outside it only by coming later in the file. This block used to sit
+    near the top and name each animated class by hand, and every class it named
+    was defined two hundred lines below -- so every cancellation lost the
+    cascade and did nothing. Somebody who had asked their system for less
+    motion still got a rotating can, drifting motes and a sweeping glare;
+    confirmed in a browser, where the animations still computed to their own
+    names and kept running.
+
+    pytest cannot see a cascade, so it asserts the position that decides it.
+    """
+    css = (Path(__file__).parent.parent / "static" / "dashboard.css").read_text(encoding="utf-8")
+    # The comments quote CSS at itself, so strip them before hunting for
+    # declarations or the prose trips the assertion.
+    declarations = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+    block = declarations.index("@media (prefers-reduced-motion: reduce)")
+
+    assert "animation:" not in declarations[block:], (
+        "an animation is declared after the reduced-motion block, so it wins the cascade"
+    )
