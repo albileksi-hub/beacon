@@ -840,7 +840,13 @@ h2 {
   position: absolute;
   left: 0;
   top: 0;
-  width: 220px;
+  /* Measured from the centre of the page, so a fixed length reaches past the
+     edge of a narrow one and gives the whole document a horizontal scrollbar.
+     The cap only bites below about 520px, where half the viewport is less than
+     220px; every wider screen gets the full beam. Blur widens what is painted
+     by roughly its radius, which is why the cap leaves room rather than
+     landing exactly on half. */
+  width: min(220px, 42vw);
   height: 132px;
   margin-top: -66px;
   transform-origin: 0 50%;
@@ -1131,6 +1137,9 @@ h2 {
   .tile-value { font-size: 1.75rem; }
   .share { display: none; }
   .hero { margin-top: 1.5rem; }
+  /* The glow bleeds 6rem past the hero, which is fine when there is margin
+     either side of it and is 96px of horizontal scroll when there is not. */
+  .hero::before { inset: -6rem 0 auto; }
   .hero-scene { height: 258px; }
   .beacon-float { transform: scale(0.82); transform-origin: top center; }
   .points { margin-top: 3rem; }
