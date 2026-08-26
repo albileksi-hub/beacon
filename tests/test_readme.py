@@ -46,9 +46,15 @@ def test_the_readme_states_the_real_test_count(request: pytest.FixtureRequest) -
 
 
 def test_the_readme_only_links_to_files_that_exist() -> None:
-    """A dead link in the first screenful is the cheapest kind of bad look."""
+    """A dead link in the first screenful is the cheapest kind of bad look.
+
+    Covers <img src> as well as markdown links: the cover image is an <img>
+    tag, so checking only "](...)" would have left the one picture anybody
+    sees first completely unguarded.
+    """
     text = README.read_text(encoding="utf-8")
     targets = re.findall(r"\]\((?!https?://|#|mailto:)([^)]+)\)", text)
+    targets += re.findall(r'<img[^>]+src="(?!https?://)([^"]+)"', text)
     assert targets, "expected the README to link to something"
 
     missing = [t for t in targets if not (ROOT / t.split("#", 1)[0]).exists()]
