@@ -117,11 +117,25 @@ def purge_expired_salts(db: Session, *, today: dt.date | None = None) -> int:
     return deleted
 
 
+def keyed_hash(*parts: str, salt: bytes) -> str:
+    """The one construction every address-derived identifier here uses.
+
+    A 16-byte BLAKE2b keyed with a salt that is deleted two days later. It was
+    written out twice -- once for visitor IDs, once for the login throttle --
+    and the entire privacy argument rests on both being the same construction
+    with the same rotating key, so it is spelled out once.
+
+    Parts are joined with a NUL, which cannot appear inside any of them, so no
+    two different tuples can be made to produce the same message.
+    """
+    message = b"\x00".join(part.encode("utf-8") for part in parts)
+    return hashlib.blake2b(message, key=salt, digest_size=16).hexdigest()
+
+
 def visitor_id(*, salt: bytes, site_id: str, ip: str, user_agent: str) -> str:
     """Derive a visitor identifier stable for one of that site's days only.
 
     Scoping by site means the same person visiting two customers' sites gets
     unrelated IDs, so nothing can be correlated across the customer base.
     """
-    message = b"\x00".join(part.encode("utf-8") for part in (site_id, ip, user_agent))
-    return hashlib.blake2b(message, key=salt, digest_size=16).hexdigest()
+    return keyed_hash(site_id, ip, user_agent, salt=salt)

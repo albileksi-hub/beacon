@@ -6,13 +6,12 @@ impossible.
 """
 
 import datetime as dt
-import hashlib
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models import LoginAttempt
-from app.services.visitors import current_salt, utc_today
+from app.services.visitors import current_salt, keyed_hash, utc_today
 
 MAX_FAILURES = 5
 WINDOW = dt.timedelta(minutes=15)
@@ -37,9 +36,8 @@ def fingerprint(db: Session, address: str) -> str:
     of minutes that is immaterial, and it keeps a single rule about how long any
     address-derived value can be reproduced.
     """
-    message = b"login\x00" + address.encode("utf-8")
     salt = current_salt(db, site_id=SALT_SCOPE, day=utc_today())
-    return hashlib.blake2b(message, key=salt, digest_size=16).hexdigest()
+    return keyed_hash("login", address, salt=salt)
 
 
 def recent_failures(db: Session, marker: str, *, now: dt.datetime | None = None) -> int:
