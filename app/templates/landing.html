@@ -3,9 +3,11 @@
 
 {% block content %}
 <section class="hero">
-  {# A product shot in the drinks-advert style: a branded can turning under a
-     fixed studio light, glare sweeping past, motes drifting. CSS transforms
-     only -- no script, no library, and it still turns with JavaScript off. #}
+  {# A lighthouse, because the product is called Beacon and a beacon's whole
+     behaviour is a light going round. The tower stands still, as a tower does,
+     and the beam is the thing that turns -- so the only motion on the page is
+     the one that describes what this is. CSS transforms only: no script, no
+     library, and it still stands there with JavaScript off. #}
   <div class="hero-scene" aria-hidden="true">
     {% for mx, my, ms, md in [
       ("6%", "20%", "5px", "3.4s"), ("15%", "62%", "3px", "4.1s"),
@@ -15,22 +17,37 @@
     ] %}
       <span class="mote" style="--mx: {{ mx }}; --my: {{ my }}; --ms: {{ ms }}; --md: {{ md }}"></span>
     {% endfor %}
-    <span class="can-shadow"></span>
-    <div class="can-float">
-      <div class="can-stage">
-        <div class="can-tilt">
-          <div class="can-spin">
-            <span class="can-base"></span>
-            {% for i in range(36) %}<span class="can-facet" style="--i: {{ i }}"></span>{% endfor %}
-            {% for i in range(36) %}<span class="shoulder-facet" style="--i: {{ i }}"></span>{% endfor %}
-            {% for i in range(36) %}<span class="neck-facet" style="--i: {{ i }}"></span>{% endfor %}
-            <span class="can-lid"></span>
+
+    {# Behind the tower, so the tower occludes the beam that points away. #}
+    <div class="beam-spin">
+      <span class="beam"></span>
+      <span class="beam beam-back"></span>
+    </div>
+    <span class="lantern-glow"></span>
+
+    <span class="tower-shadow"></span>
+    <div class="beacon-float">
+      <div class="beacon-stage">
+        <div class="beacon-tilt">
+          <div class="beacon-sway">
+            <span class="plinth-cap"></span>
+            {% for i in range(36) %}<span class="plinth-facet" style="--i: {{ i }}"></span>{% endfor %}
+            {% for i in range(36) %}<span class="tower-facet" style="--i: {{ i }}"></span>{% endfor %}
+            <span class="gallery-deck"></span>
+            {% for i in range(12) %}<span class="rail-post" style="--i: {{ i }}"></span>{% endfor %}
+            <span class="rail-ring"></span>
+            {% for i in range(36) %}<span class="lantern-facet" style="--i: {{ i }}"></span>{% endfor %}
+            {% for i in range(36) %}<span class="roof-facet" style="--i: {{ i }}"></span>{% endfor %}
+            <span class="finial"></span>
+            <span class="lamp"></span>
           </div>
         </div>
       </div>
-      <span class="can-light"></span>
-      <span class="neck-light"></span>
-      <span class="can-sweep"></span>
+      {# The studio light does not sway with the tower; that is what makes each
+         cylinder read as round rather than as a painted strip. #}
+      <span class="plinth-light"></span>
+      <span class="tower-light"></span>
+      <span class="lantern-light"></span>
     </div>
   </div>
 

@@ -601,188 +601,331 @@ h2 {
   animation: mote-drift var(--md) ease-in-out infinite alternate;
 }
 
-.can-float {
+/* ---- the beacon ----
+
+   A lighthouse rather than a drinks can, because the product is called Beacon
+   and a beacon's whole behaviour is a light going round. That makes the one
+   moving part mean something: the tower stands still, as a tower does, and the
+   beam is what turns.
+
+   Every solid here is a surface of revolution built from 36 facets, each
+   rotated about the centre and pushed out by the radius, with
+   backface-visibility hiding the far half so it reads as solid rather than as
+   a wire cage.
+
+   Where a shape tapers, the facet is a trapezoid tilted about X by the slant
+   angle, which is what makes a cone a cone instead of a cylinder wearing a
+   hat. For a frustum from radius A to radius B over height H:
+
+     facet width  = 2A * tan(180deg / 36)      the wider end
+     facet height = hypot(A - B, H)            along the slant, not the vertical
+     rotateX      = atan2(A - B, H)
+     translateZ   = (A + B) / 2                the mean radius
+     clip inset   = half the width difference, as a percentage
+
+                    width    slant   rotateX   translateZ   inset
+     plinth 58->48  10.149   31.623   18.435       53.0     8.62%
+     tower  42->30   7.349  140.513    4.899       36.0    14.29%
+     roof   34->2    5.949   40.000   53.130       18.0    47.06%
+     lantern 26      4.549   34.000    0.000       26.0     0
+
+   The perspective is short and the sway is wide, because a solid that never
+   turns far enough is indistinguishable from a painting of one. */
+
+.beacon-float {
   position: absolute;
   left: 50%;
-  top: 8px;
-  width: 130px;
-  height: 250px;
-  margin-left: -65px;
-  animation: can-bob 5.5s ease-in-out infinite;
+  top: 10px;
+  width: 150px;
+  height: 260px;
+  margin-left: -75px;
+  z-index: 1;
 }
 
-.can-stage {
+.beacon-stage {
   position: absolute;
   inset: 0;
-  perspective: 1000px;
+  perspective: 620px;
+  perspective-origin: 50% 42%;
 }
 
-.can-tilt {
+.beacon-tilt {
   position: absolute;
   inset: 0;
-  transform: rotateX(7deg);
+  transform: rotateX(8deg);
   transform-style: preserve-3d;
 }
 
-.can-spin {
+/* Not a full turn. A lighthouse that spun would be a lie about the object, but
+   twenty degrees each way is enough to see round the near side of it. */
+.beacon-sway {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-  animation: can-turn 11s linear infinite;
+  animation: beacon-sway 15s ease-in-out infinite alternate;
 }
 
-/* Only the near half of each surface is drawn, which is what makes it read as
-   a solid object rather than a wire cage. */
-.can-facet,
-.shoulder-facet,
-.neck-facet {
+.plinth-facet,
+.tower-facet,
+.lantern-facet,
+.roof-facet,
+.rail-post {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 10.21px;
-  margin-left: -5.105px;
   backface-visibility: hidden;
 }
 
-.can-facet {
-  height: 180px;
-  margin-top: -90px;
-  transform: translateY(35px) rotateY(calc(var(--i) * 10deg)) translateZ(56px);
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27352%27%20height%3D%27180%27%20viewBox%3D%270%200%20352%20180%27%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%27b%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%270%27%20y2%3D%271%27%3E%20%3Cstop%20offset%3D%270%27%20stop-color%3D%27%23ffc184%27%2F%3E%20%3Cstop%20offset%3D%270.40%27%20stop-color%3D%27%23fb923c%27%2F%3E%20%3Cstop%20offset%3D%271%27%20stop-color%3D%27%23b8380a%27%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Crect%20width%3D%27352%27%20height%3D%27180%27%20fill%3D%27url%28%23b%29%27%2F%3E%20%3Crect%20y%3D%27173%27%20width%3D%27352%27%20height%3D%277%27%20fill%3D%27%234a1a00%27%20fill-opacity%3D%270.42%27%2F%3E%20%3Cg%20stroke%3D%27%23fff%27%20stroke-opacity%3D%270.12%27%20stroke-width%3D%271%27%3E%20%3Cline%20x1%3D%270.5%27%20y1%3D%278%27%20x2%3D%270.5%27%20y2%3D%27170%27%2F%3E%20%3Cline%20x1%3D%27176.5%27%20y1%3D%278%27%20x2%3D%27176.5%27%20y2%3D%27170%27%2F%3E%20%3C%2Fg%3E%20%3Cg%20fill%3D%27%23fff%27%3E%20%3Ccircle%20cx%3D%2788%27%20cy%3D%2740%27%20r%3D%277%27%2F%3E%20%3Ccircle%20cx%3D%2788%27%20cy%3D%2740%27%20r%3D%2713%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-opacity%3D%270.42%27%20stroke-width%3D%272%27%2F%3E%20%3Ccircle%20cx%3D%27264%27%20cy%3D%2740%27%20r%3D%277%27%2F%3E%20%3Ccircle%20cx%3D%27264%27%20cy%3D%2740%27%20r%3D%2713%27%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-opacity%3D%270.42%27%20stroke-width%3D%272%27%2F%3E%20%3C%2Fg%3E%20%3Cg%20font-family%3D%27Arial%2C%20Helvetica%2C%20sans-serif%27%20text-anchor%3D%27middle%27%20fill%3D%27%23fff%27%3E%20%3Ctext%20x%3D%2788%27%20y%3D%27106%27%20font-size%3D%2729%27%20font-weight%3D%27800%27%20letter-spacing%3D%272.5%27%3EBEACON%3C%2Ftext%3E%20%3Ctext%20x%3D%27264%27%20y%3D%27106%27%20font-size%3D%2729%27%20font-weight%3D%27800%27%20letter-spacing%3D%272.5%27%3EBEACON%3C%2Ftext%3E%20%3Ctext%20x%3D%2788%27%20y%3D%27128%27%20font-size%3D%278.5%27%20font-weight%3D%27600%27%20letter-spacing%3D%273.2%27%20fill-opacity%3D%270.85%27%3ENO%20COOKIES%3C%2Ftext%3E%20%3Ctext%20x%3D%27264%27%20y%3D%27128%27%20font-size%3D%278.5%27%20font-weight%3D%27600%27%20letter-spacing%3D%273.2%27%20fill-opacity%3D%270.85%27%3ENO%20COOKIES%3C%2Ftext%3E%20%3C%2Fg%3E%20%3C%2Fsvg%3E");
-  background-size: 352px 100%;
-  background-position: calc(var(--i) * -9.7738px) 0;
-  background-repeat: repeat-x;
+.plinth-facet {
+  width: 10.149px;
+  margin-left: -5.0745px;
+  height: 31.623px;
+  margin-top: -15.81px;
+  transform: translateY(95px) rotateY(calc(var(--i) * 10deg)) translateZ(53px)
+    rotateX(18.435deg);
+  clip-path: polygon(8.62% 0, 91.38% 0, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom, #574b41, #241d18);
 }
 
-/* The trapezoid: 9.76px across at the body, 6.97px at the neck. */
-.shoulder-facet {
-  height: 34px;
-  margin-top: -17px;
-  transform: translateY(-70px) rotateY(calc(var(--i) * 10deg))
-    translateZ(48px) rotateX(28.07deg);
-  clip-path: polygon(15.85% 0, 84.15% 0, 100% 100%, 0 100%);
-  background: linear-gradient(to bottom, #a89f96, #e0994e 42%, #ffc184);
-}
-
-.neck-facet {
-  height: 12px;
-  margin-top: -6px;
-  transform: translateY(-91px) rotateY(calc(var(--i) * 10deg)) translateZ(40px);
-  background: linear-gradient(to bottom, #b3aba3, #837b73);
-}
-
-.can-lid {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 80px;
-  height: 80px;
-  margin: -40px 0 0 -40px;
-  border-radius: 50%;
-  transform: translateY(-97px) rotateX(90deg);
-  background: radial-gradient(circle, #6e6760 30%, #8b837b 54%, #6a635c 76%, #46413b 100%);
-  box-shadow: inset 0 0 0 3px #7e766e, inset 0 0 0 5px #4a443e;
-}
-
-.can-base {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 112px;
-  height: 112px;
-  margin: -56px 0 0 -56px;
-  border-radius: 50%;
-  transform: translateY(125px) rotateX(90deg);
-  background: radial-gradient(circle, #5b2a08, #341504 70%);
-}
-
-/* The light does not turn with the can. A bright specular band a third of the
-   way across, falling off to darkened edges, is what reads as a cylinder.
-   Each overlay is sized to its own cylinder so it never spills. */
-.can-light,
-.neck-light {
-  position: absolute;
-  left: 50%;
-  background: linear-gradient(
-    90deg,
-    rgba(28, 8, 0, 0.52) 0%,
-    rgba(28, 8, 0, 0.15) 11%,
-    rgba(255, 255, 255, 0.34) 27%,
-    rgba(255, 255, 255, 0.09) 37%,
-    rgba(28, 8, 0, 0) 52%,
-    rgba(28, 8, 0, 0.32) 82%,
-    rgba(28, 8, 0, 0.58) 100%
+/* Painted in bands, which is what makes a tower read as a lighthouse before
+   anything else about it does. */
+.tower-facet {
+  width: 7.349px;
+  margin-left: -3.6745px;
+  height: 140.513px;
+  margin-top: -70.26px;
+  transform: translateY(10px) rotateY(calc(var(--i) * 10deg)) translateZ(36px)
+    rotateX(4.899deg);
+  clip-path: polygon(14.29% 0, 85.71% 0, 100% 100%, 0 100%);
+  background: repeating-linear-gradient(
+    to bottom,
+    #f2e6d8 0 25px,
+    #c2410c 25px 50px
   );
 }
 
-.can-light {
-  top: 70px;
-  width: 112px;
-  margin-left: -56px;
-  height: 180px;
+.lantern-facet {
+  width: 4.549px;
+  margin-left: -2.2745px;
+  height: 34px;
+  margin-top: -17px;
+  transform: translateY(-89px) rotateY(calc(var(--i) * 10deg)) translateZ(26px);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 236, 205, 0.32),
+    rgba(255, 186, 116, 0.14)
+  );
+  border-left: 0.6px solid rgba(52, 26, 8, 0.55);
 }
 
-.neck-light {
-  top: 28px;
-  width: 80px;
-  margin-left: -40px;
-  height: 12px;
+/* A real cone: 36 tall triangles leaning in at 53 degrees, meeting at a point.
+   The flat triangle this replaced always faced the viewer, which is exactly
+   the thing that gave the model away as a drawing. */
+.roof-facet {
+  width: 5.949px;
+  margin-left: -2.9745px;
+  height: 40px;
+  margin-top: -20px;
+  transform: translateY(-118px) rotateY(calc(var(--i) * 10deg)) translateZ(18px)
+    rotateX(53.13deg);
+  clip-path: polygon(47.06% 0, 52.94% 0, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom, #7a6a5a, #2f2822);
 }
 
-.can-sweep {
+/* Twelve uprights around the gallery. Small, but they are the detail that
+   reads as depth when the tower turns, because they cross in front of and
+   behind the lantern as it goes. */
+.rail-post {
+  width: 2px;
+  margin-left: -1px;
+  height: 13px;
+  margin-top: -6.5px;
+  transform: translateY(-66px) rotateY(calc(var(--i) * 30deg)) translateZ(38px);
+  background: linear-gradient(to bottom, #8a7a68, #4a3f36);
+}
+
+.gallery-deck,
+.rail-ring,
+.plinth-cap {
   position: absolute;
   left: 50%;
-  top: 70px;
-  width: 112px;
-  height: 180px;
-  margin-left: -56px;
-  overflow: hidden;
+  top: 50%;
+  border-radius: 50%;
+  transform-style: preserve-3d;
 }
 
-.can-sweep::after {
-  content: "";
-  position: absolute;
-  top: -20%;
-  left: -45%;
-  width: 32%;
-  height: 140%;
-  transform: skewX(-16deg);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
-  animation: can-glare 7s ease-in-out infinite;
+.gallery-deck {
+  width: 84px;
+  height: 84px;
+  margin: -42px 0 0 -42px;
+  transform: translateY(-60px) rotateX(90deg);
+  background: radial-gradient(circle, #3c332c 62%, #6b5d50 78%, #241d18 100%);
+  box-shadow: 0 0 0 2px #55493f;
 }
 
-.can-shadow {
+.rail-ring {
+  width: 78px;
+  height: 78px;
+  margin: -39px 0 0 -39px;
+  transform: translateY(-73px) rotateX(90deg);
+  border: 1.5px solid #6f6152;
+}
+
+.plinth-cap {
+  width: 96px;
+  height: 96px;
+  margin: -48px 0 0 -48px;
+  transform: translateY(80px) rotateX(90deg);
+  background: radial-gradient(circle, #5c5045, #2a231d 74%);
+}
+
+.finial {
   position: absolute;
   left: 50%;
-  bottom: 16px;
-  width: 170px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  transform: translateY(-140px);
+  background: #8b7a68;
+}
+
+/* The lamp itself, and the halo it throws onto the glass. */
+.lamp {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  margin-top: -14px;
+  border-radius: 50%;
+  transform: translateY(-89px);
+  background: radial-gradient(circle, #fff7e6 18%, #ffc98a 46%, rgba(251, 146, 60, 0) 76%);
+  animation: lamp-throb 6s ease-in-out infinite;
+}
+
+.lantern-glow {
+  position: absolute;
+  left: 50%;
+  top: 51px;
+  width: 200px;
+  height: 200px;
+  margin-left: -100px;
+  margin-top: -100px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 190, 120, 0.32) 0%,
+    rgba(251, 146, 60, 0.14) 34%,
+    rgba(251, 146, 60, 0) 68%
+  );
+  animation: lamp-throb 6s ease-in-out infinite;
+}
+
+/* The beam. Anchored at the lamp and turning around it -- the one piece of
+   motion on this page that describes what the product is named after. Two of
+   them, opposed, which is how a real optic is built. */
+.beam-spin {
+  position: absolute;
+  left: 50%;
+  top: 51px;
+  width: 0;
+  height: 0;
+  animation: beam-sweep 7s linear infinite;
+}
+
+.beam {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 220px;
+  height: 132px;
+  margin-top: -66px;
+  transform-origin: 0 50%;
+  /* Widening with distance, and gone well before the edge of the scene, so it
+     never runs into the headline underneath. */
+  clip-path: polygon(0 46%, 100% 0, 100% 100%, 0 54%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 205, 145, 0.42) 0%,
+    rgba(251, 146, 60, 0.16) 38%,
+    rgba(251, 146, 60, 0) 74%
+  );
+  filter: blur(5px);
+}
+
+.beam-back { transform: rotate(180deg); }
+
+.tower-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  width: 200px;
   height: 26px;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.5), transparent 70%);
-  filter: blur(5px);
-  animation: shadow-breathe 5.5s ease-in-out infinite;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.55), transparent 70%);
+  filter: blur(6px);
 }
 
-@keyframes can-turn {
-  from { transform: rotateY(0deg); }
-  to { transform: rotateY(-360deg); }
+/* The light does not sway with the tower. A bright band a third of the way
+   across falling off to darkened edges is what reads as a cylinder, and each
+   overlay is clipped to its own taper so it never spills past the solid. */
+.tower-light,
+.lantern-light,
+.plinth-light {
+  position: absolute;
+  left: 50%;
+  z-index: 2;
+  background: linear-gradient(
+    90deg,
+    rgba(24, 6, 0, 0.62) 0%,
+    rgba(24, 6, 0, 0.18) 10%,
+    rgba(255, 255, 255, 0.32) 26%,
+    rgba(255, 255, 255, 0.09) 37%,
+    rgba(24, 6, 0, 0) 52%,
+    rgba(24, 6, 0, 0.38) 80%,
+    rgba(24, 6, 0, 0.66) 100%
+  );
 }
 
-@keyframes can-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-9px); }
+.tower-light {
+  top: 70px;
+  width: 84px;
+  margin-left: -42px;
+  height: 140px;
+  clip-path: polygon(14.29% 0, 85.71% 0, 100% 100%, 0 100%);
 }
 
-@keyframes shadow-breathe {
-  0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; }
-  50% { transform: translateX(-50%) scale(0.88); opacity: 0.75; }
+.lantern-light {
+  top: 24px;
+  width: 52px;
+  margin-left: -26px;
+  height: 34px;
 }
 
-@keyframes can-glare {
-  0%, 55% { left: -45%; opacity: 0; }
-  62% { opacity: 1; }
-  78%, 100% { left: 115%; opacity: 0; }
+.plinth-light {
+  top: 210px;
+  width: 116px;
+  margin-left: -58px;
+  height: 30px;
+  clip-path: polygon(8.62% 0, 91.38% 0, 100% 100%, 0 100%);
+}
+
+@keyframes beacon-sway {
+  from { transform: rotateY(-20deg); }
+  to { transform: rotateY(20deg); }
+}
+
+@keyframes beam-sweep {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes lamp-throb {
+  0%, 100% { opacity: 0.82; }
+  50% { opacity: 1; }
 }
 
 @keyframes mote-drift {
@@ -989,7 +1132,7 @@ h2 {
   .share { display: none; }
   .hero { margin-top: 1.5rem; }
   .hero-scene { height: 258px; }
-  .can-float { transform: scale(0.82); transform-origin: top center; }
+  .beacon-float { transform: scale(0.82); transform-origin: top center; }
   .points { margin-top: 3rem; }
 }
 
@@ -1002,13 +1145,14 @@ h2 {
    defined two hundred lines below, so each `animation: none` lost the cascade
    and did nothing at all. Only `.pulse` obeyed it, and only because `.pulse`
    happens to be declared above rather than below. Someone who had asked their
-   operating system for less motion still got a rotating can, a bobbing crate,
-   drifting motes, a breathing shadow and a sweeping glare.
+   operating system for less motion still got a sweeping beam,
+   a swaying tower and drifting motes.
 
    Naming classes was the other half of it: the cover page arrived with five
    animations and the list had to be extended by hand each time, which is the
    same trap the tab selectors fell into. A universal selector needs nobody to
-   remember anything.
+   remember anything -- which is why replacing the whole scene below needed no
+   edit here beyond the two resting poses.
 
    Animations are collapsed to nothing rather than removed, which is the
    conventional form -- a zero-length animation still fires its events, so
@@ -1026,8 +1170,8 @@ h2 {
   /* Resting poses. These need !important because a collapsed animation still
      applies its first keyframe, and an animation outranks a normal
      declaration -- only an important one outranks the animation. Without it
-     the can sits at rotateY(0deg), facing dead-on instead of three-quarter,
-     which is measurably true rather than a guess. */
-  .can-spin { transform: rotateY(-30deg) !important; }
-  .can-sweep::after { opacity: 0 !important; }
+     the tower sits square-on at its first frame and the beam parks pointing
+     flat right, which is measurably true rather than a guess. */
+  .beacon-sway { transform: rotateY(-9deg) !important; }
+  .beam-spin { transform: rotate(28deg) !important; }
 }
