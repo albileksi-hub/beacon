@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.dependencies import CurrentUser, DbSession
-from app.services import accounts, charts, reports, zones
+from app.services import accounts, charts, reports, tokens, zones
 from app.services.stats import BreakdownProperty
 from app.services.timeranges import Period, resolve
 from app.templating import templates
@@ -43,7 +43,13 @@ def index(request: Request, db: DbSession, user: CurrentUser) -> Response:
         return templates.TemplateResponse(request, "landing.html", {})
 
     return templates.TemplateResponse(
-        request, "index.html", {"user": user, "sites": accounts.sites_for(db, user)}
+        request,
+        "index.html",
+        {
+            "user": user,
+            "sites": accounts.sites_for(db, user),
+            "tokens": tokens.for_owner(db, user),
+        },
     )
 
 

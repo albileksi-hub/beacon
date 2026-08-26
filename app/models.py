@@ -119,6 +119,9 @@ class User(Base):
     sites: Mapped[list["Site"]] = relationship(
         back_populates="owner", cascade="all, delete-orphan"
     )
+    tokens: Mapped[list["ApiToken"]] = relationship(
+        back_populates="owner", cascade="all, delete-orphan"
+    )
 
 
 class Site(Base):
@@ -204,6 +207,34 @@ class HourlyStat(Base):
         UniqueConstraint("site_id", "day", "hour", name="uq_hourly_stats_grain"),
         Index("ix_hourly_stats_lookup", "site_id", "day", "hour"),
     )
+
+
+class ApiToken(Base):
+    """A key for reading the stats API without a browser session.
+
+    Read-only by construction rather than by a permission flag: a token
+    resolves to an account for require_readable_site and for nothing else, so
+    a leaked key can pull numbers and cannot publish a dashboard, change a
+    site's timezone, or delete anything.
+    """
+
+    __tablename__ = "api_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # So a person with several can tell which is which before revoking one.
+    name: Mapped[str] = mapped_column(String(64))
+    # SHA-256 of the token, hex. Deliberately not bcrypt; app.services.tokens
+    # explains why the reasoning that applies to passwords does not apply here.
+    digest: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+    # The day it was last used, not the moment. "Is this key still live?" is
+    # answerable from a date, whereas a timestamp per call accumulates into a
+    # log of when its owner works -- which is the kind of record this project
+    # exists in order not to keep.
+    last_used_on: Mapped[dt.date | None] = mapped_column(Date)
+
+    owner: Mapped[User] = relationship(back_populates="tokens")
 
 
 class LoginAttempt(Base):

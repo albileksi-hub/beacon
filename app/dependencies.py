@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import SessionLocal, get_db
 from app.models import Site, User
-from app.services import accounts
+from app.services import accounts, tokens
 
 # Annotated dependencies keep FastAPI's injection out of function defaults,
 # which keeps both linters and type checkers happy.
@@ -58,13 +58,33 @@ def require_owned_site(site_id: str, db: DbSession, user: RequiredUser) -> Site:
 OwnedSite = Annotated[Site, Depends(require_owned_site)]
 
 
-def require_readable_site(site_id: str, db: DbSession, user: CurrentUser) -> Site:
+def get_api_account(request: Request, db: DbSession) -> User | None:
+    """The account behind a bearer token, when the request carried one.
+
+    Separate from the session because it grants strictly less: this feeds
+    require_readable_site and nothing else, so a key reads numbers and cannot
+    reach require_owned_site, which is what guards every route that changes
+    something.
+    """
+    scheme, _, value = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not value.strip():
+        return None
+    return tokens.resolve(db, value.strip())
+
+
+ApiAccount = Annotated[User | None, Depends(get_api_account)]
+
+
+def require_readable_site(
+    site_id: str, db: DbSession, user: CurrentUser, api_account: ApiAccount
+) -> Site:
     """The site named in the path, for anyone entitled to read it.
 
-    That is its owner, or anybody at all once the owner has published it. A
-    site that exists but is neither is a 404, exactly like one that does not.
+    That is its owner -- signed in, or holding one of their API keys -- or
+    anybody at all once the owner has published it. A site that exists but is
+    neither is a 404, exactly like one that does not.
     """
-    site = accounts.readable_site(db, viewer=user, domain=site_id)
+    site = accounts.readable_site(db, viewer=user or api_account, domain=site_id)
     if site is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such site")
     return site

@@ -780,6 +780,49 @@ isolated to a single function, and because Postgres never runs in the test
 suite, a test compiles the Postgres expression and asserts on the generated SQL
 so a dialect typo cannot reach production unnoticed.
 
+### Reading it without a browser
+
+Until recently the stats API could only be reached by something holding a
+session cookie, which meant it was an API in shape only -- nothing could be
+scripted, embedded in a status page, or pulled into a warehouse. Plausible and
+Umami both solve that with a key, and so does this:
+
+```bash
+curl -H "Authorization: Bearer $BEACON_KEY" \
+  "https://your-host/api/stats/yoursite.com/summary?period=30d"
+```
+
+Keys are made and revoked on the account page, and shown exactly once.
+
+**A key is strictly weaker than a session, by construction rather than by a
+permission flag.** It resolves through `require_readable_site` and nowhere
+else, and every route that changes something -- publishing a dashboard, moving
+a site's timezone, adding a site, minting another key -- resolves through
+`require_owned_site`, which only ever consults the session. So a leaked key
+reads exactly what a published dashboard already exposes, and can do nothing.
+A test posts a key at all four of those routes and asserts `401` from each.
+
+**Hashed with SHA-256, not bcrypt**, which is the opposite of what
+`app/services/passwords.py` does and is deliberate. bcrypt's cost factor exists
+to make guessing a low-entropy human password expensive. A key here is 32 bytes
+from `secrets`, so there is no dictionary to guess from and the cost buys
+nothing -- while charging a hundred milliseconds on every API request, and
+forcing a scan: bcrypt salts each hash separately, so finding a key would mean
+loading every row and comparing them one at a time. A SHA-256 digest is found
+by indexed equality in constant work.
+
+**Use is recorded as a day, not a moment.** "Is this key still live?" is
+answerable from a date, whereas a timestamp per call accumulates into a record
+of when its owner works -- which is the sort of thing this project exists in
+order not to keep. The write only happens when the day changes, so a busy key
+does not write a row per request; a test watches the statements rather than the
+value, because an accidental write on every request is invisible in the value.
+
+Deliberately not rate limited, unlike Plausible's, whose limit is there because
+it is a shared multi-tenant service. Every route a key reaches reads
+pre-aggregated rows in about a millisecond, and on a self-hosted instance the
+only account that can exhaust the host is the one that owns it.
+
 ## Running it in production
 
 The image runs migrations on start, so a deploy that changes the schema needs

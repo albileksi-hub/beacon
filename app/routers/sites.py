@@ -4,7 +4,7 @@ from fastapi import APIRouter, Form, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from app.dependencies import DbSession, OwnedSite, RequiredUser
-from app.services import accounts, zones
+from app.services import accounts, tokens, zones
 from app.templating import templates
 
 router = APIRouter(tags=["sites"], include_in_schema=False)
@@ -23,7 +23,12 @@ def create_site(
         return templates.TemplateResponse(
             request,
             "index.html",
-            {"user": user, "sites": accounts.sites_for(db, user), "error": str(error)},
+            {
+                "user": user,
+                "sites": accounts.sites_for(db, user),
+                "tokens": tokens.for_owner(db, user),
+                "error": str(error),
+            },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
