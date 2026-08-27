@@ -241,3 +241,60 @@ def test_deleting_an_account_takes_its_keys_with_it(db_session, account, key):
     db_session.commit()
 
     assert db_session.scalars(select(ApiToken)).all() == []
+
+
+@pytest.fixture
+def stranger(db_session):
+    """A second account, with a private site of its own."""
+    other = accounts.register(
+        db_session, email="stranger@example.com", password="s3cret-pass-phrase"
+    )
+    accounts.add_site(db_session, owner=other, domain="red-bowl.example")
+    return other
+
+
+def test_a_key_cannot_read_another_accounts_private_site(client, site, key, stranger):
+    """The tenancy boundary, on the read side.
+
+    There was a test that one account cannot revoke another's key, which is a
+    write. Nothing covered the read -- and reading is the only thing a key is
+    for, so this is the one boundary the whole feature rests on. A regression
+    here would hand every key holder everybody else's numbers while every
+    other test in this file still passed.
+    """
+    for path in (
+        "/api/stats/red-bowl.example/summary",
+        "/api/stats/red-bowl.example/timeseries",
+        "/api/stats/red-bowl.example/breakdown/page",
+        "/api/stats/red-bowl.example/live",
+    ):
+        response = client.get(path, headers=bearer(key))
+        assert response.status_code == 404, path
+
+
+def test_a_key_cannot_export_another_accounts_private_site(client, site, key, stranger):
+    """The CSV route resolves through the same guard, and hands over everything.
+
+    A summary leak is a number; this one is the whole aggregate table, so it
+    is worth pinning separately rather than trusting that both routes keep
+    using the same dependency.
+    """
+    response = client.get("/sites/red-bowl.example/export.csv", headers=bearer(key))
+
+    assert response.status_code == 404
+
+
+def test_a_key_does_read_another_accounts_site_once_it_is_published(
+    client, site, key, stranger, db_session
+):
+    """The other half of the rule, so the 404s above are not just a broken route.
+
+    Without this, a guard that refused everything would pass the two tests
+    above and nobody would notice the API had stopped working.
+    """
+    published = accounts.owned_site(db_session, owner=stranger, domain="red-bowl.example")
+    accounts.set_visibility(db_session, site=published, public=True)
+
+    response = client.get("/api/stats/red-bowl.example/summary", headers=bearer(key))
+
+    assert response.status_code == 200

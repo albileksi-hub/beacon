@@ -30,7 +30,7 @@ from sqlalchemy import event, func, select  # noqa: E402
 
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.models import DailyStat, Event, HourlyStat  # noqa: E402
-from app.services import accounts, reports, rollups, stats  # noqa: E402
+from app.services import accounts, reports, rollups, stats, tokens  # noqa: E402
 from app.services.stats import BreakdownProperty  # noqa: E402
 from app.services.timeranges import Period, resolve  # noqa: E402
 
@@ -145,12 +145,26 @@ def scenarios(site: str) -> list[tuple[str, Callable[[], object]]]:
             "collector: is this domain registered",
             lambda: _site_lookup(site),
         ),
+        # Runs on every request that carries a bearer token, so it belongs in
+        # the hot path even though no dashboard page reaches it.
+        ("api key: resolve a bearer token", _token_lookup),
     ]
 
 
 def _site_lookup(site: str) -> bool:
     with SessionLocal() as session:
         return accounts.site_is_registered(session, site)
+
+
+def _token_lookup() -> bool:
+    """A key that does not exist, which costs the same lookup as one that does.
+
+    The point is the plan, not the answer: this is an indexed equality on a
+    unique digest, and it would quietly become a table scan if that uniqueness
+    were ever dropped.
+    """
+    with SessionLocal() as session:
+        return tokens.resolve(session, tokens.PREFIX + "not-a-real-key") is not None
 
 
 def ingest_rate(site: str, count: int) -> None:
