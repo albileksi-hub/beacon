@@ -365,3 +365,67 @@ def test_the_public_api_survives_every_reason_the_script_gives_up():
         'localStorage.getItem("beacon_ignore")',
     ):
         assert installed < script.index(bail_out), f"{bail_out} can return before the API exists"
+
+
+def _widest_possible_payload():
+    """Every free-text field pushed to the largest the schema will accept."""
+    return _payload(
+        url="https://blue-mug.example/" + "a" * 1500,
+        referrer="https://" + "b" * 400 + "/somewhere",
+    )
+
+
+def test_every_stored_string_fits_the_column_that_holds_it(client, site, db_session):
+    """SQLite ignores VARCHAR lengths and Postgres enforces them.
+
+    So a value that is too long is accepted in development and rejected in
+    production -- the failure mode this project has already been bitten by
+    once, when site_id was capped at 64 against a column of 253. Two more had
+    gone the same way: a URL may be 2,048 characters and its path went into a
+    VARCHAR(1024), and a referring host went in uncapped against a VARCHAR(255).
+
+    Written against the table rather than against a list of field names, so a
+    column added or narrowed later is covered without anyone remembering to
+    come back here.
+    """
+    from sqlalchemy import String
+
+    response = client.post("/api/event", json=_widest_possible_payload())
+    assert response.status_code == 202
+
+    event = db_session.scalars(select(Event)).one()
+    oversized = [
+        (column.name, len(value), column.type.length)
+        for column in Event.__table__.columns
+        if isinstance(column.type, String)
+        and (value := getattr(event, column.name)) is not None
+        and len(value) > column.type.length
+    ]
+
+    assert oversized == [], f"values too long for their columns: {oversized}"
+
+
+def test_an_over_long_path_is_trimmed_rather_than_dropped(client, site, db_session):
+    """A truncated path still answers "which page"; a dropped event answers nothing.
+
+    Which is why this trims instead of refusing: the visitor cannot resend, and
+    with the ingest buffer on, one rejected row fails the whole batch it is
+    travelling in.
+    """
+    client.post("/api/event", json=_payload(url="https://blue-mug.example/" + "a" * 1500))
+
+    event = db_session.scalars(select(Event)).one()
+    assert len(event.pathname) == 1024
+    assert event.pathname.startswith("/aaa")
+
+
+def test_an_over_long_referring_host_is_trimmed(client, site, db_session):
+    """It reaches two columns, and reached both of them uncapped."""
+    client.post(
+        "/api/event",
+        json=_payload(referrer="https://" + "b" * 400 + "/somewhere"),
+    )
+
+    event = db_session.scalars(select(Event)).one()
+    assert len(event.referrer_host) == 255
+    assert len(event.source) == 255

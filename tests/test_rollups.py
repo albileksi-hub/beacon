@@ -201,3 +201,106 @@ def test_the_dashboard_still_reports_purged_days(db_session):
     assert db_session.scalars(select(Event)).all() == []
     assert before == after
     assert after.visitors == 3
+
+
+def test_a_rebuild_refuses_a_day_whose_raw_events_are_gone(db_session, site):
+    """The aggregates are the only remaining copy, so a rebuild would destroy them.
+
+    A rebuild deletes the day's rows before recomputing. Once retention has
+    purged the events behind them there is nothing to recompute from, so the
+    delete is the whole operation.
+    """
+    _aged_event(db_session, 60, "old")
+    _aged_event(db_session, 3, "recent")
+    rollups.refresh(db_session, days_back=90, today=DAY)
+    old_day = DAY - dt.timedelta(days=60)
+    assert totals_for(db_session, day=old_day) is not None
+
+    rollups.purge_expired_events(db_session, retention_days=30, today=DAY)
+    written = rollups.rebuild_day(db_session, site_id=SITE, day=old_day)
+
+    assert written == 0
+    assert totals_for(db_session, day=old_day) is not None, "the day was destroyed"
+
+
+def test_the_hourly_rebuild_refuses_a_purged_day_too(db_session, site):
+    _aged_event(db_session, 60, "old")
+    _aged_event(db_session, 3, "recent")
+    rollups.refresh(db_session, days_back=90, today=DAY)
+    old_day = DAY - dt.timedelta(days=60)
+
+    rollups.purge_expired_events(db_session, retention_days=30, today=DAY)
+    written = rollups.rebuild_hours(db_session, site_id=SITE, day=old_day)
+
+    assert written == 0
+    hours = db_session.scalars(
+        select(HourlyStat).where(HourlyStat.site_id == SITE, HourlyStat.day == old_day)
+    ).all()
+    assert hours != [], "the hourly rows were destroyed"
+
+
+def test_the_documented_backfill_survives_retention(db_session, site):
+    """DESIGN.md recommends both of these, and together they used to be fatal.
+
+    `BEACON_RAW_EVENT_RETENTION_DAYS=30` and `manage.py rollup --days 400` --
+    the second deleted every aggregate the first had made unrebuildable, which
+    on a seeded database was 69% of the history.
+    """
+    for offset in (60, 61, 62, 3):
+        _aged_event(db_session, offset, f"visitor-{offset}")
+    rollups.refresh(db_session, days_back=90, today=DAY)
+
+    period = resolve(Period.LAST_12_MONTHS, now=NOON)
+    before = reports.summary(db_session, site_id=SITE, time_range=period)
+    rollups.purge_expired_events(db_session, retention_days=30, today=DAY)
+
+    rollups.refresh(db_session, days_back=400, today=DAY)
+
+    after = reports.summary(db_session, site_id=SITE, time_range=period)
+    assert after == before, "the backfill destroyed history retention had made permanent"
+
+
+def test_a_day_still_backed_by_raw_events_rebuilds_normally(db_session):
+    """The guard has to refuse the unrebuildable without refusing everything.
+
+    A guard that returned False always would satisfy the tests above while
+    quietly turning the rollup job into a no-op.
+    """
+    add_event(db_session, visitor_id="a")
+
+    assert rollups.rebuild_day(db_session, site_id=SITE, day=DAY) > 0
+    assert totals_for(db_session) is not None
+
+
+def test_events_deleted_for_any_other_reason_still_clear_their_aggregates(db_session):
+    """The distinction the watermark exists to draw.
+
+    Retention makes aggregates irreplaceable. Every other way of losing raw
+    events -- spam removed, a bad deploy rolled back, a test run cleaned up --
+    leaves the rollups simply wrong, and a rebuild is how they get fixed. A
+    guard that inferred "no events" from what survives could not tell those
+    apart and would leave the wrong numbers standing forever.
+    """
+    add_event(db_session, visitor_id="a")
+    rollups.rebuild_day(db_session, site_id=SITE, day=DAY)
+    assert totals_for(db_session) is not None
+
+    db_session.execute(delete(Event))
+    db_session.commit()
+    rollups.rebuild_day(db_session, site_id=SITE, day=DAY)
+
+    assert db_session.scalars(select(DailyStat)).all() == []
+    assert rollups.purged_through(db_session, site_id=SITE) is None
+
+
+def test_the_watermark_is_recorded_where_a_rebuild_will_read_it(db_session, site):
+    _aged_event(db_session, 60, "old")
+    rollups.refresh(db_session, days_back=90, today=DAY)
+
+    assert rollups.purged_through(db_session, site_id=SITE) is None
+    rollups.purge_expired_events(db_session, retention_days=30, today=DAY)
+
+    marked = rollups.purged_through(db_session, site_id=SITE)
+    assert marked == DAY - dt.timedelta(days=30)
+    assert rollups.can_rebuild(marked, marked) is False
+    assert rollups.can_rebuild(marked + dt.timedelta(days=1), marked) is True

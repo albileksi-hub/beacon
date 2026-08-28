@@ -140,6 +140,14 @@ class Site(Base):
     # sharing has to be a decision somebody makes, never the fallback.
     public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
+    # The last day retention has taken raw events from, or NULL if it never
+    # has. Days at or before it can no longer be rebuilt: the aggregates are
+    # the only surviving copy, and a rebuild would delete them to recompute
+    # from rows that are gone. Recorded rather than inferred from what
+    # survives, because events deleted for any other reason should still clear
+    # their stale aggregates.
+    raw_events_purged_through: Mapped[dt.date | None] = mapped_column(Date)
+
     # The zone this site's days are reckoned in. Everything downstream -- the
     # aggregates, the chart buckets, and the visitor salt rotation -- follows
     # from it. See app.services.zones.
