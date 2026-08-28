@@ -106,11 +106,29 @@ def bucket_labels(time_range: TimeRange) -> list[str]:
 
     match time_range.interval:
         case Interval.HOUR:
+            # Walked in absolute time and converted back, rather than by adding
+            # an hour to the wall clock. A local day is not always 24 hours
+            # long, and the events themselves are bucketed by the local hour
+            # they actually fell in -- so counting wall-clock hours produced a
+            # 02:00 bucket on the morning the clocks go forward, which no event
+            # can ever land in because that hour does not exist.
+            #
+            # The reverse day has 25 hours and 24 distinct hour values: the
+            # repeated hour is one bucket holding both, which is what the
+            # stored (day, hour) pair says too. Deduplicated for that reason,
+            # and labels carry their date, so this cannot collapse two days.
+            zone = time_range.start.tzinfo
             cursor = time_range.start.replace(minute=0, second=0, microsecond=0)
+            last = time_range.end.astimezone(dt.UTC)
             step = dt.timedelta(hours=1)
-            while cursor <= time_range.end:
-                labels.append(cursor.strftime(fmt))
-                cursor += step
+            seen: set[str] = set()
+
+            while cursor.astimezone(dt.UTC) <= last:
+                label = cursor.astimezone(zone).strftime(fmt)
+                if label not in seen:
+                    seen.add(label)
+                    labels.append(label)
+                cursor = cursor.astimezone(dt.UTC) + step
         case Interval.DAY:
             cursor = _start_of_day(time_range.start)
             step = dt.timedelta(days=1)

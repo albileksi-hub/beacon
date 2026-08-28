@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from app.models import DailyStat, Event
 from app.services import reports, rollups, zones
-from app.services.timeranges import Period, resolve
+from app.services.timeranges import Period, bucket_labels, resolve
 from app.services.visitors import current_salt, visitor_id
 
 BERLIN = "Europe/Berlin"
@@ -122,3 +122,60 @@ def test_the_report_reads_the_local_day(db_session):
 
     assert summary.visitors == 1
     assert summary.pageviews == 2
+
+
+def _real_local_hours(day: dt.date) -> list[int]:
+    """The hours that actually occur on a day, derived as ingest derives them."""
+    hours: list[int] = []
+    cursor = dt.datetime.combine(day, dt.time.min, tzinfo=zones.zone(BERLIN)).astimezone(dt.UTC)
+    while True:
+        local_day, hour = zones.local_parts(cursor, BERLIN)
+        if local_day != day:
+            return hours
+        hours.append(hour)
+        cursor += dt.timedelta(hours=1)
+
+
+def _today_buckets(day: dt.date) -> list[str]:
+    now = dt.datetime.combine(day, dt.time(23, 30), tzinfo=zones.zone(BERLIN))
+    return bucket_labels(resolve(Period.TODAY, now=now, timezone=BERLIN))
+
+
+def test_the_hourly_chart_has_no_bucket_for_an_hour_that_never_happened():
+    """The clocks go forward at 02:00, so 29 March 2026 has 23 hours in Berlin.
+
+    Counting wall-clock hours produced 24 buckets and a 02:00 bar that no event
+    could ever land in, because ingest derives the hour by converting the
+    instant rather than by counting.
+    """
+    day = dt.date(2026, 3, 29)
+    labels = {label[11:16] for label in _today_buckets(day)}
+    real = {f"{hour:02d}:00" for hour in _real_local_hours(day)}
+
+    assert len(_real_local_hours(day)) == 23
+    assert "02:00" not in labels
+    assert labels == real
+
+
+def test_the_repeated_hour_is_one_bucket_holding_both():
+    """The clocks go back, so 25 October 2026 has 25 hours and 24 hour values.
+
+    Both 02:00s are stored as hour 2, so one bucket is the honest shape: the
+    labels have to agree with the grain the events were bucketed on.
+    """
+    day = dt.date(2026, 10, 25)
+    labels = [label[11:16] for label in _today_buckets(day)]
+    real = _real_local_hours(day)
+
+    assert len(real) == 25, "a 25-hour day"
+    assert len(set(real)) == 24, "sharing 24 distinct hour values"
+    assert labels == sorted(set(labels)), "no duplicate bucket"
+    assert {f"{hour:02d}:00" for hour in real} == set(labels)
+
+
+def test_an_ordinary_day_still_has_twenty_four_buckets():
+    """The guard against fixing the edge case by breaking every other day."""
+    labels = _today_buckets(dt.date(2026, 10, 20))
+
+    assert len(labels) == 24
+    assert [label[11:16] for label in labels][:3] == ["00:00", "01:00", "02:00"]
