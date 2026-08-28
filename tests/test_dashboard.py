@@ -345,8 +345,8 @@ def test_the_tapered_solids_are_built_as_frustums_not_cylinders():
     """
     css = (Path(__file__).parent.parent / "static" / "dashboard.css").read_text(encoding="utf-8")
 
-    for facet, tilt in (("tower-facet", "4.899deg"), ("roof-facet", "53.13deg"),
-                        ("plinth-facet", "18.435deg")):
+    for facet, tilt in (("tower-facet", "3.434deg"), ("roof-facet", "53.746deg"),
+                        ("plinth-facet", "10.305deg")):
         rule = css[css.index(f".{facet} {{") :].split("}", 1)[0]
         assert "clip-path: polygon(" in rule, f"{facet} tapers but is not clipped"
         assert f"rotateX({tilt})" in rule, f"{facet} is not tilted to its slant"

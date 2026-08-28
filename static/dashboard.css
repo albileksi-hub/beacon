@@ -257,6 +257,22 @@ h2 {
   border-radius: 999px;
 }
 
+/* The owner's three controls, on one line instead of three stacked ones. */
+.site-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1.1rem;
+  margin-top: 0.6rem;
+  font-size: 0.86rem;
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .visibility {
   display: flex;
   align-items: center;
@@ -299,6 +315,25 @@ h2 {
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 0.75rem;
 }
+
+/* The live count, beside the site name rather than among the metrics. It has
+   no period, no comparison and no sparkline, and as the fifth of four it
+   orphaned itself onto a line of its own at every width where four fit. */
+.live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem 0.2rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.live-word { color: var(--muted); font-weight: 500; }
 
 .tile {
   display: flex;
@@ -419,12 +454,11 @@ h2 {
 
 .tab-bar {
   display: flex;
-  gap: 0.15rem;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.2rem;
   margin: 0 -0.4rem 0.95rem;
   padding: 0 0.4rem 0.5rem;
   border-bottom: 1px solid var(--border);
-  scrollbar-width: thin;
 }
 
 .tab {
@@ -603,19 +637,14 @@ h2 {
 
 /* ---- the beacon ----
 
-   A lighthouse rather than a drinks can, because the product is called Beacon
-   and a beacon's whole behaviour is a light going round. That makes the one
-   moving part mean something: the tower stands still, as a tower does, and the
-   beam is what turns.
+   A lighthouse, because the product is called Beacon and a beacon's whole
+   behaviour is a light going round. The tower stands still, as a tower does,
+   and the beam is what turns.
 
-   Every solid here is a surface of revolution built from 36 facets, each
-   rotated about the centre and pushed out by the radius, with
-   backface-visibility hiding the far half so it reads as solid rather than as
-   a wire cage.
-
-   Where a shape tapers, the facet is a trapezoid tilted about X by the slant
-   angle, which is what makes a cone a cone instead of a cylinder wearing a
-   hat. For a frustum from radius A to radius B over height H:
+   Every solid is a surface of revolution built from 36 facets, each rotated
+   about the centre and pushed out by the radius, with backface-visibility
+   hiding the far half so it reads as solid rather than as a wire cage. Where a
+   shape tapers the facet is a trapezoid tilted about X by the slant angle:
 
      facet width  = 2A * tan(180deg / 36)      the wider end
      facet height = hypot(A - B, H)            along the slant, not the vertical
@@ -623,36 +652,38 @@ h2 {
      translateZ   = (A + B) / 2                the mean radius
      clip inset   = half the width difference, as a percentage
 
-                    width    slant   rotateX   translateZ   inset
-     plinth 58->48  10.149   31.623   18.435       53.0     8.62%
-     tower  42->30   7.349  140.513    4.899       36.0    14.29%
-     roof   34->2    5.949   40.000   53.130       18.0    47.06%
-     lantern 26      4.549   34.000    0.000       26.0     0
+                   width    slant   rotateX   Z     inset
+     plinth 48->44 8.399   22.361   10.305   46.0    4.17%
+     tower  40->31 6.999  150.270    3.434   35.5   11.25%
+     gallery 38    6.649    9.000    0        38.0   0
+     lantern 26    4.549   36.000    0        26.0   0
+     roof   32->2  5.599   37.202   53.746   17.0   46.88%
 
-   The perspective is short and the sway is wide, because a solid that never
-   turns far enough is indistinguishable from a painting of one. */
+   The taper is gentle on purpose. An earlier version ran 42 to 30 over 140px
+   and stood on a plinth that flared out to 58, which together read as a
+   traffic cone rather than a tower. */
 
 .beacon-float {
   position: absolute;
   left: 50%;
   top: 10px;
-  width: 150px;
-  height: 260px;
-  margin-left: -75px;
+  width: 160px;
+  height: 280px;
+  margin-left: -80px;
   z-index: 1;
 }
 
 .beacon-stage {
   position: absolute;
   inset: 0;
-  perspective: 620px;
-  perspective-origin: 50% 42%;
+  perspective: 640px;
+  perspective-origin: 50% 44%;
 }
 
 .beacon-tilt {
   position: absolute;
   inset: 0;
-  transform: rotateX(8deg);
+  transform: rotateX(7deg);
   transform-style: preserve-3d;
 }
 
@@ -667,6 +698,7 @@ h2 {
 
 .plinth-facet,
 .tower-facet,
+.gallery-facet,
 .lantern-facet,
 .roof-facet,
 .rail-post {
@@ -676,75 +708,51 @@ h2 {
   backface-visibility: hidden;
 }
 
+/* The rock it stands on. Barely tapered, so the silhouette stays a tower with
+   a footing rather than a cone. */
 .plinth-facet {
-  width: 10.149px;
-  margin-left: -5.0745px;
-  height: 31.623px;
-  margin-top: -15.81px;
-  transform: translateY(95px) rotateY(calc(var(--i) * 10deg)) translateZ(53px)
-    rotateX(18.435deg);
-  clip-path: polygon(8.62% 0, 91.38% 0, 100% 100%, 0 100%);
-  background: linear-gradient(to bottom, #574b41, #241d18);
+  width: 8.399px;
+  margin-left: -4.1995px;
+  height: 22.361px;
+  margin-top: -11.18px;
+  transform: translateY(107px) rotateY(calc(var(--i) * 10deg)) translateZ(46px)
+    rotateX(10.305deg);
+  clip-path: polygon(4.17% 0, 95.83% 0, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom, #6d6157, #352d26);
 }
 
 /* Painted in bands, which is what makes a tower read as a lighthouse before
    anything else about it does. */
 .tower-facet {
-  width: 7.349px;
-  margin-left: -3.6745px;
-  height: 140.513px;
-  margin-top: -70.26px;
-  transform: translateY(10px) rotateY(calc(var(--i) * 10deg)) translateZ(36px)
-    rotateX(4.899deg);
-  clip-path: polygon(14.29% 0, 85.71% 0, 100% 100%, 0 100%);
+  width: 6.999px;
+  margin-left: -3.4995px;
+  height: 150.27px;
+  margin-top: -75.135px;
+  transform: translateY(21px) rotateY(calc(var(--i) * 10deg)) translateZ(35.5px)
+    rotateX(3.434deg);
+  clip-path: polygon(11.25% 0, 88.75% 0, 100% 100%, 0 100%);
   background: repeating-linear-gradient(
     to bottom,
-    #f2e6d8 0 25px,
-    #c2410c 25px 50px
+    #f4ead9 0 26px,
+    #c2410c 26px 52px
   );
 }
 
-.lantern-facet {
-  width: 4.549px;
-  margin-left: -2.2745px;
-  height: 34px;
-  margin-top: -17px;
-  transform: translateY(-89px) rotateY(calc(var(--i) * 10deg)) translateZ(26px);
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 236, 205, 0.32),
-    rgba(255, 186, 116, 0.14)
-  );
-  border-left: 0.6px solid rgba(52, 26, 8, 0.55);
+/* The gallery is a short cylinder rather than a flat disc. As a disc it read
+   as a hoop floating around the tower: a ring of colour with the background
+   showing through the middle, because a disc seen almost edge-on has no
+   thickness to catch the light. */
+.gallery-facet {
+  width: 6.649px;
+  margin-left: -3.3245px;
+  height: 9px;
+  margin-top: -4.5px;
+  transform: translateY(-58.5px) rotateY(calc(var(--i) * 10deg)) translateZ(38px);
+  background: linear-gradient(to bottom, #8a7d6d, #4a4038);
 }
 
-/* A real cone: 36 tall triangles leaning in at 53 degrees, meeting at a point.
-   The flat triangle this replaced always faced the viewer, which is exactly
-   the thing that gave the model away as a drawing. */
-.roof-facet {
-  width: 5.949px;
-  margin-left: -2.9745px;
-  height: 40px;
-  margin-top: -20px;
-  transform: translateY(-118px) rotateY(calc(var(--i) * 10deg)) translateZ(18px)
-    rotateX(53.13deg);
-  clip-path: polygon(47.06% 0, 52.94% 0, 100% 100%, 0 100%);
-  background: linear-gradient(to bottom, #7a6a5a, #2f2822);
-}
-
-/* Twelve uprights around the gallery. Small, but they are the detail that
-   reads as depth when the tower turns, because they cross in front of and
-   behind the lantern as it goes. */
-.rail-post {
-  width: 2px;
-  margin-left: -1px;
-  height: 13px;
-  margin-top: -6.5px;
-  transform: translateY(-66px) rotateY(calc(var(--i) * 30deg)) translateZ(38px);
-  background: linear-gradient(to bottom, #8a7a68, #4a3f36);
-}
-
-.gallery-deck,
+/* The deck laid on top of it, and the rail around the edge. */
+.gallery-floor,
 .rail-ring,
 .plinth-cap {
   position: absolute;
@@ -754,29 +762,70 @@ h2 {
   transform-style: preserve-3d;
 }
 
-.gallery-deck {
-  width: 84px;
-  height: 84px;
-  margin: -42px 0 0 -42px;
-  transform: translateY(-60px) rotateX(90deg);
-  background: radial-gradient(circle, #3c332c 62%, #6b5d50 78%, #241d18 100%);
-  box-shadow: 0 0 0 2px #55493f;
-}
-
-.rail-ring {
-  width: 78px;
-  height: 78px;
-  margin: -39px 0 0 -39px;
-  transform: translateY(-73px) rotateX(90deg);
-  border: 1.5px solid #6f6152;
+.gallery-floor {
+  width: 76px;
+  height: 76px;
+  margin: -38px 0 0 -38px;
+  transform: translateY(-63px) rotateX(90deg);
+  background: radial-gradient(circle, #6b6053 60%, #857868 82%, #4a4038 100%);
 }
 
 .plinth-cap {
-  width: 96px;
-  height: 96px;
-  margin: -48px 0 0 -48px;
-  transform: translateY(80px) rotateX(90deg);
-  background: radial-gradient(circle, #5c5045, #2a231d 74%);
+  width: 88px;
+  height: 88px;
+  margin: -44px 0 0 -44px;
+  transform: translateY(96px) rotateX(90deg);
+  background: radial-gradient(circle, #776a5d, #3d342c 76%);
+}
+
+/* Twelve uprights. Light enough to see against the tower behind them, which
+   the last set were not -- they were drawn in the same browns as the gallery
+   and disappeared into it. */
+.rail-post {
+  width: 2.2px;
+  margin-left: -1.1px;
+  height: 13px;
+  margin-top: -6.5px;
+  transform: translateY(-69.5px) rotateY(calc(var(--i) * 30deg)) translateZ(36px);
+  background: linear-gradient(to bottom, #b9a894, #6b5d50);
+}
+
+.rail-ring {
+  width: 74px;
+  height: 74px;
+  margin: -37px 0 0 -37px;
+  transform: translateY(-76px) rotateX(90deg);
+  border: 1.5px solid #9c8d7b;
+}
+
+/* The glass the lamp sits behind. Lit from the inside, which is the whole
+   point of the object -- the previous version was a dark brown cage that read
+   as a chimney. */
+.lantern-facet {
+  width: 4.549px;
+  margin-left: -2.2745px;
+  height: 36px;
+  margin-top: -18px;
+  transform: translateY(-94px) rotateY(calc(var(--i) * 10deg)) translateZ(26px);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 214, 158, 0.42),
+    rgba(255, 176, 102, 0.30) 55%,
+    rgba(180, 96, 30, 0.34)
+  );
+  border-left: 0.6px solid rgba(70, 38, 12, 0.55);
+}
+
+/* A real cone: 36 triangles leaning in at 54 degrees, meeting at a point. */
+.roof-facet {
+  width: 5.599px;
+  margin-left: -2.7995px;
+  height: 37.202px;
+  margin-top: -18.6px;
+  transform: translateY(-123px) rotateY(calc(var(--i) * 10deg)) translateZ(17px)
+    rotateX(53.746deg);
+  clip-path: polygon(46.88% 0, 53.12% 0, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom, #9c8b78, #3b322a);
 }
 
 .finial {
@@ -787,38 +836,38 @@ h2 {
   height: 5px;
   margin-left: -2.5px;
   border-radius: 50%;
-  transform: translateY(-140px);
-  background: #8b7a68;
+  transform: translateY(-136px);
+  background: #b9a894;
 }
 
-/* The lamp itself, and the halo it throws onto the glass. */
+/* The lamp, and the halo it throws onto the glass. */
 .lamp {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 28px;
-  height: 28px;
-  margin-left: -14px;
-  margin-top: -14px;
+  width: 34px;
+  height: 34px;
+  margin-left: -17px;
+  margin-top: -17px;
   border-radius: 50%;
-  transform: translateY(-89px);
-  background: radial-gradient(circle, #fff7e6 18%, #ffc98a 46%, rgba(251, 146, 60, 0) 76%);
+  transform: translateY(-94px);
+  background: radial-gradient(circle, #fffaf0 20%, #ffce93 48%, rgba(251, 146, 60, 0) 78%);
   animation: lamp-throb 6s ease-in-out infinite;
 }
 
 .lantern-glow {
   position: absolute;
   left: 50%;
-  top: 51px;
-  width: 200px;
-  height: 200px;
-  margin-left: -100px;
-  margin-top: -100px;
+  top: 56px;
+  width: 210px;
+  height: 210px;
+  margin-left: -105px;
+  margin-top: -105px;
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(255, 190, 120, 0.32) 0%,
-    rgba(251, 146, 60, 0.14) 34%,
+    rgba(255, 198, 133, 0.34) 0%,
+    rgba(251, 146, 60, 0.14) 36%,
     rgba(251, 146, 60, 0) 68%
   );
   animation: lamp-throb 6s ease-in-out infinite;
@@ -830,7 +879,7 @@ h2 {
 .beam-spin {
   position: absolute;
   left: 50%;
-  top: 51px;
+  top: 56px;
   width: 0;
   height: 0;
   animation: beam-sweep 7s linear infinite;
@@ -840,23 +889,17 @@ h2 {
   position: absolute;
   left: 0;
   top: 0;
-  /* Measured from the centre of the page, so a fixed length reaches past the
-     edge of a narrow one and gives the whole document a horizontal scrollbar.
-     The cap only bites below about 520px, where half the viewport is less than
-     220px; every wider screen gets the full beam. Blur widens what is painted
-     by roughly its radius, which is why the cap leaves room rather than
-     landing exactly on half. */
-  width: min(220px, 42vw);
-  height: 132px;
-  margin-top: -66px;
+  width: 230px;
+  height: 140px;
+  margin-top: -70px;
   transform-origin: 0 50%;
   /* Widening with distance, and gone well before the edge of the scene, so it
      never runs into the headline underneath. */
   clip-path: polygon(0 46%, 100% 0, 100% 100%, 0 54%);
   background: linear-gradient(
     90deg,
-    rgba(255, 205, 145, 0.42) 0%,
-    rgba(251, 146, 60, 0.16) 38%,
+    rgba(255, 208, 150, 0.40) 0%,
+    rgba(251, 146, 60, 0.15) 38%,
     rgba(251, 146, 60, 0) 74%
   );
   filter: blur(5px);
@@ -867,9 +910,9 @@ h2 {
 .tower-shadow {
   position: absolute;
   left: 50%;
-  bottom: 18px;
+  bottom: 12px;
   width: 200px;
-  height: 26px;
+  height: 24px;
   transform: translateX(-50%);
   border-radius: 50%;
   background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.55), transparent 70%);
@@ -887,37 +930,38 @@ h2 {
   z-index: 2;
   background: linear-gradient(
     90deg,
-    rgba(24, 6, 0, 0.62) 0%,
-    rgba(24, 6, 0, 0.18) 10%,
-    rgba(255, 255, 255, 0.32) 26%,
-    rgba(255, 255, 255, 0.09) 37%,
+    rgba(24, 6, 0, 0.60) 0%,
+    rgba(24, 6, 0, 0.17) 10%,
+    rgba(255, 255, 255, 0.30) 26%,
+    rgba(255, 255, 255, 0.08) 37%,
     rgba(24, 6, 0, 0) 52%,
-    rgba(24, 6, 0, 0.38) 80%,
-    rgba(24, 6, 0, 0.66) 100%
+    rgba(24, 6, 0, 0.36) 80%,
+    rgba(24, 6, 0, 0.64) 100%
   );
 }
 
 .tower-light {
-  top: 70px;
-  width: 84px;
-  margin-left: -42px;
-  height: 140px;
-  clip-path: polygon(14.29% 0, 85.71% 0, 100% 100%, 0 100%);
+  top: 96px;
+  width: 80px;
+  margin-left: -40px;
+  height: 150px;
+  clip-path: polygon(11.25% 0, 88.75% 0, 100% 100%, 0 100%);
 }
 
 .lantern-light {
-  top: 24px;
+  top: 38px;
   width: 52px;
   margin-left: -26px;
-  height: 34px;
+  height: 36px;
+  opacity: 0.55;
 }
 
 .plinth-light {
-  top: 210px;
-  width: 116px;
-  margin-left: -58px;
-  height: 30px;
-  clip-path: polygon(8.62% 0, 91.38% 0, 100% 100%, 0 100%);
+  top: 246px;
+  width: 96px;
+  margin-left: -48px;
+  height: 22px;
+  clip-path: polygon(4.17% 0, 95.83% 0, 100% 100%, 0 100%);
 }
 
 @keyframes beacon-sway {
@@ -930,7 +974,7 @@ h2 {
 }
 
 @keyframes lamp-throb {
-  0%, 100% { opacity: 0.82; }
+  0%, 100% { opacity: 0.85; }
   50% { opacity: 1; }
 }
 
