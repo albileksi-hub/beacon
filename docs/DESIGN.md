@@ -298,6 +298,21 @@ job that could no longer rebuild it. Freed pages are reused by SQLite; handing
 them back to the filesystem needs a `VACUUM`, which locks the database and so
 stays an operator's decision rather than a background job's.
 
+A third guard sits on the other side of it. A rebuild deletes a day's
+aggregates before recomputing them, so running the backfill above — `manage.py
+rollup --days 400`, which this document recommends — against an instance with
+retention enabled, which it also recommends, used to delete every aggregate it
+could no longer rebuild. On a seeded database that was 69% of the history, in
+one command, with no error and a cheerful `rebuilt 400 site-days`.
+
+So retention now records how far back it has taken events, in
+`sites.raw_events_purged_through`, and a rebuild refuses any day at or before
+it and says how many it left alone. The mark is recorded rather than inferred
+from what survives, because "this site has no raw events" is also true of a
+site whose events were removed for some other reason — spam, a bad deploy, a
+test run — and those aggregates are simply wrong and *should* be rebuilt away.
+Only retention makes them the last copy, so only retention says so.
+
 ### Under concurrent load
 
 Everything above is the database path called from one thread. `python

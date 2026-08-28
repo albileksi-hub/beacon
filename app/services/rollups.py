@@ -7,13 +7,14 @@ forever, and nothing in the raw events tells you it happened.
 """
 
 import datetime as dt
+import logging
 from typing import Any, cast
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
-from app.models import DailyStat, Event, HourlyStat
+from app.models import DailyStat, Event, HourlyStat, Site
 from app.services import visits
 from app.services.stats import (
     BOUNDARY_EDGES,
@@ -22,6 +23,8 @@ from app.services.stats import (
     pageview_count,
     visitor_count,
 )
+
+logger = logging.getLogger(__name__)
 
 TOTAL = "total"
 VALUE_LIMIT = 512
@@ -35,8 +38,43 @@ RECENT_DAYS = 2
 MINIMUM_RETENTION_DAYS = 7
 
 
+def purged_through(db: Session, *, site_id: str) -> dt.date | None:
+    """The last day retention has taken raw events from, if it ever has.
+
+    Recorded by purge_expired_events rather than inferred from what survives.
+    The two are not the same question: a site whose events were deleted for
+    some other reason -- spam, a bad deploy, a test run -- has no raw events
+    either, and clearing its stale aggregates is the correct thing to do. Only
+    retention makes the aggregates irreplaceable, so only retention says so.
+    """
+    return db.scalar(
+        select(Site.raw_events_purged_through).where(Site.domain == site_id)
+    )
+
+
+def can_rebuild(day: dt.date, purged: dt.date | None) -> bool:
+    """Whether a day can still be reconstructed from raw events.
+
+    A rebuild deletes the day's aggregates before recomputing them, so it is
+    only safe while the rows behind them are still there. Once retention has
+    taken that day, recomputing produces nothing and the delete is the entire
+    operation -- against the only surviving copy, which is the whole premise
+    of retention.
+    """
+    return purged is None or day > purged
+
+
 def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
-    """Recompute every DailyStat row for one site and one day."""
+    """Recompute every DailyStat row for one site and one day.
+
+    Refuses a day whose raw events have been purged, leaving what is stored
+    untouched. Without that, `manage.py rollup --days 400` on an instance with
+    retention enabled -- both of which the documentation recommends -- deletes
+    every aggregate it cannot rebuild, which is most of the site's history.
+    """
+    if not can_rebuild(day, purged_through(db, site_id=site_id)):
+        return 0
+
     # The event carries the site's local day, so this is a plain equality.
     scope = (Event.site_id == site_id, Event.day == day)
 
@@ -114,7 +152,13 @@ def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
 
 
 def rebuild_hours(db: Session, *, site_id: str, day: dt.date) -> int:
-    """Recompute the hourly totals for one site and one day."""
+    """Recompute the hourly totals for one site and one day.
+
+    Refuses a purged day for the same reason rebuild_day does.
+    """
+    if not can_rebuild(day, purged_through(db, site_id=site_id)):
+        return 0
+
     db.execute(
         delete(HourlyStat).where(HourlyStat.site_id == site_id, HourlyStat.day == day)
     )
@@ -141,13 +185,31 @@ def refresh(db: Session, *, days_back: int = RECENT_DAYS, today: dt.date | None 
     """Rebuild recent days for every site that has traffic. Returns days rebuilt."""
     last_day = today or dt.datetime.now(dt.UTC).date()
     rebuilt = 0
+    skipped = 0
 
     for site_id in db.scalars(select(Event.site_id).distinct()):
+        # Once per site rather than once per day: the answer cannot change
+        # while this loop runs, and a long backfill would otherwise ask it
+        # hundreds of times.
+        watermark = purged_through(db, site_id=site_id)
+
         for offset in range(days_back):
             day = last_day - dt.timedelta(days=offset)
+            if not can_rebuild(day, watermark):
+                skipped += 1
+                continue
+
             rebuild_day(db, site_id=site_id, day=day)
             rebuild_hours(db, site_id=site_id, day=day)
             rebuilt += 1
+
+    if skipped:
+        # Loud, because the alternative reading is that the backfill worked.
+        logger.warning(
+            "left %s site-days alone: their raw events are past retention, so the "
+            "stored aggregates are the only copy and rebuilding would delete them",
+            f"{skipped:,}",
+        )
 
     return rebuilt
 
@@ -186,5 +248,21 @@ def purge_expired_events(
         ),
     )
     deleted = result.rowcount
+
+    # Record how far back the raw events are now gone, so a later rebuild
+    # refuses those days instead of deleting the aggregates that replaced
+    # them. Marked for every site this ran against rather than only the ones
+    # that lost rows: retention has still passed over the others, and a day
+    # with nothing to delete is equally unrebuildable.
+    #
+    # cutoff is midnight UTC of the first retained day, so any local day at or
+    # before its date may have lost events -- a local day after it begins no
+    # earlier than cutoff in every zone, from UTC-12 to UTC+14.
+    db.execute(
+        update(Site)
+        .where(Site.domain.in_(aggregated))
+        .values(raw_events_purged_through=cutoff.date())
+    )
+
     db.commit()
     return deleted

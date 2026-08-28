@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
-from sqlalchemy import insert
+from sqlalchemy import String, insert
 from starlette.requests import ClientDisconnect
 
 from app.dependencies import DbSession
@@ -22,6 +22,31 @@ from app.services.visitors import current_salt, visitor_id
 router = APIRouter(tags=["ingest"])
 
 ACCEPTED = {"status": "accepted"}
+
+# The width of every string column on events, read off the table rather than
+# copied next to it. Two of these were wrong: a URL may be 2048 characters and
+# its path went into a VARCHAR(1024), and a referring host went into a
+# VARCHAR(255) uncapped. SQLite ignores those lengths and Postgres enforces
+# them, so both were accepted in development and would have been rejected in
+# production -- and with the ingest buffer on, one oversized value fails the
+# whole batch it travels in.
+_WIDTHS = {
+    name: column.type.length
+    for name, column in Event.__table__.columns.items()
+    if isinstance(column.type, String)
+}
+
+
+def _fit(value: str, column: str) -> str:
+    """Trim a derived value to the width of the column that will hold it.
+
+    Trimmed rather than refused, which is what telemetry pipelines do with an
+    over-long attribute: a truncated path still answers "which page", while a
+    rejected event answers nothing and is unrecoverable. It is also what this
+    codebase already does one layer up, where the rollup builder trims a
+    dimension value to VALUE_LIMIT.
+    """
+    return value[: _WIDTHS[column]]
 
 
 async def event_payload(request: Request) -> EventIn:
@@ -100,7 +125,7 @@ def collect_event(payload: EventPayload, request: Request, db: DbSession) -> dic
     values = {
         "site_id": domain,
         "name": payload.name,
-        "pathname": pathname_of(payload.url),
+        "pathname": _fit(pathname_of(payload.url), "pathname"),
         "day": day,
         "hour": hour,
         "visitor_id": visitor_id(
@@ -110,12 +135,14 @@ def collect_event(payload: EventPayload, request: Request, db: DbSession) -> dic
             ip=address,
             user_agent=user_agent,
         ),
-        "referrer_host": referrer_host,
-        "source": source,
+        "referrer_host": _fit(referrer_host, "referrer_host") if referrer_host else None,
+        "source": _fit(source, "source"),
         "medium": tags.medium,
         "campaign": tags.campaign,
-        "browser": client.browser,
-        "os": client.os,
+        # Bounded in practice by the user-agent dataset, but derived from a
+        # header a caller controls, so they go through the same gate.
+        "browser": _fit(client.browser, "browser"),
+        "os": _fit(client.os, "os"),
         "device": client.device,
         "country": get_country_resolver().country_code(address),
         "screen": screen_bucket(payload.screen_width),
