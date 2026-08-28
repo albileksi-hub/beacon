@@ -6,7 +6,7 @@ import threading
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Site, User
+from app.models import Membership, Role, Site, User
 from app.services import zones
 from app.services.passwords import hash_password, verify_password
 
@@ -82,6 +82,10 @@ def add_site(db: Session, *, owner: User, domain: str) -> Site:
 
     site = Site(domain=hostname, owner_id=owner.id, timezone=zones.DEFAULT)
     db.add(site)
+    db.flush()
+    # The owner is a member like everyone else, so every access check asks one
+    # question of one table rather than special-casing whoever created it.
+    db.add(Membership(site_id=site.id, user_id=owner.id, role=Role.OWNER))
     db.commit()
     # This worker starts collecting immediately rather than at the end of the
     # interval; other workers still wait for theirs to lapse.
@@ -90,20 +94,55 @@ def add_site(db: Session, *, owner: User, domain: str) -> Site:
 
 
 def sites_for(db: Session, owner: User) -> list[Site]:
+    """Every site this person can open, whatever their role on it."""
     return list(
-        db.scalars(select(Site).where(Site.owner_id == owner.id).order_by(Site.domain))
+        db.scalars(
+            select(Site)
+            .join(Membership, Membership.site_id == Site.id)
+            .where(Membership.user_id == owner.id)
+            .order_by(Site.domain)
+        )
     )
 
 
-def owned_site(db: Session, *, owner: User, domain: str) -> Site | None:
-    """The site, only if this user owns it.
+def role_for(db: Session, *, user: User | None, site: Site) -> Role | None:
+    """What this person may do with this site, or None if they may not."""
+    if user is None:
+        return None
+
+    granted = db.scalar(
+        select(Membership.role).where(
+            Membership.site_id == site.id, Membership.user_id == user.id
+        )
+    )
+    return Role(granted) if granted is not None else None
+
+
+def _site_for(db: Session, *, user: User, domain: str, allowed: set[Role]) -> Site | None:
+    """The site, only if this user holds one of these roles on it.
 
     Callers turn a None into a 404 rather than a 403: a 403 would confirm that
     the domain exists on the platform, which lets anyone enumerate customers.
     """
-    return db.scalar(
-        select(Site).where(Site.domain == normalise_domain(domain), Site.owner_id == owner.id)
-    )
+    site = db.scalar(select(Site).where(Site.domain == normalise_domain(domain)))
+    if site is None:
+        return None
+
+    return site if role_for(db, user=user, site=site) in allowed else None
+
+
+def owned_site(db: Session, *, owner: User, domain: str) -> Site | None:
+    """The site, only for its owner: deleting it, and deciding who else sees it."""
+    return _site_for(db, user=owner, domain=domain, allowed={Role.OWNER})
+
+
+def administered_site(db: Session, *, user: User, domain: str) -> Site | None:
+    """The site, for anyone who may change its settings.
+
+    Publishing and the timezone are administration rather than ownership: an
+    admin does the work, the owner decides who is an admin.
+    """
+    return _site_for(db, user=user, domain=domain, allowed={Role.OWNER, Role.ADMIN})
 
 
 # The collector checks a domain against this on every single event, and it
@@ -167,8 +206,8 @@ def set_timezone(db: Session, *, site: Site, timezone: str) -> Site:
 def readable_site(db: Session, *, viewer: User | None, domain: str) -> Site | None:
     """The site, if this viewer is allowed to see its numbers.
 
-    Either they own it, or its owner has published it. Anything else is a 404
-    to the caller, for the reason in owned_site.
+    Any role at all is enough to read, or the owner has published it. Anything
+    else is a 404 to the caller, for the reason in _site_for.
     """
     hostname = normalise_domain(domain)
     site = db.scalar(select(Site).where(Site.domain == hostname))
@@ -177,7 +216,91 @@ def readable_site(db: Session, *, viewer: User | None, domain: str) -> Site | No
     if site.public:
         return site
 
-    return site if viewer is not None and site.owner_id == viewer.id else None
+    return site if role_for(db, user=viewer, site=site) is not None else None
+
+
+class MembershipError(ValueError):
+    """Anything that would leave the members of a site in a nonsense state."""
+
+
+def members_of(db: Session, site: Site) -> list[tuple[User, Role]]:
+    """Everyone with access, owner first and then by email."""
+    rows = db.execute(
+        select(User, Membership.role)
+        .join(Membership, Membership.user_id == User.id)
+        .where(Membership.site_id == site.id)
+        .order_by(Membership.role != Role.OWNER, User.email)
+    )
+    return [(user, Role(role)) for user, role in rows]
+
+
+def add_member(db: Session, *, site: Site, email: str, role: Role) -> Membership:
+    """Grant someone access to a site.
+
+    They must already have an account. Inviting an address that has never
+    signed up would mean issuing a token and sending mail, and there is no mail
+    in this project yet -- so this refuses plainly rather than silently doing
+    nothing, which is the failure a half-built invite flow actually produces.
+    """
+    if role is Role.OWNER:
+        raise MembershipError("A site has one owner. Transfer it instead of adding another.")
+
+    address = normalise_email(email)
+    if not address:
+        raise MembershipError("Enter an email address.")
+
+    user = db.scalar(select(User).where(User.email == address))
+    if user is None:
+        raise MembershipError(f"No account for {address}. They need to sign up first.")
+
+    if role_for(db, user=user, site=site) is not None:
+        raise MembershipError(f"{address} already has access to this site.")
+
+    membership = Membership(site_id=site.id, user_id=user.id, role=role)
+    db.add(membership)
+    db.commit()
+    return membership
+
+
+def _members_role(db: Session, *, site: Site, user_id: int) -> Membership | None:
+    return db.scalar(
+        select(Membership).where(
+            Membership.site_id == site.id, Membership.user_id == user_id
+        )
+    )
+
+
+def set_member_role(db: Session, *, site: Site, user_id: int, role: Role) -> Membership:
+    """Change what someone may do. The owner's own row is not up for editing."""
+    if role is Role.OWNER:
+        raise MembershipError("A site has one owner. Transfer it instead.")
+
+    membership = _members_role(db, site=site, user_id=user_id)
+    if membership is None:
+        raise MembershipError("That person does not have access to this site.")
+    if membership.role == Role.OWNER:
+        raise MembershipError("The owner's role cannot be changed.")
+
+    membership.role = role
+    db.commit()
+    return membership
+
+
+def remove_member(db: Session, *, site: Site, user_id: int) -> None:
+    """Take access away.
+
+    The owner cannot be removed, including by themselves: a site with no owner
+    is one nobody can publish, rename or delete, and nothing else in the system
+    would notice it had happened.
+    """
+    membership = _members_role(db, site=site, user_id=user_id)
+    if membership is None:
+        raise MembershipError("That person does not have access to this site.")
+    if membership.role == Role.OWNER:
+        raise MembershipError("The owner cannot be removed. Transfer the site instead.")
+
+    db.delete(membership)
+    db.commit()
 
 
 def set_visibility(db: Session, *, site: Site, public: bool) -> Site:

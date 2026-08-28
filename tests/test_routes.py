@@ -22,8 +22,13 @@ from app import dependencies
 
 ROUTER_MODULES = ("auth", "dashboard", "exports", "ingest", "keys", "sites", "stats")
 
-# Guards that establish who the caller is and what they own.
-OWNERSHIP = ("OwnedSite", "RequiredUser")
+# Guards that establish who the caller is and what they may change.
+#
+# AdministeredSite is here because publishing a dashboard and setting its
+# timezone are administration rather than ownership: an admin does the work on
+# a site and the owner decides who is an admin. Deciding who may open the site
+# at all stays behind OwnedSite.
+OWNERSHIP = ("OwnedSite", "AdministeredSite", "RequiredUser")
 READ_ACCESS = ("ReadableSite",)
 ALL_GUARDS = OWNERSHIP + READ_ACCESS + ("CurrentUser", "ApiAccount")
 

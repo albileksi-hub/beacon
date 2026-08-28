@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}People — {{ site_id }} — Beacon{% endblock %}
+
+{% block content %}
+<section class="stack narrow">
+  <div class="page-head">
+    <h1>People</h1>
+    <p class="muted">
+      Who can open <a href="/sites/{{ site_id }}">{{ site_id }}</a>, and what they can do with it.
+    </p>
+  </div>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <div class="card">
+    <h2>With access</h2>
+    <ul class="rows people">
+      {% for person, role in members %}
+        <li>
+          <span class="label">{{ person.email }}</span>
+          {% if role.value == "owner" %}
+            <span class="badge">Owner</span>
+          {% else %}
+            <form method="post" action="/sites/{{ site_id }}/people/{{ person.id }}/role"
+                  class="control">
+              <label class="sr-only" for="role-{{ person.id }}">Role for {{ person.email }}</label>
+              <select name="role" id="role-{{ person.id }}" class="select">
+                {% for option in roles %}
+                  <option value="{{ option.value }}"
+                          {% if option == role %}selected{% endif %}>{{ option.value | title }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="link-button">Change</button>
+            </form>
+            <form method="post" action="/sites/{{ site_id }}/people/{{ person.id }}/remove">
+              <button type="submit" class="link-button">Remove</button>
+            </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Give someone access</h2>
+    <p class="muted">
+      They need a Beacon account already — there is no invite mail yet, so an
+      address that has never signed up is refused rather than quietly ignored.
+    </p>
+    <form method="post" action="/sites/{{ site_id }}/people" class="form inline-form">
+      <label class="sr-only" for="email">Email address</label>
+      <input type="email" name="email" id="email" placeholder="teammate@example.com" required />
+      <label class="sr-only" for="new-role">Role</label>
+      <select name="role" id="new-role" class="select">
+        {% for option in roles %}
+          <option value="{{ option.value }}">{{ option.value | title }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="button primary">Add</button>
+    </form>
+    <p class="muted role-note">
+      An <strong>admin</strong> can publish the dashboard and set its timezone.
+      A <strong>viewer</strong> can only read the numbers. Only you can change
+      who is on this list.
+    </p>
+  </div>
+</section>
+{% endblock %}

@@ -1,4 +1,5 @@
 import datetime as dt
+from enum import StrEnum
 
 from sqlalchemy import (
     Boolean,
@@ -124,6 +125,51 @@ class User(Base):
     )
 
 
+class Role(StrEnum):
+    """What a person may do with a site.
+
+    Stored as a string rather than a database enum: adding a role to a
+    Postgres enum needs its own migration, and SQLite has no enum at all.
+    """
+
+    OWNER = "owner"
+    ADMIN = "admin"
+    VIEWER = "viewer"
+
+
+class Membership(Base):
+    """One person's access to one site.
+
+    Access used to be `sites.owner_id` alone, which made a dashboard something
+    exactly one person could ever open -- fine for a single author, useless the
+    moment a second person needs to look at the numbers.
+
+    The owner has a row here too, so every permission check asks the same
+    question of the same table instead of special-casing the creator. The
+    column stays on sites as the record of who registered the domain, which is
+    also what keeps one domain to one account.
+    """
+
+    __tablename__ = "site_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    role: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+    user: Mapped["User"] = relationship()
+    site: Mapped["Site"] = relationship(back_populates="members")
+
+    __table_args__ = (
+        # One row per person per site: a second grant would make "their role"
+        # a question with two answers.
+        UniqueConstraint("site_id", "user_id", name="uq_site_members_grain"),
+        # Listing a person's sites reads this way round.
+        Index("ix_site_members_user", "user_id"),
+    )
+
+
 class Site(Base):
     """A tracked domain, belonging to exactly one account."""
 
@@ -156,6 +202,9 @@ class Site(Base):
     )
 
     owner: Mapped[User] = relationship(back_populates="sites")
+    members: Mapped[list[Membership]] = relationship(
+        back_populates="site", cascade="all, delete-orphan"
+    )
 
 
 class DailyStat(Base):
