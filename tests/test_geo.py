@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -87,3 +88,51 @@ def test_uses_the_maxmind_resolver_when_a_database_is_present(
 
     assert isinstance(resolver, MaxMindCountryResolver)
     assert resolver.country_code("203.0.113.7") == "FR"
+
+
+def test_a_corrupt_database_degrades_instead_of_failing_every_request(
+    monkeypatch, tmp_path, caplog, clear_resolver_cache
+):
+    """The real Reader, against a real file that is not a real database.
+
+    Every other test here stubs geoip2.database.Reader, so the open path was
+    never exercised and this went unnoticed: a truncated download or an update
+    interrupted halfway raises InvalidDatabaseError out of get_country_resolver,
+    which the collector calls on every event. lru_cache does not cache
+    exceptions, so it would not fail once -- it would fail every request, for
+    the least important column on the row.
+    """
+    database = tmp_path / "GeoLite2-Country.mmdb"
+    database.write_bytes(b"not a maxmind database" * 50)
+    monkeypatch.setattr(
+        "app.services.geo.get_settings", lambda: Settings(geoip_db_path=str(database))
+    )
+
+    with caplog.at_level(logging.ERROR, logger="app.services.geo"):
+        resolver = get_country_resolver()
+
+    assert isinstance(resolver, NullCountryResolver)
+    assert resolver.country_code("203.0.113.7") is None
+    assert "could not open the GeoIP database" in caplog.text, "the operator has to be told"
+
+
+def test_a_misconfigured_path_says_so(monkeypatch, caplog, clear_resolver_cache):
+    """It already degraded, but silently -- which is a month of unknown countries."""
+    monkeypatch.setattr(
+        "app.services.geo.get_settings",
+        lambda: Settings(geoip_db_path="/nowhere/GeoLite2-Country.mmdb"),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.services.geo"):
+        assert isinstance(get_country_resolver(), NullCountryResolver)
+
+    assert "is not a file" in caplog.text
+
+
+def test_a_lookup_that_fails_on_a_working_database_is_unknown(monkeypatch):
+    """A database can open and still be unable to answer a particular query."""
+    import maxminddb
+
+    resolver = _resolver_with(monkeypatch, maxminddb.InvalidDatabaseError("bad record"))
+
+    assert resolver.country_code("203.0.113.7") is None
