@@ -78,12 +78,24 @@ def zone(name: str) -> ZoneInfo:
         return ZoneInfo(DEFAULT)
 
 
+@lru_cache(maxsize=1)
+def _known() -> frozenset[str]:
+    """Every zone name this system has, read once.
+
+    available_timezones() walks the zone database on each call and builds a set
+    of some six hundred names, which measured 8.5ms -- most of a whole dashboard
+    render, spent listing timezones to reject one string. The database does not
+    change under a running process.
+    """
+    return frozenset(available_timezones())
+
+
 def validate(name: str) -> str:
     """Normalise a timezone a person typed, refusing one that does not exist."""
     cleaned = (name or "").strip()
     if not cleaned:
         return DEFAULT
-    if cleaned not in available_timezones():
+    if cleaned not in _known():
         raise UnknownTimezone(f"{cleaned} is not a known timezone.")
     return cleaned
 

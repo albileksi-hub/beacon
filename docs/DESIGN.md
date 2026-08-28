@@ -476,6 +476,25 @@ Changing a site's zone only affects events from then on. Days already
 aggregated keep the boundaries they were built with, because the raw events
 behind them may well have been deleted by retention.
 
+### A local day is not always 24 hours
+
+Twice a year it is 23 or 25, and the hourly chart used to assume otherwise. It
+walked the wall clock — midnight, one, two — which on the morning the clocks go
+forward drew an `02:00` bar for an hour that does not exist and that no event
+could ever land in, because ingest derives the hour by *converting* the instant
+rather than by counting from midnight.
+
+Buckets are now walked in absolute time and converted back, so one exists
+exactly when an event could fall in it: 23 on the short day, 24 on an ordinary
+one. The long day is the more interesting half. It has 25 hours but only 24
+distinct hour values, because both 02:00s are stored as hour 2 — so the labels
+are deduplicated and that single bar holds both. That is not a rounding error
+but the grain: the events really do say the same thing.
+
+None of this ever touched the daily figures. A 25-hour day counts all 25 hours,
+because the day an event belongs to comes from the same conversion — which is
+why the salt rotation and the summability argument were never at risk.
+
 ## Campaigns, downloads, and what was left out
 
 Reading what the established privacy-first tools do — Plausible, Umami,
