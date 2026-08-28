@@ -1,5 +1,8 @@
+import os
+
 import pytest
 
+from app import templating
 from app.templating import UNKNOWN_FLAG, asset_url, country_flag, tick_label
 
 
@@ -30,17 +33,41 @@ def test_asset_urls_carry_a_content_hash():
 
 
 def test_the_hash_follows_the_contents(tmp_path, monkeypatch):
-    asset_url.cache_clear()
+    """And without the test having to reach in and clear a cache first.
+
+    It used to. The whole URL was cached against the filename, so within one
+    process the answer never changed however much the file did -- which meant
+    editing a stylesheet did nothing until a restart, and a browser holding the
+    old one had no reason to ask again. A test that has to clear the cache to
+    show the behaviour is describing something callers cannot rely on.
+    """
     monkeypatch.setattr("app.templating.STATIC_DIR", tmp_path)
-    (tmp_path / "thing.css").write_text("a{}", encoding="utf-8")
+    asset = tmp_path / "thing.css"
+
+    asset.write_text("a{}", encoding="utf-8")
     first = asset_url("thing.css")
 
-    asset_url.cache_clear()
-    (tmp_path / "thing.css").write_text("b{}", encoding="utf-8")
+    asset.write_text("b{}", encoding="utf-8")
+    # Set explicitly rather than trusting the clock: some filesystems keep
+    # mtimes to the second, and the two writes are microseconds apart.
+    os.utime(asset, ns=(0, 1_000_000_000))
     second = asset_url("thing.css")
 
     assert first != second
-    asset_url.cache_clear()
+
+
+def test_an_unchanged_file_is_not_rehashed(tmp_path, monkeypatch):
+    """The stat decides; the hash is only recomputed when it has to be."""
+    monkeypatch.setattr("app.templating.STATIC_DIR", tmp_path)
+    (tmp_path / "thing.css").write_text("a{}", encoding="utf-8")
+
+    before = templating._digest.cache_info()
+    asset_url("thing.css")
+    asset_url("thing.css")
+    asset_url("thing.css")
+    after = templating._digest.cache_info()
+
+    assert after.hits - before.hits == 2, "repeated renders should reuse the hash"
 
 
 def test_a_missing_asset_still_produces_a_usable_url():

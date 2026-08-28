@@ -44,6 +44,19 @@ def tick_label(bucket: str, interval: str) -> str:
 
 
 @lru_cache
+def _digest(filename: str, fingerprint: tuple[int, int]) -> str:
+    """The content hash, recomputed only when the file has actually changed.
+
+    ``fingerprint`` is never read. It is in the signature so that it is part of
+    the cache key: reading and hashing the file costs about ten microseconds
+    and a stat costs one, so the stat decides whether the hash is still valid.
+
+    The pair is (mtime_ns, size). An edit that preserved both would not be
+    noticed, which is not something a person or a build step does.
+    """
+    return hashlib.sha256((STATIC_DIR / filename).read_bytes()).hexdigest()[:10]
+
+
 def asset_url(filename: str) -> str:
     """A static URL carrying a hash of the file's contents.
 
@@ -51,13 +64,20 @@ def asset_url(filename: str) -> str:
     deploy, and the new markup renders against the old CSS. Deliberately not
     applied to beacon.js: customers paste that URL into their own pages, so it
     has to stay stable.
+
+    The whole result used to be cached against the filename alone, which was
+    right in production and wrong everywhere else: the process answered with
+    the hash the file had at startup, so editing a stylesheet changed nothing
+    until a restart and the browser went on serving the version it already had.
+    Five assets a page at a microsecond each is not a reason to be wrong about
+    that.
     """
     path = STATIC_DIR / filename
     if not path.is_file():
         return f"/static/{filename}"
 
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()[:10]
-    return f"/static/{filename}?v={digest}"
+    stat = path.stat()
+    return f"/static/{filename}?v={_digest(filename, (stat.st_mtime_ns, stat.st_size))}"
 
 
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
