@@ -1,9 +1,11 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Form, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.orm import Session
 
-from app.dependencies import DbSession, OwnedSite, RequiredUser
+from app.dependencies import AdministeredSite, DbSession, OwnedSite, RequiredUser
+from app.models import Role, Site
 from app.services import accounts, tokens, zones
 from app.templating import templates
 
@@ -37,7 +39,7 @@ def create_site(
 
 @router.post("/sites/{site_id}/visibility")
 def change_visibility(
-    site: OwnedSite,
+    site: AdministeredSite,
     db: DbSession,
     public: Annotated[bool, Form()],
 ) -> Response:
@@ -52,7 +54,7 @@ def change_visibility(
 
 @router.post("/sites/{site_id}/timezone")
 def change_timezone(
-    site: OwnedSite,
+    site: AdministeredSite,
     db: DbSession,
     timezone: Annotated[str, Form()],
 ) -> Response:
@@ -68,3 +70,74 @@ def change_timezone(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
 
     return RedirectResponse(f"/sites/{site.domain}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+def _people_page(
+    request: Request, db: Session, site: Site, error: str | None = None
+) -> Response:
+    return templates.TemplateResponse(
+        request,
+        "people.html",
+        {
+            "site_id": site.domain,
+            "members": accounts.members_of(db, site),
+            "roles": [Role.ADMIN, Role.VIEWER],
+            "error": error,
+        },
+        status_code=status.HTTP_400_BAD_REQUEST if error else status.HTTP_200_OK,
+    )
+
+
+@router.get("/sites/{site_id}/people", response_class=HTMLResponse)
+def people(request: Request, db: DbSession, site: OwnedSite) -> Response:
+    """Who can see this site. Resolved through OwnedSite: an admin does the
+    work on a site, but only its owner decides who else is let in."""
+    return _people_page(request, db, site)
+
+
+@router.post("/sites/{site_id}/people")
+def add_person(
+    request: Request,
+    db: DbSession,
+    site: OwnedSite,
+    email: Annotated[str, Form()],
+    role: Annotated[str, Form()],
+) -> Response:
+    try:
+        accounts.add_member(db, site=site, email=email, role=Role(role))
+    except (accounts.MembershipError, ValueError) as error:
+        return _people_page(request, db, site, str(error))
+
+    return RedirectResponse(
+        f"/sites/{site.domain}/people", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/sites/{site_id}/people/{user_id}/role")
+def change_person_role(
+    request: Request,
+    db: DbSession,
+    site: OwnedSite,
+    user_id: int,
+    role: Annotated[str, Form()],
+) -> Response:
+    try:
+        accounts.set_member_role(db, site=site, user_id=user_id, role=Role(role))
+    except (accounts.MembershipError, ValueError) as error:
+        return _people_page(request, db, site, str(error))
+
+    return RedirectResponse(
+        f"/sites/{site.domain}/people", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/sites/{site_id}/people/{user_id}/remove")
+def remove_person(request: Request, db: DbSession, site: OwnedSite, user_id: int) -> Response:
+    try:
+        accounts.remove_member(db, site=site, user_id=user_id)
+    except accounts.MembershipError as error:
+        return _people_page(request, db, site, str(error))
+
+    return RedirectResponse(
+        f"/sites/{site.domain}/people", status_code=status.HTTP_303_SEE_OTHER
+    )

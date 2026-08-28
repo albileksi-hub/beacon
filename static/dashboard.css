@@ -1276,3 +1276,14 @@ h2 {
 }
 
 .key-used { font-size: 0.78rem; }
+
+/* ---- people ---- */
+
+.people li {
+  grid-template-columns: 1fr auto auto;
+  gap: 0.75rem;
+}
+
+.people .label { overflow: visible; }
+
+.role-note { margin: 0.7rem 0 0; font-size: 0.82rem; }

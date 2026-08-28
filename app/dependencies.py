@@ -46,8 +46,10 @@ RequiredUser = Annotated[User, Depends(require_user)]
 def require_owned_site(site_id: str, db: DbSession, user: RequiredUser) -> Site:
     """The site named in the path, but only for the account that owns it.
 
-    A site owned by somebody else is a 404, not a 403. A 403 would confirm the
-    domain exists on the platform, which is enough to enumerate customers.
+    Ownership rather than administration: deciding who else may see a site is
+    the owner's alone. A site owned by somebody else is a 404, not a 403 -- a
+    403 would confirm the domain exists on the platform, which is enough to
+    enumerate customers.
     """
     site = accounts.owned_site(db, owner=user, domain=site_id)
     if site is None:
@@ -56,6 +58,22 @@ def require_owned_site(site_id: str, db: DbSession, user: RequiredUser) -> Site:
 
 
 OwnedSite = Annotated[Site, Depends(require_owned_site)]
+
+
+def require_administered_site(site_id: str, db: DbSession, user: RequiredUser) -> Site:
+    """The site named in the path, for anyone who may change its settings.
+
+    Publishing and the timezone are administration, not ownership: an admin
+    does the work and the owner decides who is an admin. Same 404 for the same
+    reason.
+    """
+    site = accounts.administered_site(db, user=user, domain=site_id)
+    if site is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such site")
+    return site
+
+
+AdministeredSite = Annotated[Site, Depends(require_administered_site)]
 
 
 def get_api_account(request: Request, db: DbSession) -> User | None:

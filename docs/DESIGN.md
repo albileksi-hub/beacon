@@ -630,6 +630,54 @@ fingerprint can never equal a visitor ID and the two tables cannot be
 cross-referenced. `tests/test_privacy.py` checks the schema guard against this
 table too.
 
+## People, and what a role is for
+
+A site used to belong to `sites.owner_id` and nobody else, which made a
+dashboard something exactly one person could ever open. That is fine for one
+author and useless the moment a colleague needs the numbers.
+
+Access is now a row in `site_members`, and the owner has one too. That last
+part is the whole reason the change is small: every check asks the same
+question of the same table instead of special-casing whoever created the site.
+`sites.owner_id` stays as the record of who registered the domain, which is
+also what keeps one domain to one account.
+
+Three roles, drawn along one line — doing the work, versus handing out the
+keys:
+
+| | Read | Publish, timezone | Decide who gets in |
+| --- | --- | --- | --- |
+| **owner** | yes | yes | yes |
+| **admin** | yes | yes | no |
+| **viewer** | yes | no | no |
+
+So publishing resolves through a new `AdministeredSite` rather than
+`OwnedSite`: an admin does the work on a site, and the owner decides who is an
+admin. `tests/test_routes.py` had to be told about that guard, which is the
+audit doing its job — a new dependency on a mutating route is exactly what it
+exists to notice.
+
+Two refusals are worth stating, because an interface that merely declines to
+offer them is not a rule:
+
+- **A site has one owner.** Adding a second, or promoting somebody to owner,
+  is refused rather than quietly making "who owns this" a question with two
+  answers.
+- **The owner cannot be removed or demoted, including by themselves.** A site
+  with no owner is one nobody can publish, rename or delete, and nothing else
+  in the system would notice it had happened.
+
+The migration backfills an owner membership for every existing site. Without
+that line the upgrade takes every dashboard away from the person who made it,
+so it is checked directly: build the schema at the previous revision, insert a
+site, upgrade, and assert the owner still has it.
+
+What is deliberately missing is the invite. Granting access needs an address
+that already has an account, because an invitation means issuing a token and
+sending mail, and there is no mail in this project yet. An unknown address is
+refused with a message that says so — which is better than a half-built invite
+flow, whose actual failure mode is appearing to work and doing nothing.
+
 ## Goals
 
 Pageviews are the default, not the limit. Anything else a site cares about is
