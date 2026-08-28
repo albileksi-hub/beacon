@@ -148,8 +148,15 @@ Notes on a few decisions:
 - **`X-Forwarded-For` is trusted only when explicitly configured.** Any client
   can set that header, so believing it while directly exposed would let a
   visitor forge a new identity per request and inflate the numbers.
-- **Country lookup degrades rather than fails.** With no GeoIP database
-  configured, country becomes "unknown" and ingestion continues.
+- **Country lookup degrades rather than fails.** Not only when no GeoIP
+  database is configured, which was the easy half. A path that is not a file, or
+  a file that is not a database — a truncated download, an update interrupted
+  halfway — used to raise out of the resolver, and the collector asks for that
+  resolver on every event. `lru_cache` does not cache an exception, so it would
+  not have failed once: it would have failed every request from then on, for the
+  least important column on the row. Every one of those cases now falls back to
+  "unknown" and says so in the log, because silently reporting every visitor as
+  unknown is the kind of thing somebody notices a month later.
 
 ## Rollups, and why unique visitors are the hard part
 
