@@ -80,6 +80,7 @@ def site_dashboard(
             "site_id": site.domain,
             "is_public": site.public,
             "timezone": site.timezone,
+            "currency": site.currency,
             "timezones": zones.COMMON,
             "is_owner": user is not None and site.owner_id == user.id,
             "period": period,

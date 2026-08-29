@@ -21,6 +21,7 @@ from app.services.stats import (
     BREAKDOWN_COLUMNS,
     BREAKDOWN_FILTERS,
     pageview_count,
+    revenue_sum,
     visitor_count,
 )
 
@@ -80,8 +81,8 @@ def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
 
     db.execute(delete(DailyStat).where(DailyStat.site_id == site_id, DailyStat.day == day))
 
-    visitors, pageviews = db.execute(
-        select(visitor_count(), pageview_count()).where(*scope)
+    visitors, pageviews, revenue = db.execute(
+        select(visitor_count(), pageview_count(), revenue_sum()).where(*scope)
     ).one()
 
     rows: list[DailyStat] = []
@@ -94,6 +95,7 @@ def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
                 value="",
                 visitors=visitors,
                 pageviews=pageviews,
+                revenue_minor=revenue,
                 # Only on this row. A visit bounced or it did not; attributing
                 # one to each dimension value it touched would count it several
                 # times over.
@@ -105,7 +107,9 @@ def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
 
     for prop, column in BREAKDOWN_COLUMNS.items():
         statement = (
-            select(column, visitor_count(), pageview_count()).where(*scope).group_by(column)
+            select(column, visitor_count(), pageview_count(), revenue_sum())
+            .where(*scope)
+            .group_by(column)
         )
 
         # The same narrowing the raw queries apply, so the aggregates cover
@@ -123,8 +127,9 @@ def rebuild_day(db: Session, *, site_id: str, day: dt.date) -> int:
                 value=str(value)[:VALUE_LIMIT],
                 visitors=group_visitors,
                 pageviews=group_pageviews,
+                revenue_minor=group_revenue,
             )
-            for value, group_visitors, group_pageviews in grouped
+            for value, group_visitors, group_pageviews, group_revenue in grouped
         )
 
     # The two dimensions that are not columns. Computed a day at a time here

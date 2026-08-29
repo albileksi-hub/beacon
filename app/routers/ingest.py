@@ -146,6 +146,8 @@ def collect_event(payload: EventPayload, request: Request, db: DbSession) -> dic
         "device": client.device,
         "country": get_country_resolver().country_code(address),
         "screen": screen_bucket(payload.screen_width),
+        # Minor units, parsed from a Decimal so 49.90 is 4990 and not 4989.
+        "revenue_minor": payload.revenue_minor,
         "timestamp": occurred,
     }
 

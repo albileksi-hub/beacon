@@ -57,12 +57,13 @@ def _scoped(
 
 
 def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary:
-    visitors, pageviews, bounces = db.execute(
+    visitors, pageviews, bounces, revenue = db.execute(
         _scoped(
             select(
                 func.coalesce(func.sum(DailyStat.visitors), 0),
                 func.coalesce(func.sum(DailyStat.pageviews), 0),
                 func.coalesce(func.sum(DailyStat.bounces), 0),
+                func.coalesce(func.sum(DailyStat.revenue_minor), 0),
             ),
             site_id,
             time_range,
@@ -73,7 +74,9 @@ def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary
     # Summing bounces and dividing at the end, rather than averaging each day's
     # rate: a day with four visits would otherwise weigh as heavily as a day
     # with forty thousand.
-    return StatsSummary.of(visitors=visitors, pageviews=pageviews, bounces=bounces)
+    return StatsSummary.of(
+        visitors=visitors, pageviews=pageviews, bounces=bounces, revenue_minor=revenue
+    )
 
 
 def breakdown(
@@ -92,6 +95,7 @@ def breakdown(
                 DailyStat.value,
                 visitors.label("visitors"),
                 func.sum(DailyStat.pageviews).label("pageviews"),
+                func.sum(DailyStat.revenue_minor).label("revenue"),
             ),
             site_id,
             time_range,
@@ -104,7 +108,12 @@ def breakdown(
     ).all()
 
     return [
-        BreakdownRow(value=row.value, visitors=row.visitors, pageviews=row.pageviews)
+        BreakdownRow(
+            value=row.value,
+            visitors=row.visitors,
+            pageviews=row.pageviews,
+            revenue_minor=row.revenue,
+        )
         for row in rows
     ]
 

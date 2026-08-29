@@ -41,6 +41,7 @@ def test_summary_endpoint(signed_in, db_session, rebuild_rollups, site):
         "pageviews": 3,
         "views_per_visitor": 1.5,
         "bounce_rate": 50.0,
+        "revenue_minor": 0,
     }
 
 
@@ -69,8 +70,8 @@ def test_breakdown_endpoint(signed_in, db_session, rebuild_rollups, site):
 
     assert response.status_code == 200
     assert response.json() == [
-        {"value": "/popular", "visitors": 2, "pageviews": 2},
-        {"value": "/quiet", "visitors": 1, "pageviews": 1},
+        {"value": "/popular", "visitors": 2, "pageviews": 2, "revenue_minor": 0},
+        {"value": "/quiet", "visitors": 1, "pageviews": 1, "revenue_minor": 0},
     ]
 
 
@@ -162,10 +163,12 @@ def test_entry_and_exit_page_endpoints(signed_in, db_session, rebuild_rollups, s
     exits = signed_in.get(f"/api/stats/{SITE_DOMAIN}/breakdown/exit_page")
 
     # Both visits landed on /landing; between them they read three pages.
-    assert entries.json() == [{"value": "/landing", "visitors": 2, "pageviews": 3}]
+    assert entries.json() == [
+        {"value": "/landing", "visitors": 2, "pageviews": 3, "revenue_minor": 0}
+    ]
     assert exits.json() == [
-        {"value": "/checkout", "visitors": 1, "pageviews": 2},
-        {"value": "/landing", "visitors": 1, "pageviews": 1},
+        {"value": "/checkout", "visitors": 1, "pageviews": 2, "revenue_minor": 0},
+        {"value": "/landing", "visitors": 1, "pageviews": 1, "revenue_minor": 0},
     ]
 
 
