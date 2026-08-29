@@ -1,9 +1,8 @@
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from app.dependencies import ReadableSite, SessionFactory
+from app.dependencies import ReadableSite, SessionFactory, Window
 from app.services import exports
-from app.services.timeranges import Period, resolve
 
 router = APIRouter(tags=["export"], include_in_schema=False)
 
@@ -12,7 +11,7 @@ router = APIRouter(tags=["export"], include_in_schema=False)
 def export_csv(
     site: ReadableSite,
     sessions: SessionFactory,
-    period: Period = Period.LAST_30_DAYS,
+    window: Window,
 ) -> StreamingResponse:
     """The site's aggregates, as a file.
 
@@ -20,7 +19,7 @@ def export_csv(
     already serves these numbers over the API, so refusing the same numbers in
     a different shape would be theatre rather than a control.
     """
-    time_range = resolve(period, timezone=site.timezone)
+    time_range = window
 
     return StreamingResponse(
         exports.daily_stats_csv(sessions, site_id=site.domain, time_range=time_range),

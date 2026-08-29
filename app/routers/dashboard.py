@@ -1,8 +1,11 @@
-from fastapi import APIRouter, HTTPException, Request, Response, status
+import datetime as dt
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.dependencies import CurrentUser, DbSession
-from app.services import accounts, charts, reports, tokens, zones
+from app.services import accounts, charts, reports, timeranges, tokens, zones
 from app.services.stats import BreakdownProperty
 from app.services.timeranges import Period, resolve
 from app.templating import templates
@@ -60,6 +63,8 @@ def site_dashboard(
     db: DbSession,
     user: CurrentUser,
     period: Period = Period.LAST_30_DAYS,
+    start: Annotated[dt.date | None, Query(alias="from")] = None,
+    end: Annotated[dt.date | None, Query(alias="to")] = None,
 ) -> Response:
     site = accounts.readable_site(db, viewer=user, domain=site_id)
     if site is None:
@@ -69,7 +74,25 @@ def site_dashboard(
             return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such site")
 
-    time_range = resolve(period, timezone=site.timezone)
+    # A bad range is shown rather than thrown: the page still renders, on the
+    # default period, with the reason above the numbers. A 422 here would be a
+    # blank screen for a typo in a URL somebody pasted.
+    range_error = None
+    try:
+        time_range = timeranges.resolve_window(period, start, end, timezone=site.timezone)
+    except timeranges.InvalidRange as error:
+        range_error = str(error)
+        start = end = None
+        time_range = resolve(period, timezone=site.timezone)
+
+    chose_dates = start is not None and end is not None
+    window_label = (
+        # Day written out rather than "%-d", which is a GNU extension: Windows
+        # wants "%#d" and this project is developed on one.
+        f"{start.day} {start:%b %Y} to {end.day} {end:%b %Y}"
+        if start is not None and end is not None
+        else f"{PERIOD_LABELS[period].lower()}, compared with the period before"
+    )
     series = reports.timeseries(db, site_id=site.domain, time_range=time_range)
 
     return templates.TemplateResponse(
@@ -85,6 +108,11 @@ def site_dashboard(
             "is_owner": user is not None and site.owner_id == user.id,
             "period": period,
             "period_labels": PERIOD_LABELS,
+            "window_label": window_label,
+            "chose_dates": chose_dates,
+            "range_from": start.isoformat() if start else "",
+            "range_to": end.isoformat() if end else "",
+            "range_error": range_error,
             # The axis ticks are shortened differently per grain.
             "interval": time_range.interval,
             "comparison": reports.summary_with_comparison(

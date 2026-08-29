@@ -1297,3 +1297,32 @@ h2 {
   font-variant-numeric: tabular-nums;
   color: var(--up);
 }
+
+/* ---- custom date range ---- */
+
+.range {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.range input[type="date"] {
+  padding: 0.28rem 0.45rem;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color-scheme: dark light;
+}
+
+.range input[type="date"]:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+.range-to { color: var(--muted); }

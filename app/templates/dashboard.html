@@ -26,9 +26,20 @@
 <nav class="periods" aria-label="Reporting period">
   {% for value, label in period_labels.items() %}
     <a href="/sites/{{ site_id }}?period={{ value }}"
-       {% if value == period %}class="current" aria-current="page"{% endif %}>{{ label }}</a>
+       {% if value == period and not chose_dates %}class="current" aria-current="page"{% endif %}>{{ label }}</a>
   {% endfor %}
 </nav>
+
+{# A plain GET form, so picking dates works with scripting off like everything
+   else here. The browser's own date control does the calendar. #}
+<form class="range" method="get" action="/sites/{{ site_id }}">
+  <label class="sr-only" for="range-from">From</label>
+  <input type="date" id="range-from" name="from" value="{{ range_from }}" />
+  <span class="range-to" aria-hidden="true">–</span>
+  <label class="sr-only" for="range-to">To</label>
+  <input type="date" id="range-to" name="to" value="{{ range_to }}" />
+  <button type="submit" class="link-button">Apply</button>
+</form>
 {% endblock %}
 
 {% block content %}
@@ -44,7 +55,8 @@
         <span class="live-word">now</span>
       </span>
     </div>
-    <p class="muted">{{ period_labels[period] | lower }}, compared with the period before</p>
+    <p class="muted">{{ window_label }}</p>
+    {% if range_error %}<p class="error">{{ range_error }}</p>{% endif %}
 
     {% if is_owner %}
       {# One row rather than three stacked ones. The sentences stay visible:
@@ -63,7 +75,7 @@
         </form>
 
         <a class="link-button"
-           href="/sites/{{ site_id }}/export.csv?period={{ period }}">Download CSV</a>
+           href="/sites/{{ site_id }}/export.csv?{% if chose_dates %}from={{ range_from }}&amp;to={{ range_to }}{% else %}period={{ period }}{% endif %}">Download CSV</a>
 
         {% if is_owner %}<a class="link-button" href="/sites/{{ site_id }}/people">People</a>{% endif %}
 

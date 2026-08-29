@@ -1,11 +1,13 @@
+import datetime as dt
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import SessionLocal, get_db
 from app.models import Site, User
-from app.services import accounts, tokens
+from app.services import accounts, timeranges, tokens
+from app.services.timeranges import Period, TimeRange
 
 # Annotated dependencies keep FastAPI's injection out of function defaults,
 # which keeps both linters and type checkers happy.
@@ -109,3 +111,28 @@ def require_readable_site(
 
 
 ReadableSite = Annotated[Site, Depends(require_readable_site)]
+
+
+def require_time_range(
+    site: ReadableSite,
+    period: Period = Period.LAST_30_DAYS,
+    start: Annotated[dt.date | None, Query(alias="from")] = None,
+    end: Annotated[dt.date | None, Query(alias="to")] = None,
+) -> TimeRange:
+    """The window a request is asking about: a named period, or two dates.
+
+    A dependency rather than three lines in each of six handlers, so every
+    endpoint that reports on a window accepts the same parameters and reads the
+    site's own zone the same way. FastAPI resolves ReadableSite once per
+    request, so asking for it here costs nothing.
+
+    ``from`` and ``to`` are spelled that way in the URL because that is what a
+    person types; ``from`` is a keyword, hence the aliases.
+    """
+    try:
+        return timeranges.resolve_window(period, start, end, timezone=site.timezone)
+    except timeranges.InvalidRange as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+
+
+Window = Annotated[TimeRange, Depends(require_time_range)]
