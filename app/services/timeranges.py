@@ -94,6 +94,71 @@ def resolve(
     raise ValueError(f"unsupported period: {period}")
 
 
+class InvalidRange(ValueError):
+    """A pair of dates that does not describe a window anyone could report on."""
+
+
+# Long enough for any question a person asks of a dashboard, short enough that
+# a typo in a URL cannot ask for a hundred thousand buckets.
+MAX_RANGE_DAYS = 366 * 5
+
+
+def _interval_for(days: int) -> Interval:
+    """The bucket size a span of this length reads best at.
+
+    The same thresholds the named periods already use, so a hand-picked month
+    is drawn the way "30 days" is and a hand-picked year the way "12 months"
+    is. A year of hourly buckets is 8,760 points, which is neither readable nor
+    cheap; a year of daily ones is 365, which is dense but honest.
+    """
+    if days <= 1:
+        return Interval.HOUR
+    if days <= 92:
+        return Interval.DAY
+    return Interval.MONTH
+
+
+def resolve_range(first: dt.date, last: dt.date, *, timezone: str = zones.DEFAULT) -> TimeRange:
+    """A window the caller chose, in the site's own zone.
+
+    Inclusive of both ends, which is what a person means by "the 1st to the
+    15th" and what the named periods already do.
+    """
+    if last < first:
+        raise InvalidRange("The end of the range comes before the start.")
+
+    span = (last - first).days + 1
+    if span > MAX_RANGE_DAYS:
+        raise InvalidRange(f"A range can cover at most {MAX_RANGE_DAYS:,} days.")
+
+    zone = zones.zone(timezone)
+    return TimeRange(
+        dt.datetime.combine(first, dt.time.min, tzinfo=zone),
+        dt.datetime.combine(last, dt.time.max, tzinfo=zone),
+        _interval_for(span),
+    )
+
+
+def resolve_window(
+    period: Period,
+    first: dt.date | None,
+    last: dt.date | None,
+    *,
+    timezone: str = zones.DEFAULT,
+) -> TimeRange:
+    """Either the named period, or the dates the caller gave instead.
+
+    One of the two, never a mixture: a request carrying only one end of a range
+    is a mistake worth saying out loud rather than quietly reading as a month.
+    """
+    if first is None and last is None:
+        return resolve(period, timezone=timezone)
+    if first is None or last is None:
+        raise InvalidRange("Give both a start date and an end date.")
+
+    return resolve_range(first, last, timezone=timezone)
+
+
 def bucket_labels(time_range: TimeRange) -> list[str]:
     """Every bucket in the range, including the ones with no traffic.
 

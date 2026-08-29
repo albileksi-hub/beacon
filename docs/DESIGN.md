@@ -717,6 +717,38 @@ zeroes rather than accidental numbers:
   they were the same; this refuses the ambiguity instead by having one per
   site.
 
+## Any window, not just the five on offer
+
+`?from=2026-07-01&to=2026-07-21` on the dashboard, the stats API and the CSV
+export. Every other tool in this category has had this for years; it was
+missing here for no better reason than that five buttons were easier to build.
+
+It cost almost nothing, and the reason is the daily grain. The aggregates are
+keyed by day, so an arbitrary window is a sum over a different set of days --
+the same query the named periods already run. Nothing in the reporting layer
+changed at all.
+
+Three decisions worth keeping:
+
+**The bucket follows the length of the window**, using the thresholds the named
+periods already imply: a single day by the hour, up to a quarter by the day,
+longer than that by the month. A year of hourly buckets is 8,760 points, which
+is neither readable on a chart nor cheap to compute.
+
+**Half a range is an error, not a default.** A request carrying `from` without
+`to` could quietly be read as a month, and the caller would never learn their
+link was wrong. It is refused by name instead.
+
+**The dashboard shows a bad range; the API refuses one.** A 422 on the page
+would be a blank screen for a typo in a URL somebody pasted, so the page comes
+back on the default period with the reason above the numbers -- the difference
+between a broken link and a wrong one. The API has no such excuse and answers
+422.
+
+The parameters live in one dependency rather than in six handlers, so every
+endpoint that reports on a window accepts the same two and reads the site's own
+zone the same way. `from` is a Python keyword, hence the aliases.
+
 ## Goals
 
 Pageviews are the default, not the limit. Anything else a site cares about is
