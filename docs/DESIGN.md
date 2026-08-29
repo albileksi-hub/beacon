@@ -678,6 +678,45 @@ sending mail, and there is no mail in this project yet. An unknown address is
 refused with a message that says so — which is better than a half-built invite
 flow, whose actual failure mode is appearing to work and doing nothing.
 
+## Revenue, and never touching a float
+
+An event can carry what it was worth:
+
+```js
+beacon("purchase", { revenue: 49.90 });
+```
+
+Money is the one number here that cannot be approximately right, so it is
+integers end to end. The column holds minor units -- 4990 for 49.90 -- because
+a float cannot represent most prices and a `NUMERIC` is a real decimal on
+Postgres and a float on SQLite, which is the dialect leaking into the one place
+it must not.
+
+The amount also travels as a string. A JSON number is a double, and 0.29
+arrives as 28.999999999999996; truncating that loses a penny. It is not an edge
+case: of every price up to 199.99, 1,145 of them -- 5.7% -- come out a penny
+short if a float touches them. `tests/test_revenue.py` counts them, so the
+reason survives somebody deciding a float would be simpler.
+
+Rounding is half-up rather than Python's default half-to-even, which turns
+0.005 into 0.00. Correct for statistics, wrong for a till.
+
+Because the rollup builder already groups by every dimension, adding one
+`SUM(revenue_minor)` gives revenue per source, per campaign, per country and
+per landing page without a single extra query. Two exceptions, both honest
+zeroes rather than accidental numbers:
+
+- **Entry and exit pages carry no revenue.** They are derived from the
+  pageviews of a visit, and a purchase is a custom event, so attributing money
+  to them would mean a different grouping rather than a wider select.
+- **There is no currency conversion.** One currency per site. A rate means
+  either a network call on the ingest path -- which the collector must never
+  make -- or a table that is quietly out of date, and both are worse than
+  reporting the number the site actually sent. Plausible converts to a base
+  currency and warns that mixing currencies in one goal sums them as though
+  they were the same; this refuses the ambiguity instead by having one per
+  site.
+
 ## Goals
 
 Pageviews are the default, not the limit. Anything else a site cares about is

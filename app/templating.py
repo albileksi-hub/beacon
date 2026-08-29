@@ -1,5 +1,6 @@
 import datetime as dt
 import hashlib
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 
@@ -41,6 +42,17 @@ def tick_label(bucket: str, interval: str) -> str:
     # Written out rather than "%-d", which is a GNU extension: Windows wants
     # "%#d" and this project is developed on one.
     return f"{moment.day} {moment:%b}"
+
+
+def money(minor: int, currency: str = "") -> str:
+    """Minor units back into something a person reads: 4990 -> "49.90".
+
+    Divided with a Decimal rather than by 100.0, for the same reason the column
+    holds integers: the point of storing cents exactly is lost if the last step
+    goes through a float.
+    """
+    amount = (Decimal(minor) / 100).quantize(Decimal("0.01"))
+    return f"{amount:,} {currency}".strip()
 
 
 @lru_cache
@@ -85,3 +97,4 @@ templates.env.globals["asset"] = asset_url
 templates.env.filters["comma"] = lambda value: f"{value:,}"
 templates.env.filters["flag"] = country_flag
 templates.env.filters["tick"] = tick_label
+templates.env.filters["money"] = money

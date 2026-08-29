@@ -102,6 +102,13 @@
       <span class="tile-value">{{ comparison.summary.views_per_visitor }}</span>
       <span class="delta flat">&nbsp;</span>
     </div>
+    {% if comparison.summary.revenue_minor %}
+    <div class="card tile">
+      <span class="tile-label">Revenue</span>
+      <span class="tile-value">{{ comparison.summary.revenue_minor | money }}</span>
+      <span class="delta flat">{{ currency }}</span>
+    </div>
+    {% endif %}
     <div class="card tile">
       <span class="tile-label">Bounce rate</span>
       <span class="tile-value">{{ comparison.summary.bounce_rate }}%</span>
@@ -183,6 +190,9 @@
                   {% if key == "country" %}<span class="flag">{{ row.value | flag }}</span>{% endif %}
                   {{ row.value }}
                 </span>
+                {% if row.revenue_minor %}
+                  <span class="revenue">{{ row.revenue_minor | money }}</span>
+                {% endif %}
                 <span class="share">{{ (row.visitors / total * 100) | round(1) }}%</span>
                 <span class="count">{{ row.visitors | comma }}</span>
               </li>

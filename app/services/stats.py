@@ -75,6 +75,11 @@ def visitor_count() -> Function[int]:
     return func.count(distinct(Event.visitor_id))
 
 
+def revenue_sum() -> Function[int]:
+    """Revenue in minor units. Null for the events that are not worth anything."""
+    return func.coalesce(func.sum(Event.revenue_minor), 0)
+
+
 def pageview_count() -> Function[int]:
     """Only pageviews count as pageviews.
 
@@ -97,7 +102,11 @@ def _scoped(statement: Select[Any], site_id: str, time_range: TimeRange) -> Sele
 def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary:
     row = db.execute(
         _scoped(
-            select(visitor_count().label("visitors"), pageview_count().label("pageviews")),
+            select(
+                visitor_count().label("visitors"),
+                pageview_count().label("pageviews"),
+                revenue_sum().label("revenue"),
+            ),
             site_id,
             time_range,
         )
@@ -109,6 +118,7 @@ def summary(db: Session, *, site_id: str, time_range: TimeRange) -> StatsSummary
         visitors=row.visitors,
         pageviews=row.pageviews,
         bounces=visits.bounce_count(db, site_id=site_id, first_day=first, last_day=last),
+        revenue_minor=row.revenue,
     )
 
 
@@ -181,8 +191,12 @@ def breakdown(
         # Not a column: the first and last page of a visit only exist once the
         # events have been grouped into visits.
         first, last = time_range.days
+        # No revenue on these two. They are derived from the pageviews of a
+        # visit, and a purchase is a custom event -- so attributing money to an
+        # entry page would mean a different grouping, not a wider select. It
+        # reports zero rather than a number arrived at by accident.
         return [
-            BreakdownRow(value=value, visitors=visit_count, pageviews=pageviews)
+            BreakdownRow(value=value, visitors=visit_count, pageviews=pageviews, revenue_minor=0)
             for value, visit_count, pageviews in visits.boundary_pages(
                 db,
                 site_id=site_id,
@@ -202,6 +216,7 @@ def breakdown(
                 column.label("value"),
                 visitors.label("visitors"),
                 pageview_count().label("pageviews"),
+                revenue_sum().label("revenue"),
             ),
             site_id,
             time_range,
@@ -219,7 +234,12 @@ def breakdown(
     rows = db.execute(statement).all()
 
     return [
-        BreakdownRow(value=str(row.value), visitors=row.visitors, pageviews=row.pageviews)
+        BreakdownRow(
+            value=str(row.value),
+            visitors=row.visitors,
+            pageviews=row.pageviews,
+            revenue_minor=row.revenue,
+        )
         for row in rows
     ]
 

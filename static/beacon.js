@@ -42,14 +42,23 @@
     /* storage unavailable: nothing to opt out of, carry on */
   }
 
-  function send(name, url) {
-    var payload = JSON.stringify({
+  function send(name, url, revenue) {
+    var body = {
       site_id: siteId,
       name: name,
       url: url || location.href,
       referrer: document.referrer || null,
       screen_width: window.innerWidth
-    });
+    };
+
+    // Sent as a string, so the amount that arrives is the one that was typed.
+    // A JSON number is a double: 49.90 travels as 49.899999999999999, and a
+    // month of those rounds a long way from the takings.
+    if (typeof revenue === "number" && isFinite(revenue) && revenue >= 0) {
+      body.revenue = revenue.toFixed(2);
+    }
+
+    var payload = JSON.stringify(body);
 
     // text/plain, not application/json. Anything outside the CORS safelist
     // makes this a preflighted request with credentials, which a browser then
@@ -102,8 +111,14 @@
   //     beacon("signup")
   // Refuses the name "pageview" so a site cannot inflate its own view count
   // through the same call.
-  window.beacon = function (name) {
-    if (typeof name === "string" && name && name !== "pageview") send(name);
+  //     beacon("signup")
+  //     beacon("purchase", { revenue: 49.90 })
+  //
+  // The amount is whatever the site counts money in; there is one currency per
+  // site and nothing here converts between them.
+  window.beacon = function (name, options) {
+    if (typeof name !== "string" || !name || name === "pageview") return;
+    send(name, null, options && options.revenue);
   };
 
   watchHistory("pushState");

@@ -526,7 +526,7 @@ h2 {
 .rows li {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: 0.9rem;
   padding: 0.46rem 0.62rem;
@@ -1287,3 +1287,13 @@ h2 {
 .people .label { overflow: visible; }
 
 .role-note { margin: 0.7rem 0 0; font-size: 0.82rem; }
+
+.revenue {
+  position: relative;
+  z-index: 1;
+  min-width: 4.5rem;
+  text-align: right;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--up);
+}

@@ -71,6 +71,16 @@ class Event(Base):
     # A bucket, never the exact pixel width; see app.services.screens.
     screen: Mapped[str] = mapped_column(String(16), default="Unknown")
 
+    # What this event was worth, in minor units -- 4990 for 49.90. Integers
+    # rather than a float or a Numeric: floats cannot hold 0.10 exactly and
+    # summing thousands of them drifts, and SQLite has no decimal type at all,
+    # so a Numeric column is a float there and a real decimal on Postgres. An
+    # integer count of cents is exact on both and needs no dialect to agree.
+    #
+    # Null for the overwhelming majority of events, which are page reads and
+    # are not worth anything in particular.
+    revenue_minor: Mapped[int | None] = mapped_column(Integer)
+
     __table_args__ = (
         # The live counter is the only query left that works in real instants,
         # and it counts distinct visitors in a window -- so one index covers
@@ -194,6 +204,13 @@ class Site(Base):
     # their stale aggregates.
     raw_events_purged_through: Mapped[dt.date | None] = mapped_column(Date)
 
+    # What this site counts money in. One currency per site and no conversion:
+    # a rate needs a network call on the ingest path, or a stale table, and
+    # either one is worse than reporting the number the site actually sent.
+    currency: Mapped[str] = mapped_column(
+        String(3), default="USD", server_default=text("'USD'")
+    )
+
     # The zone this site's days are reckoned in. Everything downstream -- the
     # aggregates, the chart buckets, and the visitor salt rotation -- follows
     # from it. See app.services.zones.
@@ -237,6 +254,14 @@ class DailyStat(Base):
     # times the truth. Additive across days, like everything else here, because
     # a visit cannot straddle midnight.
     bounces: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+
+    # Revenue in minor units, summed the same way visitors are. Because the
+    # rollup builder already groups by every dimension, this arrives as
+    # revenue per source, per campaign, per landing page and so on without a
+    # single extra query.
+    revenue_minor: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0")
+    )
 
     __table_args__ = (
         UniqueConstraint("site_id", "day", "dimension", "value", name="uq_daily_stats_grain"),
