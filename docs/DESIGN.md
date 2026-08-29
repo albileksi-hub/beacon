@@ -749,6 +749,36 @@ The parameters live in one dependency rather than in six handlers, so every
 endpoint that reports on a window accepts the same two and reads the site's own
 zone the same way. `from` is a Python keyword, hence the aliases.
 
+## A range that does not start on the first
+
+Bucketing an arbitrary window by month leaves a partial bucket at each end,
+and the leading one is worth knowing about because it draws as a dip that is
+not in the data.
+
+Measured on traffic of exactly ten visitors every day, a range of 15 January to
+20 August is bucketed by month and renders:
+
+```
+2026-01   170   #################
+2026-02   280   ############################
+2026-03   310   ###############################
+...
+```
+
+January is not quieter. The range simply starts halfway through it.
+
+The named periods never showed this, because `_months_before` always returns a
+month boundary, so their first bucket was always whole. A trailing partial
+month is older than custom ranges and reads correctly as "this month so far".
+
+It is left as it is. The obvious fix -- snapping the window outward to whole
+months -- makes the chart cover days the headline tiles do not, and a chart
+disagreeing with the numbers above it is a worse fault than a short first bar.
+Bucketing by day instead only moves the problem: five years by day is 1,826
+points. The data is right in every case; it is the label "Jan" on a bucket
+holding half of January that is doing the misleading, and no arrangement of
+whole-month labels fixes a window that does not start on the first.
+
 ## Goals
 
 Pageviews are the default, not the limit. Anything else a site cares about is
