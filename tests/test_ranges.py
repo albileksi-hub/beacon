@@ -161,3 +161,24 @@ def test_a_bad_range_still_renders_the_page(signed_in, site):
     assert response.status_code == 200
     assert "comes before" in response.text
     assert "30 days, compared with the period before" in response.text
+
+
+def test_a_chosen_range_says_what_it_is_compared_against(signed_in, site):
+    """The tiles carry a comparison however the window was chosen.
+
+    A named period says "compared with the period before" and a chosen one
+    used to say only its dates -- leaving a "-8.6%" on screen with nothing to
+    read it against. The comparison itself was always there; the sentence
+    describing it was not.
+    """
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}?from=2026-08-01&to=2026-08-15").text
+
+    assert "1 Aug 2026 to 15 Aug 2026" in body
+    assert "compared with the 15 days before" in body
+
+
+def test_a_one_day_window_reads_as_one_day(signed_in, site):
+    body = signed_in.get(f"/sites/{SITE_DOMAIN}?from=2026-08-10&to=2026-08-10").text
+
+    assert "compared with the 1 day before" in body
+    assert "1 days before" not in body

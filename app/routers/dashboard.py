@@ -86,13 +86,22 @@ def site_dashboard(
         time_range = resolve(period, timezone=site.timezone)
 
     chose_dates = start is not None and end is not None
-    window_label = (
+    if start is not None and end is not None:
+        # The tiles carry a comparison whichever way the window was chosen, so
+        # the page has to say what it is compared against. Naming the period
+        # but not the comparison leaves a "-8.6%" on screen with nothing to
+        # read it against.
+        #
         # Day written out rather than "%-d", which is a GNU extension: Windows
         # wants "%#d" and this project is developed on one.
-        f"{start.day} {start:%b %Y} to {end.day} {end:%b %Y}"
-        if start is not None and end is not None
-        else f"{PERIOD_LABELS[period].lower()}, compared with the period before"
-    )
+        span = (end - start).days + 1
+        nights = "day" if span == 1 else "days"
+        window_label = (
+            f"{start.day} {start:%b %Y} to {end.day} {end:%b %Y}, "
+            f"compared with the {span} {nights} before"
+        )
+    else:
+        window_label = f"{PERIOD_LABELS[period].lower()}, compared with the period before"
     series = reports.timeseries(db, site_id=site.domain, time_range=time_range)
 
     return templates.TemplateResponse(

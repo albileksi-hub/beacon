@@ -21,7 +21,12 @@ from sqlalchemy.orm import sessionmaker
 from app.models import DailyStat
 from app.services.timeranges import TimeRange
 
-COLUMNS = ("day", "dimension", "value", "visitors", "pageviews")
+# Every measure on the daily grain, not a subset of it. Revenue especially:
+# once retention has purged the raw events the aggregates are the only copy
+# there is, and this file is the way out of the system. Bounces and revenue are
+# zero on a breakdown row, which is the honest answer -- a single source has no
+# bounce rate of its own, and money that dimension did not take is not money.
+COLUMNS = ("day", "dimension", "value", "visitors", "pageviews", "bounces", "revenue_minor")
 
 # Rows fetched from the database per round trip.
 CHUNK = 1_000
@@ -72,6 +77,8 @@ def daily_stats_csv(
             DailyStat.value,
             DailyStat.visitors,
             DailyStat.pageviews,
+            DailyStat.bounces,
+            DailyStat.revenue_minor,
         )
         .where(
             DailyStat.site_id == site_id,

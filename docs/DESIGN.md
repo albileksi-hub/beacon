@@ -398,7 +398,7 @@ buffers responses and would defeat the streaming export below.
 `GET /sites/{site}/export.csv?period=12mo` streams the site's aggregates:
 
 ```
-day,dimension,value,visitors,pageviews
+day,dimension,value,visitors,pageviews,bounces,revenue_minor
 2026-07-21,page,/,152,186
 2026-08-19,event,add-to-basket,1,0
 ```

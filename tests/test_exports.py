@@ -44,9 +44,13 @@ def test_the_export_has_a_header_and_the_aggregates(signed_in, db_session, rebui
     rows = _rows(response.text)
 
     assert response.status_code == 200
-    assert rows[0] == ["day", "dimension", "value", "visitors", "pageviews"]
-    assert ["total", "", "2", "2"] in [row[1:] for row in rows[1:]]
-    assert ["page", "/pricing", "2", "2"] in [row[1:] for row in rows[1:]]
+    assert rows[0] == [
+        "day", "dimension", "value", "visitors", "pageviews", "bounces", "revenue_minor",
+    ]
+    # Two visitors who read one page each, so both bounced. A breakdown row
+    # carries no bounce count of its own: a single page has no bounce rate.
+    assert ["total", "", "2", "2", "2", "0"] in [row[1:] for row in rows[1:]]
+    assert ["page", "/pricing", "2", "2", "0", "0"] in [row[1:] for row in rows[1:]]
 
 
 def test_it_is_offered_as_a_download_named_for_the_site(
@@ -111,4 +115,28 @@ def test_one_account_cannot_export_anothers_site(signed_in, db_session):
 def test_an_empty_site_exports_just_the_header(signed_in, site):
     rows = _rows(signed_in.get(f"/sites/{SITE_DOMAIN}/export.csv").text)
 
-    assert rows == [["day", "dimension", "value", "visitors", "pageviews"]]
+    assert rows == [
+        ["day", "dimension", "value", "visitors", "pageviews", "bounces", "revenue_minor"]
+    ]
+
+
+def test_revenue_survives_the_export(signed_in, db_session, rebuild_rollups, site):
+    """The file is the way money leaves the system.
+
+    Once retention has purged the raw events the aggregates are the only copy
+    there is, so a column missing here is a column nobody can ever get back.
+    The export used to carry visitors and pageviews alone, while the same rows
+    also held bounces and revenue.
+    """
+    add_event(db_session, visitor_id="a", pathname="/checkout")
+    add_event(db_session, visitor_id="a", pathname="/checkout", name="purchase",
+              revenue_minor=4990, source="Google")
+    rebuild_rollups()
+
+    rows = _rows(signed_in.get(f"/sites/{SITE_DOMAIN}/export.csv").text)
+    by_dimension = {(row[1], row[2]): row for row in rows[1:]}
+
+    assert by_dimension[("total", "")][-1] == "4990"
+    assert by_dimension[("source", "Google")][-1] == "4990"
+    # The money is attributed to the page the purchase fired on, not spread.
+    assert by_dimension[("page", "/checkout")][-1] == "4990"
