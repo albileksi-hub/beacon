@@ -224,6 +224,63 @@ class Site(Base):
     )
 
 
+class StepKind(StrEnum):
+    """What a funnel step is waiting for."""
+
+    PAGE = "page"
+    GOAL = "goal"
+
+
+class Funnel(Base):
+    """A path through a site, in the order somebody is meant to take it.
+
+    Measured within one visit and no further. A visitor ID here cannot outlive
+    the day it was minted in, so "signed up a week after reading the pricing
+    page" is not a question this schema can answer and never will be -- see
+    app.services.funnels for what that rules out.
+    """
+
+    __tablename__ = "funnels"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+
+    site: Mapped["Site"] = relationship()
+    steps: Mapped[list["FunnelStep"]] = relationship(
+        back_populates="funnel",
+        cascade="all, delete-orphan",
+        order_by="FunnelStep.position",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("site_id", "name", name="uq_funnels_name"),
+    )
+
+
+class FunnelStep(Base):
+    """One rung of a funnel: a page that was read, or a goal that fired."""
+
+    __tablename__ = "funnel_steps"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    funnel_id: Mapped[int] = mapped_column(ForeignKey("funnels.id", ondelete="CASCADE"))
+    # Zero-based, and unique per funnel: two steps in the same place is an
+    # order with no answer.
+    position: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(8))
+    # A pathname, or the name of a goal. Sized to whichever column it is
+    # matched against, so a step can always name something real.
+    value: Mapped[str] = mapped_column(String(1024))
+
+    funnel: Mapped[Funnel] = relationship(back_populates="steps")
+
+    __table_args__ = (
+        UniqueConstraint("funnel_id", "position", name="uq_funnel_steps_order"),
+    )
+
+
 class DailyStat(Base):
     """Pre-aggregated counts for one site, one day, one dimension value.
 

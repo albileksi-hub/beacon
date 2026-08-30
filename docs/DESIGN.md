@@ -779,6 +779,38 @@ points. The data is right in every case; it is the label "Jan" on a bucket
 holding half of January that is doing the misleading, and no arrangement of
 whole-month labels fixes a window that does not start on the first.
 
+## Funnels, and the question they cannot be asked
+
+A funnel is an ordered path — `/pricing`, then `/basket`, then the `purchase`
+goal — and the report says how many visits reached each step and how many
+stopped there.
+
+Two rules make it a funnel rather than three counts side by side. A visit is at
+step N only if it reached every step before it, and reached them *earlier*.
+Without the second, somebody landing on the confirmation page without ever
+seeing the basket counts as a conversion, and the funnel widens — which is not
+a funnel. There is a test for each, and removing the ordering clause turns
+three of them red.
+
+The counting is one pass. The inner query reduces each visit to the first
+moment it satisfied each step; the outer one counts the visits whose moments
+arrive in order. Pulling a row per visit into Python would be fine for a demo
+and hopeless for a site with a hundred thousand visits a day.
+
+**The limit is the interesting part.** Steps are counted inside a single visit,
+and that is the schema rather than a simplification: a visitor ID is a keyed
+hash of a salt that rotates at the site's own midnight, so the same person on
+Tuesday and Wednesday is two unrelated identities by construction. "Read the
+pricing page on Tuesday, bought on Thursday" is a conversion this system cannot
+see, and the rotation that makes it blind is the same one that makes the
+numbers anonymous. Plausible and Umami both answer that question because both
+keep an identity that outlives the day.
+
+Funnels also read raw events rather than the aggregates, because a funnel is a
+question about the order of several dimensions and the rollups hold one at a
+time. That bounds a funnel to whatever `BEACON_RAW_EVENT_RETENTION_DAYS` keeps,
+which the page says out loud rather than quietly returning a shorter answer.
+
 ## Goals
 
 Pageviews are the default, not the limit. Anything else a site cares about is
