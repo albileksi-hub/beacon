@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Funnels — {{ site_id }} — Beacon{% endblock %}
+
+{% block topbar %}
+<nav class="periods" aria-label="Reporting period">
+  {% for value, label in period_labels.items() %}
+    <a href="/sites/{{ site_id }}/funnels?period={{ value }}"
+       {% if value == period %}class="current" aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+{% endblock %}
+
+{% block content %}
+<section class="stack narrow">
+  <div class="page-head">
+    <h1>Funnels</h1>
+    <p class="muted">
+      How far people get along a path on <a href="/sites/{{ site_id }}">{{ site_id }}</a>,
+      within a single visit.
+    </p>
+  </div>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  {% for funnel, steps in funnels %}
+    {% set entered = steps[0].visits if steps else 0 %}
+    <div class="card">
+      <div class="funnel-head">
+        <h2>{{ funnel.name }}</h2>
+        <form method="post" action="/sites/{{ site_id }}/funnels/{{ funnel.id }}/delete">
+          <button type="submit" class="link-button">Delete</button>
+        </form>
+      </div>
+
+      {% if entered %}
+        <ol class="rows funnel">
+          {% set ns = namespace(previous=entered) %}
+          {% for step in steps %}
+            <li>
+              <span class="bar" style="width: {{ step.share_of(entered) }}%"></span>
+              <span class="label">
+                <span class="step-number">{{ loop.index }}</span>{{ step.label }}
+              </span>
+              {% if not loop.first and step.dropped_from(ns.previous) %}
+                <span class="dropped">−{{ step.dropped_from(ns.previous) | comma }}</span>
+              {% endif %}
+              <span class="share">{{ step.share_of(entered) }}%</span>
+              <span class="count">{{ step.visits | comma }}</span>
+            </li>
+            {% set ns.previous = step.visits %}
+          {% endfor %}
+        </ol>
+        <p class="muted funnel-note">
+          {{ steps[-1].visits | comma }} of {{ entered | comma }} finished —
+          {{ steps[-1].share_of(entered) }}%.
+        </p>
+      {% else %}
+        <p class="empty">Nobody reached the first step in this period.</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <div class="card">
+    <h2>Add a funnel</h2>
+    <form method="post" action="/sites/{{ site_id }}/funnels" class="form">
+      <label class="sr-only" for="name">Name</label>
+      <input type="text" name="name" id="name" placeholder="Checkout" required />
+
+      <label class="sr-only" for="steps">Steps</label>
+      <textarea name="steps" id="steps" rows="4" required
+                placeholder="/pricing&#10;/basket&#10;goal:purchase"></textarea>
+
+      <button type="submit" class="button primary">Add funnel</button>
+    </form>
+    <p class="muted funnel-note">
+      One step per line, in order. A line is a page path unless it starts with
+      <code>goal:</code>. Between two and eight steps.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>What a funnel here can and cannot tell you</h2>
+    <p class="muted">
+      Steps are counted <strong>within one visit</strong>. A visitor ID is
+      derived from a salt that rotates at this site's midnight, so somebody who
+      reads the pricing page today and signs up on Thursday is two unrelated
+      people as far as this database is concerned. That is the same rotation
+      that makes the numbers here anonymous; it is not a setting.
+    </p>
+    <p class="muted">
+      Funnels read raw events rather than the daily aggregates, because a
+      funnel is a question about the order of several things and the aggregates
+      hold one at a time.
+      {% if retention_days %}
+        Raw events are kept for {{ retention_days }} days here, so a funnel
+        cannot look further back than that.
+      {% else %}
+        Raw events are kept indefinitely on this instance, so funnels can look
+        as far back as the data goes.
+      {% endif %}
+    </p>
+  </div>
+</section>
+{% endblock %}

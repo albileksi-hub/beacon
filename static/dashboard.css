@@ -1326,3 +1326,61 @@ h2 {
 }
 
 .range-to { color: var(--muted); }
+
+/* ---- funnels ---- */
+
+.funnel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.funnel-head h2 { margin-bottom: 0.85rem; }
+
+.funnel li { grid-template-columns: 1fr auto auto auto; }
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 50%;
+}
+
+/* Losses, not takings: the one place a number here is bad news. */
+.dropped {
+  position: relative;
+  z-index: 1;
+  min-width: 3.5rem;
+  text-align: right;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--down);
+}
+
+.funnel-note { margin: 0.85rem 0 0; font-size: 0.82rem; }
+
+textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--text);
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}

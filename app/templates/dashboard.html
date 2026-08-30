@@ -77,6 +77,8 @@
         <a class="link-button"
            href="/sites/{{ site_id }}/export.csv?{% if chose_dates %}from={{ range_from }}&amp;to={{ range_to }}{% else %}period={{ period }}{% endif %}">Download CSV</a>
 
+        <a class="link-button" href="/sites/{{ site_id }}/funnels">Funnels</a>
+
         {% if is_owner %}<a class="link-button" href="/sites/{{ site_id }}/people">People</a>{% endif %}
 
         <form method="post" action="/sites/{{ site_id }}/visibility" class="control">
