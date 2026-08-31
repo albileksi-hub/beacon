@@ -704,11 +704,14 @@ h2 {
    behaviour is a light going round. The tower stands still, as a tower does,
    and the beam is what turns.
 
-   The tower is banded in greys rather than the red-and-white of the postcard,
-   because the page around it reserves colour for things that mean something.
-   On a lighthouse that is exactly one thing, so the lamp, the glass it sits
-   behind and the beam it throws are the only warm pixels here -- which puts
-   the light where the eye goes, and is what the object is for.
+   Banded red and cream, on wet dark stone, with cool slate metalwork. The
+   tower is the one thing on the site allowed to be an illustration rather than
+   a signal, so it does not have to answer to the palette -- but the metalwork
+   is cool on purpose, because it is what the warm light is seen against.
+
+   The lamp, the glass it sits behind and the beam it throws are the accent's
+   own yellow, so the cover and the interface agree about what colour a light
+   is. That is the only place the two meet.
 
    Every solid is a surface of revolution built from 36 facets, each rotated
    about the centre and pushed out by the radius, with backface-visibility
@@ -787,7 +790,7 @@ h2 {
   transform: translateY(107px) rotateY(calc(var(--i) * 10deg)) translateZ(46px)
     rotateX(10.305deg);
   clip-path: polygon(4.17% 0, 95.83% 0, 100% 100%, 0 100%);
-  background: linear-gradient(to bottom, #5c5c66, #2a2a30);
+  background: linear-gradient(to bottom, #4a5058, #1f2328);
 }
 
 /* Painted in bands, which is what makes a tower read as a lighthouse before
@@ -802,8 +805,8 @@ h2 {
   clip-path: polygon(11.25% 0, 88.75% 0, 100% 100%, 0 100%);
   background: repeating-linear-gradient(
     to bottom,
-    #e9e9ec 0 26px,
-    #3f3f47 26px 52px
+    #f4ead6 0 26px,
+    #b3261e 26px 52px
   );
 }
 
@@ -817,7 +820,7 @@ h2 {
   height: 9px;
   margin-top: -4.5px;
   transform: translateY(-58.5px) rotateY(calc(var(--i) * 10deg)) translateZ(38px);
-  background: linear-gradient(to bottom, #7a7a85, #3c3c44);
+  background: linear-gradient(to bottom, #6b7480, #2b3138);
 }
 
 /* The deck laid on top of it, and the rail around the edge. */
@@ -836,7 +839,7 @@ h2 {
   height: 76px;
   margin: -38px 0 0 -38px;
   transform: translateY(-63px) rotateX(90deg);
-  background: radial-gradient(circle, #5e5e68 60%, #767680 82%, #3c3c44 100%);
+  background: radial-gradient(circle, #4f575f 60%, #6b7480 82%, #2b3138 100%);
 }
 
 .plinth-cap {
@@ -844,7 +847,7 @@ h2 {
   height: 88px;
   margin: -44px 0 0 -44px;
   transform: translateY(96px) rotateX(90deg);
-  background: radial-gradient(circle, #68686f, #33333a 76%);
+  background: radial-gradient(circle, #565e66, #232930 76%);
 }
 
 /* Twelve uprights. Light enough to see against the tower behind them, which
@@ -856,7 +859,7 @@ h2 {
   height: 13px;
   margin-top: -6.5px;
   transform: translateY(-69.5px) rotateY(calc(var(--i) * 30deg)) translateZ(36px);
-  background: linear-gradient(to bottom, #a8a8b2, #5c5c66);
+  background: linear-gradient(to bottom, #9aa4b0, #4a5058);
 }
 
 .rail-ring {
@@ -864,7 +867,7 @@ h2 {
   height: 74px;
   margin: -37px 0 0 -37px;
   transform: translateY(-76px) rotateX(90deg);
-  border: 1.5px solid #8b8b95;
+  border: 1.5px solid #7d8794;
 }
 
 /* The glass the lamp sits behind. Lit from the inside, which is the whole
@@ -878,9 +881,9 @@ h2 {
   transform: translateY(-94px) rotateY(calc(var(--i) * 10deg)) translateZ(26px);
   background: linear-gradient(
     to bottom,
-    rgba(255, 214, 158, 0.42),
-    rgba(255, 176, 102, 0.30) 55%,
-    rgba(180, 96, 30, 0.34)
+    rgba(254, 240, 138, 0.44),
+    rgba(253, 224, 71, 0.32) 55%,
+    rgba(161, 98, 7, 0.36)
   );
   border-left: 0.6px solid rgba(70, 38, 12, 0.55);
 }
@@ -894,7 +897,7 @@ h2 {
   transform: translateY(-123px) rotateY(calc(var(--i) * 10deg)) translateZ(17px)
     rotateX(53.746deg);
   clip-path: polygon(46.88% 0, 53.12% 0, 100% 100%, 0 100%);
-  background: linear-gradient(to bottom, #8b8b95, #33333a);
+  background: linear-gradient(to bottom, #7d8794, #232930);
 }
 
 .finial {
@@ -906,7 +909,7 @@ h2 {
   margin-left: -2.5px;
   border-radius: 50%;
   transform: translateY(-136px);
-  background: #a8a8b2;
+  background: #c8d0da;
 }
 
 /* The lamp, and the halo it throws onto the glass. */
@@ -920,7 +923,7 @@ h2 {
   margin-top: -17px;
   border-radius: 50%;
   transform: translateY(-94px);
-  background: radial-gradient(circle, #fffaf0 20%, #ffce93 48%, rgba(251, 146, 60, 0) 78%);
+  background: radial-gradient(circle, #fffdf2 20%, #fde047 46%, rgba(250, 204, 21, 0) 78%);
   animation: lamp-throb 6s ease-in-out infinite;
 }
 
@@ -935,9 +938,9 @@ h2 {
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(255, 198, 133, 0.34) 0%,
-    rgba(251, 146, 60, 0.14) 36%,
-    rgba(251, 146, 60, 0) 68%
+    rgba(253, 224, 71, 0.34) 0%,
+    rgba(250, 204, 21, 0.15) 36%,
+    rgba(250, 204, 21, 0) 68%
   );
   animation: lamp-throb 6s ease-in-out infinite;
 }
@@ -967,9 +970,9 @@ h2 {
   clip-path: polygon(0 46%, 100% 0, 100% 100%, 0 54%);
   background: linear-gradient(
     90deg,
-    rgba(255, 208, 150, 0.40) 0%,
-    rgba(251, 146, 60, 0.15) 38%,
-    rgba(251, 146, 60, 0) 74%
+    rgba(253, 224, 71, 0.42) 0%,
+    rgba(250, 204, 21, 0.16) 38%,
+    rgba(250, 204, 21, 0) 74%
   );
   filter: blur(5px);
 }
