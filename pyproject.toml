@@ -37,7 +37,7 @@ dev = [
     "pyyaml>=6",
     # Supply chain. pip-audit checks the locked versions against the advisory
     # database; pip-tools regenerates the lock from pyproject.
-    "pip-audit>=2.7",
+    "pip-audit>=2.10.1",
     "pip-tools>=7.4",
 ]
 
