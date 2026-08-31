@@ -1,8 +1,10 @@
 import logging
+from typing import Any
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -25,6 +27,33 @@ BROWSER_ERRORS = {
     403: ("Not allowed", "This account cannot see that."),
     404: ("Nothing here", "That page does not exist, or it belongs to another account."),
 }
+
+
+class CachedStatic(StaticFiles):
+    """Static files, told how long they may be kept.
+
+    Starlette sends an etag and a last-modified and no Cache-Control at all,
+    so a browser revalidates every asset on every page load: a round trip per
+    file to be told nothing changed. The templates already ask for these by a
+    URL carrying a hash of the contents, which is exactly the condition under
+    which a file can be kept forever -- the work of busting the cache was being
+    done without taking the reward for it.
+
+    A request without that hash is a different matter. beacon.js is served
+    unhashed on purpose, because customers paste that URL into their own pages
+    and it has to stay stable, which means a new version has to be able to
+    reach them. Those get minutes rather than a year.
+    """
+
+    IMMUTABLE = "public, max-age=31536000, immutable"
+    BRIEF = "public, max-age=300"
+
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:
+        response = super().file_response(*args, **kwargs)
+        scope = args[2] if len(args) > 2 else kwargs["scope"]
+        versioned = b"v=" in scope.get("query_string", b"")
+        response.headers["cache-control"] = self.IMMUTABLE if versioned else self.BRIEF
+        return response
 
 
 def create_app() -> FastAPI:
@@ -63,6 +92,12 @@ def create_app() -> FastAPI:
 
     app.add_middleware(SecurityHeaders)
 
+    # The stylesheet is 36 KB of text and was going over the wire uncompressed;
+    # CSS is mostly repeated identifiers, so it packs down by roughly eight to
+    # one. The floor keeps it off the collector's replies, which are a couple
+    # of dozen bytes and would only grow.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+
     # Added after RequestLogging so it runs before it: an oversized body is
     # refused without being read, and still gets logged on the way out.
     app.add_middleware(LimitRequestSize, max_bytes=settings.max_request_bytes)
@@ -78,7 +113,7 @@ def create_app() -> FastAPI:
     app.include_router(keys.router)
     app.include_router(exports.router)
     app.include_router(dashboard.router)
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.mount("/static", CachedStatic(directory=STATIC_DIR), name="static")
 
     @app.exception_handler(StarletteHTTPException)
     async def render_errors_for_browsers(

@@ -6,6 +6,7 @@ again; the third correction is this file. The same goes for the claims the
 README makes about files that are supposed to exist.
 """
 
+import gzip
 import re
 from pathlib import Path
 
@@ -76,3 +77,27 @@ def test_the_readme_stays_short_enough_to_read() -> None:
     """
     assert len(README.read_text(encoding="utf-8")) < 6_000
     assert (ROOT / "docs" / "DESIGN.md").is_file(), "the long form should still exist"
+
+
+def test_the_readme_states_the_real_script_size() -> None:
+    """The other number a person had to remember, and did not.
+
+    The README said 1.9 KB long after the script had grown to 2.3 -- it gained
+    revenue handling and nothing recalculated the claim. It is the same failure
+    the test count above exists to prevent, so it gets the same treatment.
+
+    Compared within a tolerance rather than exactly: the byte count depends on
+    the zlib the test happens to run against, and this suite runs on more than
+    one machine. Five per cent is far tighter than the 23% the claim had
+    already drifted by, and loose enough not to fail for a library version.
+    """
+    claimed = re.search(r"\*\*([\d.]+) KB gzipped\*\*", README.read_text(encoding="utf-8"))
+    assert claimed is not None, "the README no longer states the script size"
+
+    script = (ROOT / "static" / "beacon.js").read_bytes()
+    actual_kb = len(gzip.compress(script, 9)) / 1024
+
+    assert abs(float(claimed.group(1)) - actual_kb) / actual_kb < 0.05, (
+        f"README says {claimed.group(1)} KB, the script gzips to {actual_kb:.2f} KB. "
+        "Update the number in README.md rather than this assertion."
+    )

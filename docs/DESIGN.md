@@ -534,7 +534,7 @@ into the reporting layer, which is exactly what the timezone work removed. It
 is a real feature and it is missing on purpose; the note is here so the gap
 reads as a decision rather than an oversight.
 
-The tracking script is **2,148 bytes gzipped** (`gzip -9`), comments and all —
+The tracking script is **2,397 bytes gzipped** (`gzip -9`), comments and all —
 it is served as written rather than minified, so the reasoning travels with it.
 
 ## Telling crawlers from people
@@ -810,6 +810,53 @@ Funnels also read raw events rather than the aggregates, because a funnel is a
 question about the order of several dimensions and the rollups hold one at a
 time. That bounds a funnel to whatever `BEACON_RAW_EVENT_RETENTION_DAYS` keeps,
 which the page says out loud rather than quietly returning a shorter answer.
+
+## Serving it, and what the browser is allowed to keep
+
+Two things were being paid for on every page load and neither had to be.
+
+**Assets carried no `Cache-Control`.** Starlette sends an etag and a
+last-modified, so a browser revalidates every file on every load: a round trip
+per asset to be told nothing changed. The templates already ask for them by a
+URL carrying a hash of the contents, which is exactly the condition under which
+a file can be kept forever — the work of busting the cache was being done
+without taking the reward for it. A request carrying that hash now gets a year
+and `immutable`.
+
+A request without one is a different matter. `beacon.js` is served unhashed on
+purpose, because customers paste that URL into their own pages and it has to
+stay stable, which also means a fix has to be able to reach the sites running
+it. That gets five minutes rather than a year, and there is a test for each so
+the two cannot be confused later.
+
+**Nothing was compressed.** The stylesheet is 36 KB of mostly repeated
+identifiers and went over the wire in full; it packs to 10.7 KB, so a fresh
+load was carrying 26 KB it did not need. The tracker went from 5.3 KB to 2.4,
+which is the one that matters most — it runs on every page of somebody else's
+site, so its size is their cost rather than ours. The floor is 1 KB, which
+keeps compression off the collector's replies: they are about twenty bytes and
+gzip would only make them longer.
+
+That last number had also gone stale in the README, which claimed 1.9 KB long
+after the script had grown to 2.3 — it gained revenue handling and nothing
+recalculated the claim. It is checked against the file now, the same way the
+test count is, because a number a person has to remember to update is a number
+that will be wrong again.
+
+### One maintenance loop per process
+
+The rollup refresh runs inside the web process on a timer, which is right for
+the single worker the image starts and wrong for several. Every worker would
+rebuild the same days on the same schedule — idempotent, so the numbers stay
+correct, but it is N times the work and N writers contending for a database
+that permits one.
+
+Nothing in the code prevents that, deliberately: guarding it would mean either
+a lock table or a Postgres advisory lock, and the second is the dialect leaking
+back into a codebase that worked hard to get it out. The answer if you scale
+out is to set `BEACON_ROLLUP_INTERVAL_SECONDS=0` and run `manage.py rollup` on
+a timer beside the service, which is where a scheduled job belongs once there
+is more than one of anything.
 
 ## Goals
 
