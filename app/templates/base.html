@@ -12,7 +12,17 @@
   <body>
     <header class="topbar">
       <a class="brand" href="/">
-        <span class="mark" aria-hidden="true"></span>
+        {# A light throwing one beam. Inline rather than an <img> so it takes
+           its colour from the theme like everything else.
+
+           One beam and not two: symmetric wedges either side of a circle read
+           as a bow tie, which is a thing you only find out by looking at it
+           enlarged. Asymmetry is what makes it a light rather than an
+           ornament. #}
+        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+          <circle class="mark-core" cx="6.6" cy="12" r="3.9" />
+          <path class="mark-beam" d="M9.4 9.4 L23 3.6 V20.4 L9.4 14.6 Z" />
+        </svg>
         <span>Beacon</span>
       </a>
 

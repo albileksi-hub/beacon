@@ -1,68 +1,79 @@
 /* Beacon dashboard styles.
 
-   Slate with an indigo accent. The accent is the one hue on the page and it is
-   spent on two things: what is selected, and the line on the chart. Everything
-   that means good or bad news -- a rise, a fall, the live counter -- keeps its
-   own colour, so a green number is still green because it is good rather than
-   because it is decorative.
+   Yellow, which is the one hue that forces a distinction the others let you
+   ignore: the colour text can BE, and the colour you can put text ON are not
+   the same. Bright yellow on white is 1.5:1 and unreadable, while dark text on
+   bright yellow is 11:1 and excellent. So there are two tokens.
+
+     --accent       what accent-coloured text is drawn in. Bright yellow in the
+                    dark theme, a dark ochre in the light one, because nothing
+                    brighter can carry text on white.
+     --accent-fill  what gets used as a ground behind text -- the selected tab,
+                    the primary button. Bright yellow in both themes, always
+                    with --on-accent over it.
+
+   Good and bad news keep their own colours, so a green number is green because
+   it is good rather than because it is decorative.
 
    Themed with tokens. Dark is the default and sits on bare :root, so it is
    what a visitor gets whatever their system is set to; light applies only when
    someone asks for it with the toggle. */
 
 :root {
-  --bg: #0b0c10;
-  --bg-tint: #12141b;
-  --panel: #14161c;
-  --panel-soft: #1b1e27;
-  --text: #e9eaee;
-  --text-soft: #c0c4cf;
-  --muted: #8b91a1;
-  --border: #232733;
-  --border-strong: #333949;
-  --accent: #818cf8;
-  --accent-hover: #a5b4fc;
-  --accent-soft: #1e2140;
-  --accent-line: #3b3f6b;
-  --on-accent: #0b0c10;
-  --up: #34d399;
+  --bg: #0c0c0d;
+  --bg-tint: #131314;
+  --panel: #16161a;
+  --panel-soft: #1e1e22;
+  --text: #eceae4;
+  --text-soft: #c6c4bc;
+  --muted: #8b8a85;
+  --border: #282828;
+  --border-strong: #3a3a38;
+  --accent: #facc15;
+  --accent-fill: #facc15;
+  --accent-hover: #fde047;
+  --accent-soft: #2a2410;
+  --accent-line: #5c5117;
+  --on-accent: #1a180a;
+  --up: #4ade80;
   --down: #fb7185;
-  --live: #34d399;
+  --live: #4ade80;
   --danger-text: #fca5a5;
-  --danger-bg: #2a1a1f;
-  --danger-border: #4a2430;
+  --danger-bg: #2a1818;
+  --danger-border: #4a2626;
   --shadow-sm: none;
   --shadow-md: none;
-  --ring: 0 0 0 3px rgba(129, 140, 248, 0.32);
+  --ring: 0 0 0 3px rgba(250, 204, 21, 0.30);
 
   --radius: 10px;
   --radius-sm: 6px;
 }
 
 :root[data-theme="light"] {
-  --bg: #f8f9fb;
-  --bg-tint: #eef0f5;
+  --bg: #fbfaf7;
+  --bg-tint: #f4f2ec;
   --panel: #ffffff;
-  --panel-soft: #f3f5f9;
-  --text: #111726;
-  --text-soft: #3c4356;
-  --muted: #656d80;
-  --border: #e3e6ee;
-  --border-strong: #cfd4e0;
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-soft: #eef0fe;
-  --accent-line: #c7cbf7;
-  --on-accent: #ffffff;
+  --panel-soft: #f5f3ed;
+  --text: #1c1917;
+  --text-soft: #403c36;
+  --muted: #67675f;
+  --border: #e8e5dd;
+  --border-strong: #d5d1c6;
+  --accent: #a16207;
+  --accent-fill: #facc15;
+  --accent-hover: #854d0e;
+  --accent-soft: #fdf6d8;
+  --accent-line: #f0d675;
+  --on-accent: #1c1917;
   --up: #15803d;
   --down: #dc2626;
   --live: #16a34a;
   --danger-text: #b91c1c;
   --danger-bg: #fef2f2;
   --danger-border: #fecaca;
-  --shadow-sm: 0 1px 2px rgba(17, 23, 38, 0.05);
-  --shadow-md: 0 1px 2px rgba(17, 23, 38, 0.04), 0 6px 16px -6px rgba(17, 23, 38, 0.1);
-  --ring: 0 0 0 3px rgba(79, 70, 229, 0.24);
+  --shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.05);
+  --shadow-md: 0 1px 2px rgba(28, 25, 23, 0.04), 0 6px 16px -6px rgba(28, 25, 23, 0.1);
+  --ring: 0 0 0 3px rgba(161, 98, 7, 0.24);
 }
 
 * { box-sizing: border-box; }
@@ -146,16 +157,23 @@ code, pre, .snippet {
   text-decoration: none;
 }
 
+/* A light throwing two beams, which is what a beacon is. Drawn rather than
+   dotted: the old mark was a circle with two glow rings, which at 11px was a
+   smudge and said nothing about the product.
+
+   It takes --accent rather than --accent-fill because it sits on the page
+   itself with nothing behind it, and a graphic needs 3:1 against what it is
+   drawn on -- bright yellow on a white topbar is 1.5:1. */
 .mark {
-  position: relative;
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
-    0 0 0 7px color-mix(in srgb, var(--accent) 9%, transparent);
+  display: block;
+  width: 1.3rem;
+  height: 1.3rem;
+  color: var(--accent);
+  flex: 0 0 auto;
 }
+
+.mark-beam { fill: currentColor; opacity: 0.34; }
+.mark-core { fill: currentColor; }
 
 .who {
   color: var(--muted);
@@ -225,13 +243,13 @@ code, pre, .snippet {
 }
 
 .periods a:hover { color: var(--text); background: var(--panel); }
-.periods a.current:hover { color: var(--on-accent); background: var(--accent-hover); }
+.periods a.current:hover { color: var(--on-accent); background: var(--accent-line); }
 
 .periods a.current {
   /* Same problem, same answer: panel on panel-soft is 1.1:1, which reads as
      nothing at all whatever the hue is. */
   color: var(--on-accent);
-  background: var(--accent);
+  background: var(--accent-fill);
   font-weight: 600;
   box-shadow: none;
 }
@@ -551,7 +569,7 @@ h2 {
      1.1:1 and reads as nothing at all; the selected tab takes the accent as
      its ground instead, which is 6:1 against the panel and unmistakable. */
   color: var(--on-accent);
-  background: var(--accent);
+  background: var(--accent-fill);
   font-weight: 600;
 }
 
@@ -1122,7 +1140,7 @@ h2 {
   /* Not white: the dark theme's accent is a bright teal, and white on it is
      1.9:1. The token flips with the palette so the button stays readable. */
   color: var(--on-accent);
-  background: var(--accent);
+  background: var(--accent-fill);
   box-shadow: var(--shadow-sm);
 }
 
