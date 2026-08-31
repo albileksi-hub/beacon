@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Form, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.dependencies import CurrentUser, DbSession, SettingsDep
@@ -113,13 +113,25 @@ def forgot_form(request: Request, user: CurrentUser) -> Response:
 
 @router.post("/forgot")
 def forgot(
-    request: Request, db: DbSession, settings: SettingsDep, email: EmailField
+    request: Request,
+    db: DbSession,
+    settings: SettingsDep,
+    email: EmailField,
+    background: BackgroundTasks,
 ) -> Response:
     """Ask for a reset link.
 
     Answers the same way whether or not the address is registered, and throttles
     on the requester rather than the address -- rate limiting per address would
     let somebody lock a known account out of its own recovery.
+
+    Answering the same way is not enough on its own: the mail used to be sent
+    before the response was written, so a registered address took as long as an
+    SMTP conversation and an unregistered one returned immediately. Measured
+    against an unreachable relay that was 10,008ms against roughly 1ms -- the
+    identical page arriving ten seconds late says everything the page refused
+    to. It is queued behind the response now, so both answers are written at
+    the same point in the same work.
     """
     marker = throttle.fingerprint(db, client_ip(request), purpose="reset")
     if throttle.is_locked(db, marker):
@@ -135,7 +147,8 @@ def forgot(
     if issued is not None:
         account, token = issued
         link = f"{settings.base_url.rstrip('/')}/reset/{token}"
-        mail.deliver(
+        background.add_task(
+            mail.deliver,
             settings,
             to=account.email,
             subject="Choose a new Beacon password",

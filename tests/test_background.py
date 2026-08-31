@@ -8,13 +8,16 @@ from sqlalchemy import select
 
 from app import background
 from app.config import Settings
-from app.models import DailySalt, DailyStat, Event, LoginAttempt
+from app.models import DailySalt, DailyStat, Event, LoginAttempt, PasswordReset
 
 
 def _settings(monkeypatch, interval: int) -> None:
     monkeypatch.setattr(
         background, "get_settings", lambda: Settings(rollup_interval_seconds=interval)
     )
+
+
+HOUR = dt.timedelta(hours=1)
 
 
 def test_no_loop_runs_when_the_interval_is_zero(monkeypatch):
@@ -161,3 +164,32 @@ def test_buffering_starts_a_writer_and_drains_it_on_shutdown(monkeypatch):
 
     # stop() clears the thread handle, which is how a drained writer looks.
     assert writer._thread is None
+
+
+def test_maintenance_also_expires_spent_reset_links(db_session, account, monkeypatch):
+    """recovery.purge_expired existed and was called from nowhere.
+
+    Every other expiring table is swept here -- salts, login attempts, raw
+    events -- and this one was written with them and then left out of the loop,
+    so it was the single table on the instance that only ever grew. On a
+    service whose whole argument is that it discards what it has stopped
+    needing, the table of spent credentials is a poor one to keep forever.
+    """
+    now = dt.datetime.now(dt.UTC)
+    db_session.add(
+        PasswordReset(user_id=account.id, digest="expired" + "0" * 57, expires_at=now - HOUR)
+    )
+    db_session.add(
+        PasswordReset(
+            user_id=account.id, digest="spent" + "0" * 59, expires_at=now + HOUR, used_at=now
+        )
+    )
+    live = PasswordReset(user_id=account.id, digest="live" + "0" * 60, expires_at=now + HOUR)
+    db_session.add(live)
+    db_session.commit()
+
+    monkeypatch.setattr(background, "SessionLocal", lambda: contextlib.nullcontext(db_session))
+    background.run_maintenance()
+
+    surviving = [r.digest for r in db_session.scalars(select(PasswordReset))]
+    assert surviving == [live.digest], "a link that is still usable must survive the sweep"

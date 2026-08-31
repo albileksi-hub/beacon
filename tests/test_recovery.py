@@ -9,6 +9,7 @@ is a way of leaving it ajar.
 import datetime as dt
 
 import pytest
+from fastapi import BackgroundTasks
 from sqlalchemy import select
 
 from app.config import Settings
@@ -326,3 +327,34 @@ def test_the_form_is_offered_to_someone_signed_out(client):
 
     assert page.status_code == 200
     assert 'action="/forgot"' in page.text
+
+
+def test_the_reset_mail_is_sent_after_the_response_not_before_it(client, account, monkeypatch):
+    """Answering identically is not enough if one answer takes ten seconds.
+
+    The mail used to go out inline, so a registered address paid for a whole
+    SMTP conversation and an unregistered one returned immediately. Measured
+    against an unreachable relay that was 10,008ms against roughly 1ms: the
+    same page, arriving late enough to say what the page would not. A throttle
+    of five attempts does nothing about it -- five probes is plenty to tell ten
+    seconds from one millisecond.
+
+    Asserted through BackgroundTasks rather than by timing, because the test
+    client runs background work inside the request and would show no
+    difference. What must not come back is `mail.deliver` on the request path.
+    """
+    queued: list = []
+    original = BackgroundTasks.add_task
+
+    def spy(self, func, *args, **kwargs):
+        queued.append(func)
+        return original(self, func, *args, **kwargs)
+
+    monkeypatch.setattr(BackgroundTasks, "add_task", spy)
+
+    response = client.post("/forgot", data={"email": account.email})
+
+    assert response.status_code == 200
+    # The real function, not a stand-in: patching mail.deliver out would make
+    # this pass while proving only that the patch was queued.
+    assert mail.deliver in queued, f"the mail did not go through add_task: {queued}"
