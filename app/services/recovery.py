@@ -21,8 +21,9 @@ leaves open:
 import datetime as dt
 import hashlib
 import secrets
+from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import CursorResult, delete, select
 from sqlalchemy.orm import Session
 
 from app.models import PasswordReset, User
@@ -111,16 +112,28 @@ def redeem(
 
 
 def purge_expired(db: Session, *, now: dt.datetime | None = None) -> int:
-    """Drop rows that can no longer do anything. Returns how many went."""
+    """Drop rows that can no longer do anything. Returns how many went.
+
+    One set-based statement, which is how every other purge here is written.
+
+    The version before it selected every dead row into memory as ORM objects
+    and then deleted them by primary key. That is not the round trip per row it
+    looks like -- SQLAlchemy batches those deletes into a single executemany --
+    so the cost is the loading, not the talking: a sweep of a large backlog
+    built a Python object for every spent link before deleting any of them.
+    The database can match and delete in one pass without any of them existing.
+    """
     moment = now or _now()
-    dead = list(
-        db.scalars(
-            select(PasswordReset).where(
+    # rowcount lives on CursorResult; Session.execute is typed as returning the
+    # narrower Result.
+    result = cast(
+        CursorResult[Any],
+        db.execute(
+            delete(PasswordReset).where(
                 (PasswordReset.expires_at <= moment) | (PasswordReset.used_at.is_not(None))
             )
-        )
+        ),
     )
-    for reset in dead:
-        db.delete(reset)
+    deleted = result.rowcount
     db.commit()
-    return len(dead)
+    return deleted
