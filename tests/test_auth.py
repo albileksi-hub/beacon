@@ -14,9 +14,9 @@ def test_signing_up_creates_an_account_and_signs_you_in(client, db_session):
     )
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/"
+    assert response.headers["location"] == "/sites"
     assert db_session.scalar(select(User).where(User.email == "new@example.com")) is not None
-    assert client.get("/").status_code == 200
+    assert client.get("/sites").status_code == 200
 
 
 def test_signing_up_with_a_taken_email_is_refused(client, account):
@@ -64,13 +64,14 @@ def test_signing_in_with_an_unknown_email_gives_the_same_message(client):
 
 
 def test_signing_out_ends_the_session(signed_in):
-    assert "Your sites" in signed_in.get("/").text
+    assert "Your sites" in signed_in.get("/sites").text
 
     response = signed_in.post("/logout", follow_redirects=False)
 
     assert response.status_code == 303
-    # The same URL now shows the public page instead of the account.
-    assert "Your sites" not in signed_in.get("/").text
+    # The list is behind a session, so it stops being reachable rather than
+    # quietly rendering as the public page.
+    assert signed_in.get("/sites", follow_redirects=False).status_code == 401
 
 
 def test_login_and_signup_pages_render_for_visitors(client):
@@ -82,7 +83,7 @@ def test_signed_in_users_are_sent_home_from_the_auth_pages(signed_in):
     for path in ("/login", "/signup"):
         response = signed_in.get(path, follow_redirects=False)
         assert response.status_code == 303
-        assert response.headers["location"] == "/"
+        assert response.headers["location"] == "/sites"
 
 
 def test_adding_a_site(signed_in, db_session, account):

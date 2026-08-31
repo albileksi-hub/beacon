@@ -31,7 +31,7 @@ That is the entire integration. The script is **1.9 KB gzipped**.
 | **A year of traffic renders in 9.6 ms** | instead of 2,027 ms — **211x**, by pre-aggregating on a daily grain |
 | **Bot filtering went 65.5% → 100%** | measured against 2,118 real crawler user-agents; the third it used to miss included `ChatGPT-User`, `Applebot` and `Bytespider` |
 | **p99 ingest 915 ms → 91 ms** | moving the write off the request path; worst case 4,249 ms → 135 ms |
-| **648 tests, 100% coverage of `app/`** | `ruff` and `mypy --strict` clean, run against SQLite *and* Postgres in CI |
+| **651 tests, 100% coverage of `app/`** | `ruff` and `mypy --strict` clean, run against SQLite *and* Postgres in CI |
 | **Zero JavaScript on the dashboard** | charts are server-rendered SVG; the page works with scripting disabled |
 | **Read it from anywhere** | `Authorization: Bearer` keys on the stats API — read-only by construction, so a leaked key can pull numbers and change nothing |
 

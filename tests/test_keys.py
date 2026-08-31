@@ -95,7 +95,7 @@ def test_the_key_is_shown_once_and_then_never_again(signed_in, db_session, accou
     shown = [line for line in created.text.splitlines() if tokens.PREFIX in line]
     assert shown, "the plaintext should appear in the response that created it"
 
-    later = signed_in.get("/")
+    later = signed_in.get("/sites")
     assert tokens.PREFIX not in later.text
     assert "laptop" in later.text
 

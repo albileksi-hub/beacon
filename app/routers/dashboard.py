@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.dependencies import CurrentUser, DbSession
+from app.dependencies import CurrentUser, DbSession, RequiredUser
 from app.services import accounts, charts, reports, timeranges, tokens, zones
 from app.services.stats import BreakdownProperty
 from app.services.timeranges import Period, resolve
@@ -39,12 +39,21 @@ PERIOD_LABELS = {
 
 
 @router.get("/", response_class=HTMLResponse)
-def index(request: Request, db: DbSession, user: CurrentUser) -> Response:
-    # Signed-out visitors get an explanation of what this is, rather than being
-    # dropped straight onto a login form with no context.
-    if user is None:
-        return templates.TemplateResponse(request, "landing.html", {})
+def index(request: Request, user: CurrentUser) -> Response:
+    """The front page, whoever is looking at it.
 
+    It used to be two pages behind one URL -- an explanation when signed out
+    and the site list when signed in -- which meant the masthead had nowhere to
+    point. Clicking the name of the product took you to your account rather
+    than to the front page, and there was no way back to it at all without
+    signing out. The list lives at /sites now and this is just the front page.
+    """
+    return templates.TemplateResponse(request, "landing.html", {"user": user})
+
+
+@router.get("/sites", response_class=HTMLResponse)
+def site_list(request: Request, db: DbSession, user: RequiredUser) -> Response:
+    """Everything this account can open."""
     return templates.TemplateResponse(
         request,
         "index.html",

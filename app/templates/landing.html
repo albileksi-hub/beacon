@@ -60,9 +60,16 @@
     consent banner, because there is nothing to consent to.
   </p>
 
+  {# Somebody already signed in is being shown the front page on purpose --
+     they clicked the name of the product to get here -- so offer them the way
+     back in rather than an account they already have. #}
   <div class="hero-actions">
-    <a class="button primary" href="/signup">Create an account</a>
-    <a class="button ghost" href="/login">Sign in</a>
+    {% if user %}
+      <a class="button primary" href="/sites">Go to your sites</a>
+    {% else %}
+      <a class="button primary" href="/signup">Create an account</a>
+      <a class="button ghost" href="/login">Sign in</a>
+    {% endif %}
   </div>
 
   <p class="snippet-caption">The entire integration:</p>
