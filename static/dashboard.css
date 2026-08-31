@@ -340,6 +340,15 @@ h2 {
   gap: 0.75rem;
 }
 
+/* The count is not fixed: a site that takes money has five metrics and one
+   that does not has four. auto-fit lands on four columns either way at desktop
+   widths, so the fifth sat alone on a line of its own -- the same orphan the
+   live counter used to make, arriving again by a different route. :has counts
+   the tiles, which is the one thing auto-fit cannot do. */
+@media (min-width: 840px) {
+  .tiles:has(> :nth-child(5)) { grid-template-columns: repeat(5, 1fr); }
+}
+
 /* The live count, beside the site name rather than among the metrics. It has
    no period, no comparison and no sparkline, and as the fifth of four it
    orphaned itself onto a line of its own at every width where four fit. */
