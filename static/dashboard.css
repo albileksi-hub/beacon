@@ -1,57 +1,58 @@
 /* Beacon dashboard styles.
 
-   Near-monochrome on purpose. The only saturated pixels on a page are the ones
-   that carry meaning -- a rise, a fall, a live counter -- so a number that is
-   coloured is a number saying something. Everything else, including the chart
-   and the links, is drawn in the same greys as the text.
+   Slate with an indigo accent. The accent is the one hue on the page and it is
+   spent on two things: what is selected, and the line on the chart. Everything
+   that means good or bad news -- a rise, a fall, the live counter -- keeps its
+   own colour, so a green number is still green because it is good rather than
+   because it is decorative.
 
    Themed with tokens. Dark is the default and sits on bare :root, so it is
    what a visitor gets whatever their system is set to; light applies only when
    someone asks for it with the toggle. */
 
 :root {
-  --bg: #0a0a0b;
-  --bg-tint: #131316;
-  --panel: #131316;
-  --panel-soft: #1a1a1e;
-  --text: #ededef;
-  --text-soft: #c4c4cb;
-  --muted: #8b8b93;
-  --border: #26262b;
-  --border-strong: #35353c;
-  --accent: #d4d4d8;
-  --accent-hover: #f4f4f5;
-  --accent-soft: #1e1e23;
-  --accent-line: #3f3f46;
-  --on-accent: #0a0a0b;
-  --up: #22c55e;
-  --down: #ef4444;
-  --live: #22c55e;
+  --bg: #0b0c10;
+  --bg-tint: #12141b;
+  --panel: #14161c;
+  --panel-soft: #1b1e27;
+  --text: #e9eaee;
+  --text-soft: #c0c4cf;
+  --muted: #8b91a1;
+  --border: #232733;
+  --border-strong: #333949;
+  --accent: #818cf8;
+  --accent-hover: #a5b4fc;
+  --accent-soft: #1e2140;
+  --accent-line: #3b3f6b;
+  --on-accent: #0b0c10;
+  --up: #34d399;
+  --down: #fb7185;
+  --live: #34d399;
   --danger-text: #fca5a5;
-  --danger-bg: #2a1618;
-  --danger-border: #4a2226;
+  --danger-bg: #2a1a1f;
+  --danger-border: #4a2430;
   --shadow-sm: none;
   --shadow-md: none;
-  --ring: 0 0 0 3px rgba(212, 212, 216, 0.28);
+  --ring: 0 0 0 3px rgba(129, 140, 248, 0.32);
 
   --radius: 10px;
   --radius-sm: 6px;
 }
 
 :root[data-theme="light"] {
-  --bg: #fafafa;
-  --bg-tint: #f4f4f5;
+  --bg: #f8f9fb;
+  --bg-tint: #eef0f5;
   --panel: #ffffff;
-  --panel-soft: #f4f4f5;
-  --text: #18181b;
-  --text-soft: #3f3f46;
-  --muted: #6b6b74;
-  --border: #e4e4e7;
-  --border-strong: #d4d4d8;
-  --accent: #18181b;
-  --accent-hover: #3f3f46;
-  --accent-soft: #f4f4f5;
-  --accent-line: #d4d4d8;
+  --panel-soft: #f3f5f9;
+  --text: #111726;
+  --text-soft: #3c4356;
+  --muted: #656d80;
+  --border: #e3e6ee;
+  --border-strong: #cfd4e0;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef0fe;
+  --accent-line: #c7cbf7;
   --on-accent: #ffffff;
   --up: #15803d;
   --down: #dc2626;
@@ -59,9 +60,9 @@
   --danger-text: #b91c1c;
   --danger-bg: #fef2f2;
   --danger-border: #fecaca;
-  --shadow-sm: 0 1px 2px rgba(9, 9, 11, 0.05);
-  --shadow-md: 0 1px 2px rgba(9, 9, 11, 0.04), 0 6px 16px -6px rgba(9, 9, 11, 0.1);
-  --ring: 0 0 0 3px rgba(24, 24, 27, 0.2);
+  --shadow-sm: 0 1px 2px rgba(17, 23, 38, 0.05);
+  --shadow-md: 0 1px 2px rgba(17, 23, 38, 0.04), 0 6px 16px -6px rgba(17, 23, 38, 0.1);
+  --ring: 0 0 0 3px rgba(79, 70, 229, 0.24);
 }
 
 * { box-sizing: border-box; }
@@ -227,8 +228,8 @@ code, pre, .snippet {
 .periods a.current:hover { color: var(--on-accent); background: var(--accent-hover); }
 
 .periods a.current {
-  /* Same problem, same answer: panel on panel-soft is 1.1:1 and read as
-     nothing at all once the hue went. */
+  /* Same problem, same answer: panel on panel-soft is 1.1:1, which reads as
+     nothing at all whatever the hue is. */
   color: var(--on-accent);
   background: var(--accent);
   font-weight: 600;
@@ -546,11 +547,9 @@ h2 {
 .tabs:has(.tab-input:nth-of-type(14):checked) .tab:nth-child(14),
 .tabs:has(.tab-input:nth-of-type(15):checked) .tab:nth-child(15),
 .tabs:has(.tab-input:nth-of-type(16):checked) .tab:nth-child(16) {
-  /* Inverted, not tinted. The old rule drew the selection as accent-soft on
-     panel, which under a colour scheme was a visible tint and under this one
-     is 1.1:1 -- so choosing a tab looked like nothing had happened. The
-     selected tab now takes the near-white accent as its ground and the
-     near-black on it as its text: 13:1, unmistakable, and still no hue. */
+  /* Filled, not tinted. Drawing selection as accent-soft on panel is about
+     1.1:1 and reads as nothing at all; the selected tab takes the accent as
+     its ground instead, which is 6:1 against the panel and unmistakable. */
   color: var(--on-accent);
   background: var(--accent);
   font-weight: 600;
