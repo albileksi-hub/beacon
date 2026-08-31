@@ -1451,6 +1451,37 @@ honoured if the host injects one.
 Migrations are Alembic, and one set runs on both databases: SQLite cannot
 `ALTER` most things, so batch mode rebuilds the table instead.
 
+## Where the dependencies come from
+
+Twelve `>=` floors and no lockfile meant two people building this image a week
+apart got different software, and neither could say what changed. For something
+self-hosted that is the whole supply chain resting on whatever PyPI served that
+afternoon -- and nobody was watching it: no lock, no audit, no Dependabot, so a
+compromised release upstream would have arrived on the next rebuild of every
+instance, silently.
+
+`requirements.lock` pins all 45 packages in the runtime tree with a hash for
+every artefact, and the image installs with `--require-hashes`, so the build
+fails rather than substitutes if any byte differs from what was locked.
+
+The Dockerfile used to say pyproject was the single source of truth "so there
+is no requirements.txt to drift". The instinct was right about hand-kept
+requirements files and wrong about locks: a generated lock cannot drift,
+because drift is the thing pinning prevents. What it can do is rot, if someone
+adds a dependency and never regenerates it -- so three tests hold it shut.
+Every declared dependency must be pinned, every pin must carry a hash, and the
+image must actually read the lock and demand those hashes. Each was confirmed
+by breaking it and watching the right test fail.
+
+`pip-audit` and `pip-tools` are dev dependencies now: one regenerates the lock
+from pyproject, the other checks the locked versions against the advisory
+database. The audit at the time of writing is clean -- the only findings in the
+tree were against `pip` itself, which is build tooling and not shipped.
+
+Not yet done: running that audit in CI. It belongs in the workflow file, which
+needs a scope the tooling to hand does not have, so for now it is a command a
+person runs. That is weaker than a gate and is not being described as one.
+
 ## What CI checks
 
 Four jobs, on every push and pull request:

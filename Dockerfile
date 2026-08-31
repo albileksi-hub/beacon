@@ -6,11 +6,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Dependency metadata and the package itself. pyproject is the single source of
-# truth for what gets installed, so there is no requirements.txt to drift.
-COPY pyproject.toml README.md ./
+# pyproject declares what this depends on; requirements.lock decides which exact
+# versions arrive, with a hash for every artefact. The floors in pyproject alone
+# meant two people building this image a week apart got different software and
+# neither could say what changed -- which for self-hosted analytics is the whole
+# supply chain resting on whatever PyPI served that afternoon.
+#
+# The lock is generated, never hand-edited, so it cannot drift from pyproject
+# the way a hand-kept requirements.txt does; a test fails the build if a
+# declared dependency is missing from it.
+COPY pyproject.toml README.md requirements.lock ./
 COPY app ./app
-RUN pip install --upgrade pip && pip install .
+RUN pip install --upgrade pip \
+ && pip install --require-hashes --no-deps -r requirements.lock \
+ && pip install --no-deps .
 
 COPY migrations ./migrations
 COPY static ./static
