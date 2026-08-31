@@ -1,0 +1,24 @@
+# Nobody was watching the dependencies. Twelve floors and no lockfile meant a
+# compromised release upstream would have arrived on the next build, silently,
+# on every self-hosted instance that rebuilt.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the routine bumps; anything that needs reading arrives alone.
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
