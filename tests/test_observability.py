@@ -9,6 +9,7 @@ import json
 import logging
 import sys
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -148,3 +149,37 @@ def test_non_http_traffic_passes_straight_through():
     asyncio.run(exercise())
 
     assert seen == ["lifespan"]
+
+
+@pytest.mark.parametrize(
+    ("path", "logged", "why"),
+    [
+        ("/reset/a-live-reset-token", "/reset/{token}", "a token is a credential"),
+        ("/reset/a-live-reset-token/", "/reset", "a near miss is answered with a redirect"),
+        ("/sites/blue-mug.example", "/sites/{site_id}", "a domain identifies the customer"),
+        ("/wp-admin/setup-config.php", "/wp-admin", "a scan stays visible"),
+        ("/definitely-not-a-route", "/definitely-not-a-route", "one segment is already safe"),
+        ("/", "/", "the root survives the split"),
+    ],
+)
+def test_no_path_parameter_ever_reaches_the_log(client, caplog, path, logged, why):
+    """The values filled into a path are user data, and on two routes they are
+    data this service has promised not to keep.
+
+    `/reset/{token}` carries a live credential: an hour of log is an hour of
+    working links into any account that asked for one. `/sites/{site_id}`
+    carries the customer's domain -- the value `Referrer-Policy: same-origin`
+    exists to stop leaking off the page, which is not much use while writing it
+    into every log line beside it.
+
+    The trailing-slash case is the one that matters most here. It matched no
+    route, was answered with a redirect, and put the whole token in the log
+    while the route next to it was clean -- so "it matched nothing, therefore
+    it holds nothing" is not a safe rule to log by.
+    """
+    with caplog.at_level(logging.DEBUG, logger="beacon.request"):
+        client.get(path)
+
+    paths = [c["path"] for r in caplog.records if (c := getattr(r, "context", None))]
+    assert logged in paths, f"{why}: expected {logged!r}, logged {paths}"
+    assert not [p for p in paths if "a-live-reset-token" in p or "blue-mug" in p]

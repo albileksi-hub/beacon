@@ -991,6 +991,61 @@ The alternative — adding the Beacon host to `script-src` — works too and is 
 line shorter, but it hands a third-party origin the ability to run code on the
 page. Serving the file yourself does not.
 
+## What the log was still writing down
+
+The request log goes out of its way to drop the client address and the query
+string, on the grounds that logging them would put back exactly what the
+product promises to discard. It then wrote the values filled into the path,
+and two routes carry things that belong in neither a log nor a log shipper.
+
+`/reset/{token}` carries a live credential. The token was logged whole, at
+INFO, on the way to the reset form -- so an hour of log was an hour of working
+links into any account that had asked for one, sitting in whatever aggregator
+the operator ships to, readable by more people than the database is and kept
+for longer.
+
+`/sites/{site_id}` carries the customer's domain. `Referrer-Policy:
+same-origin` is set specifically so that following a link off a dashboard does
+not hand that domain to a stranger; the same value was being written to every
+log line beside it.
+
+The log now records the route template -- `/reset/{token}`, `/sites/{site_id}`
+-- rather than the path that matched it. That is one rule instead of a list of
+routes to remember, and it bounds log cardinality as a side effect.
+
+A request that matched no route has no template, and the tempting rule --
+"it matched nothing, so it holds nothing" -- is false. `/reset/<token>/` with a
+trailing slash matches nothing, is answered with a redirect, and put the whole
+token in the log while the route next to it stayed clean. Unmatched paths are
+logged as their first segment alone, which still shows a scan for `/wp-admin`
+or a broken link into `/sites`, and is what those lines get read for.
+
+## Answering the same way is not the same as answering at the same time
+
+The reset form is careful to say nothing about whether an address is
+registered. The page is identical either way, and the throttle counts the
+requester rather than the address so that nobody can lock a stranger out of
+their own recovery.
+
+The mail was then sent before the response was written. A registered address
+paid for a whole SMTP conversation; an unregistered one returned immediately.
+Against an unreachable relay that is **10,008ms against roughly 1ms** --
+measured, not estimated -- and the identical page arriving ten seconds late
+says everything the page declines to. The five-attempt throttle is no defence:
+five probes is plenty to tell ten seconds from one millisecond, and an attacker
+checking one specific address only needs one.
+
+The irony is that `mail.deliver` already refuses to raise, and says why in its
+docstring: an exception would turn a mail outage into a way of asking which
+addresses are registered. The exception was caught and the ten seconds were
+not, in the same scenario, for the same reason.
+
+Delivery is queued behind the response now, so both answers are written at the
+same point in the same work. What remains is the row insert on the registered
+path, which measured 0.2ms against a same-machine baseline of about 1ms. That
+is under the jitter of any real network and is not being claimed as zero --
+only as no longer a signal anybody can read.
+
 ## The site ID is not a password
 
 The site ID sits in the tracking snippet on every page of the site it measures.

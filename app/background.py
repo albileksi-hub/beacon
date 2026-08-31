@@ -13,7 +13,7 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.db import SessionLocal
-from app.services import rollups, throttle, visitors
+from app.services import recovery, rollups, throttle, visitors
 from app.services.collector import EventWriter
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,11 @@ def run_maintenance() -> int:
         rebuilt = rollups.refresh(session)
         visitors.purge_expired_salts(session)
         throttle.purge_expired(session)
+        # Spent and expired reset links. Written with the rest of recovery and
+        # then never called from anywhere but its own test, so the table was
+        # the one thing on this instance that only ever grew -- on a service
+        # whose whole argument is that it does not keep what it stops needing.
+        recovery.purge_expired(session)
         rollups.purge_expired_events(
             session, retention_days=settings.raw_event_retention_days
         )

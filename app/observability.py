@@ -95,9 +95,10 @@ class RequestLogging:
             )
             raise
 
-        # Deliberately absent: the client address and the query string. Both are
-        # stripped from the data this service stores, so logging them would put
-        # back exactly what the product promises to discard.
+        # Deliberately absent: the client address, the query string, and the
+        # values filled into a path. All three are stripped from the data this
+        # service stores, so logging them would put back exactly what the
+        # product promises to discard -- see loggable_path.
         logger.log(
             logging.DEBUG if path.startswith(QUIET_PREFIXES) else logging.INFO,
             "request",
@@ -114,13 +115,41 @@ def _incoming_request_id(scope: Scope) -> str | None:
     return None
 
 
+def loggable_path(scope: Scope, path: str) -> str:
+    """The route template when one matched, never the filled-in path.
+
+    A path parameter is user data, and on two routes it is data this service
+    has promised not to keep. `/reset/{token}` carries a live credential: an
+    hour of the log is an hour of working links into any account that asked for
+    one. `/sites/{site_id}` carries the customer's domain -- the same value
+    `Referrer-Policy: same-origin` is set to stop leaking off the page, which
+    it is not much use doing while writing it to every log line.
+
+    Starlette puts the matched route on the scope during handling, and this
+    runs afterwards, so the template is available by the time it is needed.
+
+    A request that matched no route is logged as its first segment alone. It
+    cannot be reduced to a template because there is none, and "it matched
+    nothing, so it holds nothing" is false: `/reset/<token>/` with a trailing
+    slash matches nothing and is answered with a redirect, which was enough to
+    put a live token in the log while the matched route beside it was clean.
+    The first segment still shows a scan for `/wp-admin` or a broken link into
+    `/sites`, which is what these lines are read for.
+    """
+    template = getattr(scope.get("route"), "path", None)
+    if isinstance(template, str):
+        return template
+    head = path.partition("?")[0].split("/")
+    return f"/{head[1]}" if len(head) > 1 and head[1] else "/"
+
+
 def _context(
     request_id: str, scope: Scope, path: str, status: int, started: float
 ) -> dict[str, Any]:
     return {
         "request_id": request_id,
         "method": scope.get("method", ""),
-        "path": path,
+        "path": loggable_path(scope, path),
         "status": status,
         "duration_ms": round((time.perf_counter() - started) * 1000, 2),
     }
