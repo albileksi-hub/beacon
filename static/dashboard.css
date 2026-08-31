@@ -1236,6 +1236,14 @@ h2 {
 
 .notice { max-width: 32rem; margin: 5rem auto 0; text-align: center; }
 
+/* Inside the sign-in card it is a line of prose, not a standalone page. */
+.auth .notice {
+  max-width: none;
+  margin: 0 0 0.9rem;
+  text-align: left;
+  color: var(--text-soft);
+}
+
 .status-code {
   margin: 0 0 0.5rem;
   font-size: 3.5rem;

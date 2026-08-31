@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.config import Settings, get_settings
 from app.db import SessionLocal, get_db
 from app.models import Site, User
 from app.services import accounts, timeranges, tokens
@@ -12,6 +13,9 @@ from app.services.timeranges import Period, TimeRange
 # Annotated dependencies keep FastAPI's injection out of function defaults,
 # which keeps both linters and type checkers happy.
 DbSession = Annotated[Session, Depends(get_db)]
+# Settings through a dependency rather than imported, so a test can point an
+# instance at a different mail relay or base URL.
+SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 def get_session_factory() -> sessionmaker[Session]:
@@ -29,8 +33,25 @@ SessionFactory = Annotated[sessionmaker[Session], Depends(get_session_factory)]
 
 
 def get_current_user(request: Request, db: DbSession) -> User | None:
+    """The signed-in account, if the cookie still refers to a live session.
+
+    The epoch stored in the cookie has to still match the account's. They
+    diverge the moment a password changes, which is what makes a reset eject
+    everyone holding an older cookie rather than only stopping future logins.
+    """
     user_id = request.session.get(accounts.SESSION_KEY)
-    return db.get(User, user_id) if user_id is not None else None
+    if user_id is None:
+        return None
+
+    user = db.get(User, user_id)
+    if user is None:
+        return None
+
+    if request.session.get(accounts.EPOCH_KEY) != user.session_epoch:
+        request.session.clear()
+        return None
+
+    return user
 
 
 CurrentUser = Annotated[User | None, Depends(get_current_user)]

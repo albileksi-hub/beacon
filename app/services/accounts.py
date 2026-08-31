@@ -11,6 +11,9 @@ from app.services import zones
 from app.services.passwords import hash_password, verify_password
 
 SESSION_KEY = "user_id"
+# The account's session_epoch at the moment the cookie was minted. Compared
+# on every request, so changing a password ejects older cookies.
+EPOCH_KEY = "epoch"
 
 # A real hash of a password nobody holds. Verifying against it makes a login
 # for an unknown address cost the same as one for a known address, so the
@@ -67,6 +70,22 @@ def authenticate(db: Session, *, email: str, password: str) -> User | None:
         return None
 
     return user if verify_password(password, user.password_hash) else None
+
+
+def set_password(*, user: User, password: str) -> None:
+    """Replace the password and invalidate every session opened under the old one.
+
+    The epoch bump is the half that is easy to leave out: without it a reset
+    prompted by a stolen session leaves that session working, which is exactly
+    the situation the reset was for.
+
+    Takes no session and does not commit, unlike its neighbours here.
+    Changing a password and spending the reset links that authorised it have
+    to land in one transaction, so that boundary belongs to the caller doing
+    both.
+    """
+    user.password_hash = hash_password(password)
+    user.session_epoch += 1
 
 
 def add_site(db: Session, *, owner: User, domain: str) -> Site:

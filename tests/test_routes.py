@@ -39,6 +39,11 @@ PUBLIC_BY_DESIGN = {
     ("POST", "/signup"),     # likewise
     ("POST", "/logout"),     # ending a session you may not have harms nobody
     ("POST", "/api/event"),  # the collector; it runs on other people's sites
+    # Recovery is for people who cannot sign in, so it cannot ask them to.
+    # Both are throttled per requester and neither reveals whether the address
+    # exists; the reset link itself is the credential.
+    ("POST", "/forgot"),
+    ("POST", "/reset/{token}"),
 }
 
 

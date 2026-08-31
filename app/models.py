@@ -126,12 +126,20 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True)
     password_hash: Mapped[str] = mapped_column(String(128))
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+    # Bumped whenever the password changes. The session cookie carries the value
+    # it was minted under, so every session opened before a reset stops being
+    # accepted -- without which resetting a password you believe is compromised
+    # would leave whoever compromised it still signed in.
+    session_epoch: Mapped[int] = mapped_column(Integer, default=1, server_default=text("1"))
 
     sites: Mapped[list["Site"]] = relationship(
         back_populates="owner", cascade="all, delete-orphan"
     )
     tokens: Mapped[list["ApiToken"]] = relationship(
         back_populates="owner", cascade="all, delete-orphan"
+    )
+    resets: Mapped[list["PasswordReset"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
     )
 
 
@@ -374,6 +382,33 @@ class ApiToken(Base):
     last_used_on: Mapped[dt.date | None] = mapped_column(Date)
 
     owner: Mapped[User] = relationship(back_populates="tokens")
+
+
+class PasswordReset(Base):
+    """A one-shot permission to choose a new password.
+
+    Stored as a SHA-256 digest for the reason in app.services.tokens: the token
+    is 32 bytes from ``secrets``, so there is nothing to guess and bcrypt would
+    buy only a slow, unindexable lookup. A leaked database therefore yields no
+    usable reset links.
+
+    Short-lived and single-use, and every outstanding row for an account is
+    spent the moment one of them is: a reset link that still works after the
+    password has changed is a second key to the door.
+    """
+
+    __tablename__ = "password_resets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    digest: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    # Set rather than deleted, so a link that is followed twice can be told
+    # apart from one that was never issued.
+    used_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    user: Mapped["User"] = relationship(back_populates="resets")
 
 
 class LoginAttempt(Base):

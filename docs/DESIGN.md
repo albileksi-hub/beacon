@@ -640,7 +640,46 @@ Every setting is an environment variable prefixed `BEACON_`:
 | `BEACON_LOG_LEVEL` | `INFO` | Root log level |
 | `BEACON_LOG_JSON` | `false` | One JSON object per line instead of human-readable text |
 | `BEACON_MAX_REQUEST_BYTES` | `65536` | Largest request body the service will read |
+| `BEACON_BASE_URL` | `http://127.0.0.1:8000` | Where this instance is reachable; used to build reset links |
+| `BEACON_SMTP_HOST` | unset | Mail relay. Unset writes reset links to the log instead |
+| `BEACON_SMTP_PORT` | `587` | |
+| `BEACON_SMTP_USERNAME` | unset | Sent only when a password is set too |
+| `BEACON_SMTP_PASSWORD` | unset | |
+| `BEACON_SMTP_STARTTLS` | `true` | |
+| `BEACON_MAIL_FROM` | `beacon@localhost` | Envelope sender on the reset mail |
 | `BEACON_DEBUG` | `false` | Verbose errors |
+
+## Getting back in
+
+A forgotten password used to be permanent. There was no reset, no mail, and
+`manage.py` offered no way in either, so the account and every site under it
+were simply gone.
+
+The reset link is 32 bytes from `secrets`, stored as a SHA-256 digest for the
+same reason API keys are: there is no dictionary to guess from, so bcrypt would
+buy nothing but a slow, unindexable lookup, and a stolen database yields no
+working links.
+
+Three things are easy to leave out, and each is a way of leaving the second
+front door ajar:
+
+- **Redeeming one link spends every other outstanding link for that account.**
+  Somebody reading the mailbox can request as many as they like; if only the
+  redeemed one were spent, the reset meant to lock them out would leave the
+  rest of their collection working.
+- **Changing a password bumps the account's session epoch**, which the session
+  cookie carries and every request compares. Without it, resetting a password
+  you believe is compromised leaves whoever compromised it still signed in --
+  the one thing the person clicking the link is trying to prevent.
+- **The form answers identically whether or not the address is registered**,
+  and is throttled on the requester rather than the address. Throttling per
+  address would let anybody lock a known account out of its own recovery.
+
+Delivery falls back to the log when no relay is configured. That is a decision
+rather than a stub: a self-hosted box frequently has no relay to hand, and
+refusing to issue resets at all would lock the operator out of their own
+install. `mail.deliver` never raises, because a mail outage must not become a
+way of asking which addresses exist.
 
 ## Accounts and tenancy
 

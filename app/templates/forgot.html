@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Reset your password — Beacon{% endblock %}
+
+{% block content %}
+<section class="auth">
+  <div class="card">
+    <h1>Reset your password</h1>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    {% if sent %}
+      {# Shown whether or not the address is registered. Saying which would
+         turn this form into a way of finding out who has an account. #}
+      <p class="notice">{{ sent }}</p>
+      <p class="muted"><a href="/login">Back to sign in</a>.</p>
+    {% else %}
+      <p class="muted">
+        Enter the address on the account and we will send a link to choose a
+        new password.
+      </p>
+      <form method="post" action="/forgot" class="form">
+        <label>
+          Email
+          <input type="email" name="email" required autofocus />
+        </label>
+        <button type="submit" class="button primary">Send the link</button>
+      </form>
+      <p class="muted">Remembered it? <a href="/login">Sign in</a>.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
