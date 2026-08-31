@@ -10,7 +10,7 @@ import datetime as dt
 
 import pytest
 from fastapi import BackgroundTasks
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from app.config import Settings
 from app.models import PasswordReset, User
@@ -358,3 +358,45 @@ def test_the_reset_mail_is_sent_after_the_response_not_before_it(client, account
     # The real function, not a stand-in: patching mail.deliver out would make
     # this pass while proving only that the patch was queued.
     assert mail.deliver in queued, f"the mail did not go through add_task: {queued}"
+
+
+def test_purging_spent_links_loads_nothing_into_memory(db_session, account):
+    """Every other purge here is one set-based delete; this one was a loop.
+
+    Asserting "one DELETE statement" would not have caught the old code, and I
+    only found that out by running the old body under the same listener:
+    SQLAlchemy batches per-row deletes into a single executemany, so the
+    statement count was already 1. The difference that is real is the SELECT in
+    front of it -- the old version built an ORM object for every spent link
+    before deleting any of them, which is the part that hurts on a backlog.
+
+    So this asserts what actually separates them: nothing is read back, and the
+    delete carries one set of parameters rather than one per row.
+    """
+    now = dt.datetime.now(dt.UTC)
+    for i in range(12):
+        db_session.add(
+            PasswordReset(
+                user_id=account.id,
+                digest=f"{i:064d}",
+                expires_at=now - dt.timedelta(hours=1),
+            )
+        )
+    db_session.commit()
+
+    seen: list[tuple[str, bool]] = []
+    engine = db_session.get_bind()
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        head = statement.lstrip().split()[0].upper()
+        if head in ("SELECT", "DELETE") and "password_resets" in statement:
+            seen.append((head, executemany))
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        removed = recovery.purge_expired(db_session, now=now)
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    assert removed == 12, "the returned count must still be the number actually removed"
+    assert seen == [("DELETE", False)], f"expected one set-based delete, saw {seen}"
