@@ -122,3 +122,53 @@ def test_reading_one_sites_numbers_goes_through_an_authorisation_check(prefix: s
         and not set(OWNERSHIP + READ_ACCESS) & guards
     )
     assert not unchecked, f"these read a named site with no authorisation check: {unchecked}"
+
+
+def test_the_app_refuses_to_start_on_the_built_in_session_secret(monkeypatch) -> None:
+    """The default is a constant in a public repository.
+
+    An instance running on it signs session cookies with a key anybody can read
+    off GitHub, so anybody could mint a cookie for any account on it. That used
+    to be a log line, which is a thing nobody reads on the one morning it
+    matters.
+    """
+    from app import main
+    from app.config import Settings
+
+    default = Settings.model_fields["session_secret"].default
+    monkeypatch.setattr(
+        main, "get_settings", lambda: Settings(session_secret=default)
+    )
+
+    with pytest.raises(RuntimeError, match="public repository"):
+        main.create_app()
+
+
+def test_a_throwaway_instance_can_still_say_so(monkeypatch) -> None:
+    """The escape hatch, named so it cannot be set while meaning something else.
+
+    run.py sets it, because somebody running the development entrypoint has
+    already said what they mean. A deploy does not come through run.py.
+    """
+    from app import main
+    from app.config import Settings
+
+    default = Settings.model_fields["session_secret"].default
+    monkeypatch.setattr(
+        main,
+        "get_settings",
+        lambda: Settings(session_secret=default, allow_insecure_sessions=True),
+    )
+
+    assert main.create_app() is not None
+
+
+def test_a_real_secret_needs_no_permission(monkeypatch) -> None:
+    from app import main
+    from app.config import Settings
+
+    monkeypatch.setattr(
+        main, "get_settings", lambda: Settings(session_secret="something-random-enough")
+    )
+
+    assert main.create_app() is not None

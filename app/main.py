@@ -68,8 +68,25 @@ def create_app() -> FastAPI:
     configure_logging(level=settings.log_level, json_output=settings.log_json)
 
     if settings.session_secret == Settings.model_fields["session_secret"].default:
+        # A warning was not enough. The default is a constant in a public
+        # repository, so an instance running on it will sign session cookies
+        # with a key the whole internet has -- anyone could mint a cookie for
+        # any account on it. That is not a thing to mention in a log nobody
+        # reads on the one morning it matters; it is a thing to refuse.
+        if not settings.allow_insecure_sessions:
+            raise RuntimeError(
+                "BEACON_SESSION_SECRET is still the built-in default, which is a "
+                "constant in a public repository -- anyone could forge a session "
+                "for any account on this instance. Set it to something random:\n\n"
+                '    BEACON_SESSION_SECRET="$(python -c '
+                "\"import secrets; print(secrets.token_urlsafe(48))\")\"\n\n"
+                "Or set BEACON_ALLOW_INSECURE_SESSIONS=true if this really is a "
+                "throwaway instance nobody can reach."
+            )
+
         logger.warning(
-            "BEACON_SESSION_SECRET is at its default value; session cookies are forgeable."
+            "Running with the built-in session secret. Session cookies on this "
+            "instance are forgeable by anyone with the source."
         )
 
     # samesite="lax" means the cookie is not sent on cross-site POSTs, which is

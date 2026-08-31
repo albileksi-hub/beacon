@@ -16,6 +16,11 @@ if __name__ == "__main__":
 
     # Keep the rollups fresh while developing. Set before the app is
     # imported, because settings are read once and cached.
+    # This is the development entrypoint, so running it is the statement.
+    # A deploy does not come through here -- the image runs uvicorn directly --
+    # so this cannot quietly wave a real instance past the check.
+    os.environ.setdefault("BEACON_ALLOW_INSECURE_SESSIONS", "true")
+
     os.environ.setdefault("BEACON_ROLLUP_INTERVAL_SECONDS", "30")
     os.environ.setdefault("BEACON_INGEST_BUFFER_SIZE", "20000")
 

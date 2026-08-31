@@ -581,7 +581,7 @@ Every setting is an environment variable prefixed `BEACON_`:
 | `BEACON_DATABASE_URL` | `sqlite:///./beacon.db` | SQLite locally, Postgres in production |
 | `BEACON_GEOIP_DB_PATH` | unset | Path to a MaxMind `GeoLite2-Country.mmdb` |
 | `BEACON_TRUST_PROXY_HEADERS` | `false` | Enable only behind a proxy that overwrites `X-Forwarded-For` |
-| `BEACON_SESSION_SECRET` | insecure default | Signs session cookies. Anyone holding it can forge a login |
+| `BEACON_SESSION_SECRET` | **required** | Signs session cookies. The app refuses to start without it |
 | `BEACON_SESSION_HTTPS_ONLY` | `false` | Restrict the session cookie to HTTPS. Enable in production |
 | `BEACON_ROLLUP_INTERVAL_SECONDS` | `0` | Seconds between in-process maintenance runs. `0` disables it |
 | `BEACON_RAW_EVENT_RETENTION_DAYS` | `0` | Days of raw events to keep. `0` keeps them forever |
@@ -902,6 +902,32 @@ connect-src 'self' https://beacon.example.com;
 The alternative — adding the Beacon host to `script-src` — works too and is one
 line shorter, but it hands a third-party origin the ability to run code on the
 page. Serving the file yourself does not.
+
+## Refusing to start rather than warning
+
+The session secret has a default, and the default is a constant in a public
+repository. An instance running on it signs cookies with a key anyone can read
+off GitHub — so anyone could mint a session for any account on it, without
+touching a password.
+
+That used to be a warning at startup, which is a line nobody reads on the one
+morning it matters. It is a refusal now: the application will not build at all
+on the built-in secret, and says what to set and how to generate it. Because
+`create_app()` runs at import, uvicorn cannot start either — the failure lands
+at deploy time, loudly, rather than sitting quietly in a running service.
+
+The escape hatch is `BEACON_ALLOW_INSECURE_SESSIONS`, named at that length on
+purpose: nobody sets it while meaning something else, which `BEACON_DEBUG`
+would not have managed. `run.py` sets it, because somebody running the
+development entrypoint has already said what they mean — and a deploy does not
+come through `run.py`, since the image runs uvicorn directly.
+
+The test suite does not use the hatch. It sets a real secret before the
+application is imported, so the guard is exercised the way a deployment meets
+it rather than waved past.
+
+Nothing changed for the blueprint: `render.yaml` has always generated a secret
+with `generateValue: true`. What changed is the deploy that forgets.
 
 ## Goals
 
