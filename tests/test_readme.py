@@ -101,3 +101,28 @@ def test_the_readme_states_the_real_script_size() -> None:
         f"README says {claimed.group(1)} KB, the script gzips to {actual_kb:.2f} KB. "
         "Update the number in README.md rather than this assertion."
     )
+
+
+def test_every_repository_link_in_the_readme_points_at_something_real():
+    """The README linked [MIT](LICENSE) and there was no LICENSE.
+
+    On a public repository that is not a broken link, it is a licensing
+    statement with nothing behind it: with no file, the default is that nobody
+    may use, copy or modify any of this -- the opposite of what the sentence
+    says and of what a self-hosted analytics tool is for. GitHub agreed, and
+    reported the repository as having no licence at all.
+
+    Checked for every relative link rather than that one, so the next file
+    promised and not added is caught the same way.
+    """
+    root = Path(__file__).resolve().parent.parent
+    readme = (root / "README.md").read_text()
+
+    targets = [
+        target
+        for _text, target in re.findall(r"\[([^\]]+)\]\(([^)]+)\)", readme)
+        if not target.startswith(("http://", "https://", "#", "mailto:"))
+    ]
+    missing = sorted({t for t in targets if not (root / t.split("#")[0]).exists()})
+
+    assert not missing, f"the README links to files that do not exist: {missing}"

@@ -1,11 +1,13 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]  # PEP 639 license expression
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "beacon"
 version = "0.1.0"
 description = "Privacy-first, cookieless web analytics"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
