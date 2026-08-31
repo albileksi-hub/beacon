@@ -223,12 +223,16 @@ code, pre, .snippet {
   transition: color 0.15s ease, background 0.15s ease;
 }
 
-.periods a:hover { color: var(--text); }
+.periods a:hover { color: var(--text); background: var(--panel); }
+.periods a.current:hover { color: var(--on-accent); background: var(--accent-hover); }
 
 .periods a.current {
-  color: var(--text);
-  background: var(--panel);
-  box-shadow: var(--shadow-sm);
+  /* Same problem, same answer: panel on panel-soft is 1.1:1 and read as
+     nothing at all once the hue went. */
+  color: var(--on-accent);
+  background: var(--accent);
+  font-weight: 600;
+  box-shadow: none;
 }
 
 /* ---- layout ---- */
@@ -506,7 +510,11 @@ h2 {
   transition: color 0.15s ease, background 0.15s ease;
 }
 
-.tab:hover { color: var(--text); background: var(--panel-soft); }
+.tab:hover {
+  color: var(--text);
+  background: var(--bg-tint);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
 
 .tab-panel { display: none; }
 
@@ -538,9 +546,14 @@ h2 {
 .tabs:has(.tab-input:nth-of-type(14):checked) .tab:nth-child(14),
 .tabs:has(.tab-input:nth-of-type(15):checked) .tab:nth-child(15),
 .tabs:has(.tab-input:nth-of-type(16):checked) .tab:nth-child(16) {
-  color: var(--accent);
-  background: var(--accent-soft);
-  font-weight: 580;
+  /* Inverted, not tinted. The old rule drew the selection as accent-soft on
+     panel, which under a colour scheme was a visible tint and under this one
+     is 1.1:1 -- so choosing a tab looked like nothing had happened. The
+     selected tab now takes the near-white accent as its ground and the
+     near-black on it as its text: 13:1, unmistakable, and still no hue. */
+  color: var(--on-accent);
+  background: var(--accent);
+  font-weight: 600;
 }
 
 .tab-input:focus-visible ~ .tab-bar > .tab { box-shadow: none; }
