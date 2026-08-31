@@ -49,6 +49,19 @@ class Settings(BaseSettings):
     # few hundred bytes; nothing legitimate here comes close to this.
     max_request_bytes: int = 64 * 1024
 
+    # Where this instance is reachable, used to build the reset link. A link
+    # pointing at 127.0.0.1 is no use in an inbox.
+    base_url: str = "http://127.0.0.1:8000"
+
+    # Mail. With no host set, a reset link is written to the log instead --
+    # see app.services.mail for why that is a decision rather than a stub.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_starttls: bool = True
+    mail_from: str = "beacon@localhost"
+
     log_level: str = "INFO"
     # One JSON object per line, for anywhere logs are shipped and searched
     # rather than read by a person.

@@ -25,7 +25,7 @@ def _now() -> dt.datetime:
     return dt.datetime.now(dt.UTC)
 
 
-def fingerprint(db: Session, address: str) -> str:
+def fingerprint(db: Session, address: str, *, purpose: str = "login") -> str:
     """A keyed hash of the address; the address itself is never stored.
 
     Domain-separated from visitor IDs by the prefix, so a login fingerprint can
@@ -35,9 +35,13 @@ def fingerprint(db: Session, address: str) -> str:
     The salt rotates daily, so a lockout cannot outlive midnight. With a window
     of minutes that is immaterial, and it keeps a single rule about how long any
     address-derived value can be reproduced.
+
+    ``purpose`` separates the counters. Sign-in failures and reset requests are
+    both credential traffic from one address, but sharing a counter would let
+    somebody asking for reset links lock the same address out of signing in.
     """
     salt = current_salt(db, site_id=SALT_SCOPE, day=utc_today())
-    return keyed_hash("login", address, salt=salt)
+    return keyed_hash(purpose, address, salt=salt)
 
 
 def recent_failures(db: Session, marker: str, *, now: dt.datetime | None = None) -> int:

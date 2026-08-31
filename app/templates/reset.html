@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Choose a new password — Beacon{% endblock %}
+
+{% block content %}
+<section class="auth">
+  <div class="card">
+    <h1>Choose a new password</h1>
+    {% if expired %}
+      {# One message for expired, already used, and never issued: telling them
+         apart says whether a link was ever real. #}
+      <p class="error">That link has expired or has already been used.</p>
+      <p class="muted"><a href="/forgot">Ask for another</a>.</p>
+    {% else %}
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <form method="post" action="/reset/{{ token }}" class="form">
+        <label>
+          New password
+          <input type="password" name="password" required autofocus
+                 autocomplete="new-password" minlength="8" />
+        </label>
+        <button type="submit" class="button primary">Set it and sign in</button>
+      </form>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
