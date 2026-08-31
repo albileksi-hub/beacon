@@ -13,8 +13,15 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Signs the session cookie. Anyone holding this value can forge a login
-    # for any account, so it must be replaced in production.
+    # for any account -- and the default below is a constant in a public
+    # repository, so "anyone" means anyone. The application refuses to start
+    # with it unless allow_insecure_sessions says otherwise.
     session_secret: str = "dev-only-insecure-session-secret"
+
+    # The escape hatch for that refusal, named so it cannot be set by accident
+    # while meaning something else. run.py sets it, because a developer running
+    # the dev entrypoint has said all they need to say.
+    allow_insecure_sessions: bool = False
 
     # Restricts the session cookie to HTTPS. Off by default so that
     # http://localhost works during development; on wherever it is deployed.

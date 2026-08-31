@@ -1,15 +1,21 @@
 import os
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, delete
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+# Set before anything imports the application, because app.db reads the
+# settings at import time and they are cached from then on. The suite runs
+# against a real secret rather than waving the check through, so the guard in
+# create_app is exercised the way a deployment would meet it.
+os.environ.setdefault("BEACON_SESSION_SECRET", "a-secret-for-the-test-suite-only")
 
-from app.db import Base, configure_sqlite, get_db
-from app.dependencies import get_session_factory
-from app.main import create_app
-from app.services import accounts, rollups, visitors
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine, delete  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from app.db import Base, configure_sqlite, get_db  # noqa: E402
+from app.dependencies import get_session_factory  # noqa: E402
+from app.main import create_app  # noqa: E402
+from app.services import accounts, rollups, visitors  # noqa: E402
 
 CHROME_MAC = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
