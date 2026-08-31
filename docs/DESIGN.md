@@ -448,6 +448,55 @@ Also refused: a domain longer than the column allows. SQLite ignores `VARCHAR`
 lengths, so without an explicit check that is accepted in development and
 rejected in production.
 
+### What is not defended, and why not here
+
+`/api/event` has no rate limit. Bytes per request are bounded -- 64KB, refused
+on `Content-Length` before a byte is read -- but requests per second are not.
+A flood of small, valid events for a registered domain, with URLs that match
+it, will be accepted and stored.
+
+That is a deliberate omission rather than an oversight, and it is worth setting
+out the reasoning, because the obvious fixes are all worse than the gap.
+
+The login throttle already in the tree is backed by a table, which is right for
+logins: they are rare, and a row per attempt is cheap next to the cost of
+letting someone guess a password. Pointing it at the collector would mean a
+database write per pageview in order to count pageviews -- paying the exact
+cost the limit exists to avoid, on every legitimate request.
+
+An in-process counter avoids that and buys less than it appears to. Each worker
+gets its own, so the real ceiling is the configured limit times the number of
+workers, and it moves whenever the process count changes. Keyed by IP it grows
+without bound unless entries are evicted, which is a cache with an eviction
+policy -- a thing to get wrong in the path every visitor takes. And it resets
+on deploy.
+
+The layer that can actually do this is the one in front: nginx, Caddy, or a
+CDN, all of which see every worker's traffic, hold the state outside the
+process, and reject before the request reaches Python at all.
+
+```nginx
+limit_req_zone $binary_remote_addr zone=collect:10m rate=20r/s;
+
+location = /api/event {
+    limit_req zone=collect burst=40 nodelay;
+    proxy_pass http://beacon;
+}
+```
+
+What the application does instead is stay cheap under load. Rejections are
+ordered by cost, so an event for an unregistered domain is dropped after one
+cached lookup rather than after matching 1,500 crawler patterns; the body cap
+means a flood costs bandwidth rather than memory; and `BEACON_INGEST_BUFFER_SIZE`
+will move writes onto a background thread so no visitor waits on storage --
+off by default, because buffering trades a window of events on an unclean
+shutdown for that latency, and that is the operator's trade to make rather than
+mine.
+
+None of that is a rate limit. If this is deployed somewhere it can be found and
+somebody decides to point traffic at it, the limit has to come from in front of
+the process, and this document should not pretend otherwise.
+
 ## Whose day is it?
 
 A day was the atomic unit of this system before it was a feature: it is the
