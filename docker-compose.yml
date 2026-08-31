@@ -21,7 +21,12 @@ services:
       - "8000:8000"
     environment:
       BEACON_DATABASE_URL: postgresql+psycopg://beacon:beacon@db:5432/beacon
-      BEACON_SESSION_SECRET: ${BEACON_SESSION_SECRET:-change-me-before-deploying}
+      # No default on purpose. A placeholder here is a constant in a public
+      # repository that every copy of this stack would share, and it slipped
+      # past the application's own guard because that only knew the one
+      # built-in string. `:?` makes compose refuse to start instead.
+      #   export BEACON_SESSION_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+      BEACON_SESSION_SECRET: "${BEACON_SESSION_SECRET:?set it first - see the comment above}"
       BEACON_ROLLUP_INTERVAL_SECONDS: 60
       # Enable once there is TLS in front of the app.
       BEACON_SESSION_HTTPS_ONLY: "false"

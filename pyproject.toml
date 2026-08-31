@@ -29,6 +29,10 @@ dev = [
     "httpx>=0.27",
     "ruff>=0.6",
     "mypy>=1.11",
+    # Only for the test that parses docker-compose.yml. It was importable
+    # anyway as somebody else's transitive dependency, which is not the same
+    # as being available.
+    "pyyaml>=6",
 ]
 
 [tool.setuptools.packages.find]

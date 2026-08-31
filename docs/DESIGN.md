@@ -1131,6 +1131,28 @@ The test suite does not use the hatch. It sets a real secret before the
 application is imported, so the guard is exercised the way a deployment meets
 it rather than waved past.
 
+### The compose file walked straight past it
+
+The refusal compares against the built-in default, and this repository beat it
+the same day. `docker-compose.yml` substituted
+`${BEACON_SESSION_SECRET:-change-me-before-deploying}` whenever the variable
+was unset -- a different constant, in the same public repository, shared by
+every copy of that stack -- and the application started on it happily, because
+the guard knew one string and this was a second. The documented way to run
+Beacon locally therefore produced exactly the instance the refusal exists to
+prevent.
+
+It ships no secret of its own now. `:?` makes compose refuse when the variable
+is unset, which is the same answer the application gives, in the place a person
+meets first.
+
+The general form of the fix -- rejecting any secret short enough to be typed,
+so the *next* placeholder is caught too rather than only this one -- is not
+here yet. The CI smoke test also passes a short constant, and landing the rule
+without changing that would leave the build red on a file the tooling in use
+cannot push. It is worth doing, and it is worth doing in one piece with that
+change rather than half now.
+
 Nothing changed for the blueprint: `render.yaml` has always generated a secret
 with `generateValue: true`. What changed is the deploy that forgets.
 

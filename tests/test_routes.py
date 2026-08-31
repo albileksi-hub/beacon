@@ -14,6 +14,7 @@ flattens the Annotated aliases, so the names never appear.
 import importlib
 import typing
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -177,3 +178,41 @@ def test_a_real_secret_needs_no_permission(monkeypatch) -> None:
     )
 
     assert main.create_app() is not None
+
+
+def test_the_compose_file_ships_no_session_secret_of_its_own() -> None:
+    """It used to substitute one, and that walked past the guard beside it.
+
+    `${BEACON_SESSION_SECRET:-change-me-before-deploying}` is a constant in a
+    public repository that every copy of this stack would have shared, and the
+    application started on it happily: the refusal added for exactly this
+    compares against the one built-in default and knew nothing of a second
+    string. So the documented way to run Beacon locally produced precisely the
+    instance that refusal exists to prevent.
+
+    `:?` makes compose refuse when the variable is unset, which is the same
+    answer the application gives, in the place a person meets first.
+    """
+    compose = (Path(__file__).resolve().parent.parent / "docker-compose.yml").read_text()
+    line = next(ln for ln in compose.splitlines() if "BEACON_SESSION_SECRET:" in ln)
+
+    assert ":?" in line, f"compose must require the variable, not default it: {line}"
+    assert ":-" not in line, f"compose is substituting a default again: {line}"
+
+
+def test_the_compose_file_is_still_valid_yaml() -> None:
+    """The first attempt at that line was not.
+
+    The `:?` message contained a colon followed by a space, which YAML reads as
+    a mapping, and `docker compose up` would have failed outright. Reading the
+    line did not catch it; parsing the file did.
+    """
+    import yaml
+
+    compose = yaml.safe_load(
+        (Path(__file__).resolve().parent.parent / "docker-compose.yml").read_text()
+    )
+
+    assert compose["services"]["app"]["environment"]["BEACON_SESSION_SECRET"].startswith(
+        "${BEACON_SESSION_SECRET:?"
+    )
