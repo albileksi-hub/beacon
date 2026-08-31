@@ -903,6 +903,43 @@ The alternative — adding the Beacon host to `script-src` — works too and is 
 line shorter, but it hands a third-party origin the ability to run code on the
 page. Serving the file yourself does not.
 
+## The site ID is not a password
+
+The site ID sits in the tracking snippet on every page of the site it measures.
+It is public by construction — it has to be, because the browser has to send it.
+
+For a while the collector treated it as though it were not. The only two gates
+on a write were "is this a well-formed payload" and "is this domain
+registered", and the second is as public as the first. So one `curl`, with no
+credential of any kind, could put a page called `/buy-cheap-things` into a
+stranger's dashboard and attribute it to whatever referrer it fancied. I only
+found it by writing the request and watching the row appear.
+
+The collector now also requires the reported URL to be on the domain it claims.
+Subdomains count: registering `example.com` and tracking `blog.example.com` is
+tracking your own site, and anyone who can serve a page from a subdomain is
+already inside the domain. The suffix test keeps its leading dot, because
+without it `notexample.com` ends with `example.com` and walks straight through.
+
+**This is a floor, not a wall, and it is worth being plain about which.** It
+does not stop anyone who fills the URL in correctly, and no check at this
+endpoint can: a public collector cannot hold a secret that the browser does not
+also hand out to everyone who views the page. Anything that claimed otherwise
+would be selling a guarantee it cannot keep.
+
+What it does stop is the two things that actually happen. A snippet copied onto
+another site — from a template, a fork, a staging clone someone forgot about —
+quietly filing its traffic into your numbers. And ID-scraping spam, which is
+written once against many installations and does not trouble itself to match
+the host. Both were free before.
+
+A refused event is answered exactly like an accepted one: same 202, same body.
+The collector already answers unregistered domains and crawlers that way, for
+the same reason — a different answer maps the rule, and spam tunes itself to
+whatever it can measure. The refusal is logged instead, naming the domain, so
+an owner whose dashboard is empty because the snippet is on a host they never
+registered can find that out from their own logs rather than by guessing.
+
 ## Refusing to start rather than warning
 
 The session secret has a default, and the default is a constant in a public

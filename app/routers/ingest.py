@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -15,9 +16,29 @@ from app.services.client import client_ip
 from app.services.geo import get_country_resolver
 from app.services.referrers import classify
 from app.services.screens import bucket as screen_bucket
-from app.services.urls import pathname_of
+from app.services.urls import belongs_to, pathname_of
 from app.services.user_agent import profile
 from app.services.visitors import current_salt, visitor_id
+
+logger = logging.getLogger(__name__)
+
+# Domains already warned about in this process. The warning below exists for a
+# person debugging an empty dashboard, and one line tells them everything a
+# million would -- while the rate of those million is chosen by whoever is
+# sending the events. A domain only reaches it after passing the registered
+# check, so the set is bounded by the number of sites on the instance and not
+# by anything a sender controls; the cap is there anyway. The cost is that a
+# site which is fixed and then broken again stays quiet until a restart.
+_warned_domains: set[str] = set()
+_WARN_LIMIT = 1_000
+
+
+def forget_warned_domains() -> None:
+    """Drop the record of which domains have been warned about.
+
+    Process-wide state, so a leak between tests would be invisible.
+    """
+    _warned_domains.clear()
 
 router = APIRouter(tags=["ingest"])
 
@@ -98,6 +119,29 @@ def collect_event(payload: EventPayload, request: Request, db: DbSession) -> dic
         # Unregistered domain: nothing stored, same answer as everything else.
         # Replying differently would let anyone probe which sites are tracked
         # here, and would turn the collector into an open write endpoint.
+        return ACCEPTED
+
+    if not belongs_to(payload.url, domain):
+        # The site ID is public -- it sits in the snippet on every page -- so
+        # anyone can post events claiming to be this site. Requiring the URL to
+        # be on the domain it claims costs nothing and stops the two things
+        # that actually happen: a snippet copied onto someone else's site
+        # quietly filing its traffic here, and spam that scrapes IDs without
+        # bothering to match the host.
+        #
+        # It does not stop someone who sets the URL correctly, and no check
+        # here can. A public collector cannot hold a secret the browser does
+        # not also hand out. This raises the floor; it is not a wall.
+        if domain not in _warned_domains and len(_warned_domains) < _WARN_LIMIT:
+            _warned_domains.add(domain)
+            logger.warning(
+                "dropped an event for %s: the URL it reported is not on that domain. "
+                "If this is your own traffic, the snippet is on a host you have not "
+                "registered -- add it, or track the domain the page is served from. "
+                "Logged once per domain until this process restarts.",
+                domain,
+            )
+        # Answered like everything else, so nobody can map the rule by probing.
         return ACCEPTED
 
     user_agent = request.headers.get("user-agent", "")
