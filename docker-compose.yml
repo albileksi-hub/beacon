@@ -17,9 +17,17 @@ services:
 
   app:
     build: .
-    ports:
-      - "8000:8000"
+    # No published port. The proxy in front is what the world talks to, and
+    # the application trusts X-Forwarded-For -- which is only safe while it
+    # cannot be reached around the thing that sets it.
+    expose:
+      - "8000"
     environment:
+      # Required, not optional, now that there is a proxy. Without it every
+      # request appears to come from the proxy's own address: three visitors
+      # collapse into one identity, the numbers stop meaning anything, and one
+      # person failing a login locks out everybody.
+      BEACON_TRUST_PROXY_HEADERS: "true"
       BEACON_DATABASE_URL: postgresql+psycopg://beacon:beacon@db:5432/beacon
       # No default on purpose. A placeholder here is a constant in a public
       # repository that every copy of this stack would share, and it slipped
@@ -33,6 +41,19 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # /api/event is open to the whole internet and the application does not rate
+  # limit it -- deliberately, because every in-app version is worse than the
+  # gap. See deploy/nginx.conf.
+  proxy:
+    image: nginx:1.27-alpine
+    ports:
+      - "8000:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/forwarded.inc:/etc/nginx/conf.d/forwarded.inc:ro
+    depends_on:
+      - app
 
 volumes:
   beacon-db:

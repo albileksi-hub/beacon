@@ -495,7 +495,42 @@ mine.
 
 None of that is a rate limit. If this is deployed somewhere it can be found and
 somebody decides to point traffic at it, the limit has to come from in front of
-the process, and this document should not pretend otherwise.
+the process.
+
+So the stack now ships one. `docker-compose.yml` puts nginx in front, and
+`deploy/nginx.conf` applies `limit_req` to `/api/event` alone -- the endpoint
+that is open to everyone -- while the dashboard and the API pass through
+untouched. Advice in a document is not a default; a service in the file people
+actually run is.
+
+Two things about that had to land with it, and either alone would be worse than
+neither.
+
+The application reads `X-Forwarded-For` only when `BEACON_TRUST_PROXY_HEADERS`
+says to, because a client can set that header and believing it while directly
+exposed lets a visitor mint a fresh identity per request. Putting a proxy in
+front without the setting is the mirror image: every request then arrives from
+the proxy's own address. Measured, three distinct visitors became one
+`visitor_id` -- the numbers empty out, and one person failing a login locks
+everybody out through a shared throttle fingerprint. So the compose file sets
+it, and the app service publishes no port, because a setting that trusts a
+header is only safe while nothing can reach the application around the thing
+that sets it.
+
+And the header is set with `$remote_addr`, not the idiomatic
+`$proxy_add_x_forwarded_for`. The append form keeps whatever the client sent
+and adds the peer after it; `client_ip` reads the leftmost entry as the
+original visitor, so a visitor sending their own `X-Forwarded-For` would choose
+what they are counted as, and could choose again on every request. This is the
+outermost proxy, so the address it is talking to is the truth. Behind a CDN
+that reasoning inverts, and the file says so.
+
+What is not verified: nginx does not run in the environment this was written
+in, so the configuration has not been started. What is checked is that the
+compose file parses, that the proxy and the trust setting travel together, that
+the collector is the location carrying the limit, and that the appending form
+has not come back -- the last confirmed by putting it back and watching the
+test fail.
 
 ## Whose day is it?
 

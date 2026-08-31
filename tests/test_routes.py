@@ -216,3 +216,63 @@ def test_the_compose_file_is_still_valid_yaml() -> None:
     assert compose["services"]["app"]["environment"]["BEACON_SESSION_SECRET"].startswith(
         "${BEACON_SESSION_SECRET:?"
     )
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def test_the_proxy_and_the_trust_setting_travel_together() -> None:
+    """Either alone is worse than neither.
+
+    The application reads X-Forwarded-For only when told to, because any client
+    can set it and believing it while directly exposed lets a visitor mint a
+    fresh identity per request. So a proxy without the setting means every
+    request appears to come from the proxy: measured, three distinct visitors
+    became one visitor_id, which empties the numbers and makes one person's
+    failed login lock out everybody through a shared throttle fingerprint.
+
+    The setting without the isolation is the other half of the same problem --
+    if the application can be reached around the proxy, the header it now
+    trusts is under the caller's control again. Hence no published port on the
+    app service.
+    """
+    import yaml
+
+    compose = yaml.safe_load((_repo_root() / "docker-compose.yml").read_text())
+    app = compose["services"]["app"]
+    proxy = compose["services"]["proxy"]
+
+    assert app["environment"]["BEACON_TRUST_PROXY_HEADERS"] == "true"
+    assert "ports" not in app, "the app must not be reachable around the proxy"
+    assert proxy["ports"] == ["8000:80"], "localhost:8000 should still be the way in"
+
+
+def test_the_collector_is_rate_limited_at_the_proxy() -> None:
+    """The one endpoint open to the internet, and the app does not limit it."""
+    conf = (_repo_root() / "deploy" / "nginx.conf").read_text()
+
+    assert "limit_req_zone" in conf, "no rate limit zone is defined"
+    assert "location = /api/event" in conf, "the collector is not matched exactly"
+    assert "limit_req zone=collect" in conf, "the zone is defined but not applied"
+
+
+def test_the_proxy_overwrites_the_forwarded_header_rather_than_appending() -> None:
+    """$proxy_add_x_forwarded_for would hand visitors their own identity.
+
+    It keeps whatever the client sent and appends the peer. The application
+    reads the leftmost entry as the original visitor, so a visitor sending
+    their own X-Forwarded-For would choose what they are counted as, and could
+    pick a new one per request. This is the outermost proxy, so the address it
+    is talking to is the truth and the client's claim is discarded.
+    """
+    raw = (_repo_root() / "deploy" / "forwarded.inc").read_text()
+    # Directives only. The comment above them names the form being avoided,
+    # and the point is which one nginx acts on.
+    directives = [
+        line for line in raw.splitlines() if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+    assert "proxy_set_header X-Forwarded-For $remote_addr;" in "\n".join(directives)
+    appending = "$proxy_add_x_forwarded_for"
+    assert not [d for d in directives if appending in d], "appending lets a visitor forge it"
