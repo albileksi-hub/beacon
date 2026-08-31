@@ -57,6 +57,12 @@ async def _maintenance_loop(interval_seconds: float) -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
 
+    # One loop per process, which is the right thing for the single worker the
+    # image runs and the wrong thing for several. Every worker would rebuild
+    # the same days on the same schedule: idempotent, so the numbers stay
+    # correct, but it is N times the work and N writers contending for a
+    # database that allows one. Scaling out means turning this off and running
+    # `manage.py rollup` on a timer instead -- see docs/DESIGN.md.
     interval = settings.rollup_interval_seconds
     task = asyncio.create_task(_maintenance_loop(interval)) if interval > 0 else None
     # Kept on app.state so the loop can be inspected rather than merely assumed.
