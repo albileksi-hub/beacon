@@ -858,6 +858,51 @@ out is to set `BEACON_ROLLUP_INTERVAL_SECONDS=0` and run `manage.py rollup` on
 a timer beside the service, which is where a scheduled job belongs once there
 is more than one of anything.
 
+## Getting onto a site that has a Content Security Policy
+
+The snippet is the whole integration, right up until the site has a CSP — and
+plenty do. Sampling six well-known sites: Wikipedia, Hacker News and MDN send
+no CSP at all, while GitHub (`script-src github.githubassets.com`), Stripe (an
+allowlist) and the BBC (`strict-dynamic` with a nonce) would all refuse a
+script served from somewhere else. Half the sample.
+
+Tested against a browser rather than reasoned about, on four policies:
+
+| The site's policy | How the script is served | Result |
+| --- | --- | --- |
+| `script-src 'self'` | from the Beacon host | **blocked** — the script never runs |
+| `script-src 'self'` | from the site itself | recorded |
+| `default-src 'self'` | from the site itself | **blocked** — the script runs, the event cannot leave |
+| `default-src 'self'; connect-src … ` | from the site itself | recorded |
+
+Two separate directives, and they fail differently. `script-src` decides
+whether the tracker loads at all. `connect-src` decides whether `sendBeacon`
+may reach the collector — and a policy that sets `default-src` and nothing else
+is governing connections too, which is the third row: the script runs happily
+and every event is dropped at the door, with nothing on the dashboard to say
+so.
+
+The way through is `data-endpoint`, which the script has always supported and
+which was documented nowhere until this was tested:
+
+```html
+<!-- served from the site's own origin, reporting to Beacon -->
+<script src="/beacon.js" data-site-id="yoursite.com"
+        data-endpoint="https://beacon.example.com/api/event" defer></script>
+```
+
+Copy `beacon.js` into the site, so `script-src 'self'` is satisfied, and point
+it at the collector. Then the only thing the site's own policy has to allow is
+the connection:
+
+```
+connect-src 'self' https://beacon.example.com;
+```
+
+The alternative — adding the Beacon host to `script-src` — works too and is one
+line shorter, but it hands a third-party origin the ability to run code on the
+page. Serving the file yourself does not.
+
 ## Goals
 
 Pageviews are the default, not the limit. Anything else a site cares about is

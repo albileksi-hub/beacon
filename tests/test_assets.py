@@ -72,3 +72,24 @@ def test_the_script_a_customer_ships_stays_small():
     packed = len(gzip.compress((STATIC / "beacon.js").read_bytes(), 9))
 
     assert packed < 4096, f"the tracker gzips to {packed} bytes"
+
+
+def test_the_tracker_can_be_pointed_at_another_collector():
+    """The only way onto a site whose CSP will not load a foreign script.
+
+    Such a site copies beacon.js into its own origin, which satisfies
+    `script-src 'self'`, and names the collector with data-endpoint. Checked in
+    a browser against four real policies: without this the script either never
+    runs, or runs and has every event dropped by connect-src.
+
+    Asserted against the file rather than by executing it, because running the
+    tracker would mean a JavaScript toolchain this project deliberately does
+    not have. It pins the contract: the attribute is the documented escape
+    hatch, so it cannot quietly stop being read.
+    """
+    script = (STATIC / "beacon.js").read_text(encoding="utf-8")
+
+    assert 'getAttribute("data-endpoint")' in script
+    # And it falls back to the origin it was served from, so a site with no CSP
+    # needs no attribute at all.
+    assert "new URL(script.src).origin" in script
