@@ -15,6 +15,7 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 from app.db import Base, configure_sqlite, get_db  # noqa: E402
 from app.dependencies import get_session_factory  # noqa: E402
 from app.main import create_app  # noqa: E402
+from app.routers import ingest  # noqa: E402
 from app.services import accounts, rollups, visitors  # noqa: E402
 
 CHROME_MAC = (
@@ -142,12 +143,14 @@ def rebuild_rollups(db_session):
 
 @pytest.fixture(autouse=True)
 def clear_process_caches():
-    """Both caches are process-wide; a leak between tests would be invisible."""
+    """All three are process-wide; a leak between tests would be invisible."""
     visitors.forget_cached_salts()
     accounts.forget_registered_domains()
+    ingest.forget_warned_domains()
     yield
     visitors.forget_cached_salts()
     accounts.forget_registered_domains()
+    ingest.forget_warned_domains()
 
 
 def with_local_bucket(values: dict) -> dict:
