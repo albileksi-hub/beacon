@@ -113,7 +113,7 @@ def test_index_lists_only_your_own_sites(signed_in, db_session, rebuild_rollups,
 
     rebuild_rollups()
 
-    body = signed_in.get("/").text
+    body = signed_in.get("/sites").text
 
     assert f"/sites/{SITE_DOMAIN}" in body
     assert "/sites/second.example" in body
@@ -121,7 +121,7 @@ def test_index_lists_only_your_own_sites(signed_in, db_session, rebuild_rollups,
 
 
 def test_index_prompts_for_a_first_site(signed_in):
-    body = signed_in.get("/").text
+    body = signed_in.get("/sites").text
 
     assert "No sites yet" in body
     assert 'name="domain"' in body
@@ -426,3 +426,29 @@ def test_reduced_motion_is_declared_after_the_animations_it_cancels():
     assert "animation:" not in declarations[block:], (
         "an animation is declared after the reduced-motion block, so it wins the cascade"
     )
+
+
+def test_the_masthead_reaches_the_front_page_while_signed_in(signed_in, site):
+    """Clicking the name of the product should go to the front of it.
+
+    The front page and the site list used to share one URL, so the masthead
+    had nowhere to point: signed in, it went to your account, and there was no
+    way back to the front page at all short of signing out.
+    """
+    front = signed_in.get("/")
+
+    assert front.status_code == 200
+    assert "Know what your visitors read" in front.text
+    assert "Your sites" not in front.text
+
+
+def test_the_front_page_offers_a_way_back_in_to_someone_signed_in(signed_in, site):
+    """Not an account they already have."""
+    body = signed_in.get("/").text
+
+    assert "Go to your sites" in body
+    assert "Create an account" not in body
+
+
+def test_the_site_list_still_needs_a_session(client):
+    assert client.get("/sites", follow_redirects=False).status_code == 401

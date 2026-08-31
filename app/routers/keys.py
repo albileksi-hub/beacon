@@ -65,4 +65,4 @@ def revoke_key(db: DbSession, user: RequiredUser, token_id: int) -> Response:
     cannot be used to find out how many keys anybody else holds.
     """
     tokens.revoke(db, owner=user, token_id=token_id)
-    return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse("/sites", status_code=status.HTTP_303_SEE_OTHER)

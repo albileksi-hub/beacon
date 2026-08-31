@@ -28,7 +28,7 @@ def _start_session(request: Request, user_id: int) -> None:
 @router.get("/signup", response_class=HTMLResponse)
 def signup_form(request: Request, user: CurrentUser) -> Response:
     if user is not None:
-        return RedirectResponse("/", status_code=SEE_OTHER)
+        return RedirectResponse("/sites", status_code=SEE_OTHER)
     return templates.TemplateResponse(request, "signup.html", {})
 
 
@@ -47,13 +47,13 @@ def signup(
         )
 
     _start_session(request, user.id)
-    return RedirectResponse("/", status_code=SEE_OTHER)
+    return RedirectResponse("/sites", status_code=SEE_OTHER)
 
 
 @router.get("/login", response_class=HTMLResponse)
 def login_form(request: Request, user: CurrentUser) -> Response:
     if user is not None:
-        return RedirectResponse("/", status_code=SEE_OTHER)
+        return RedirectResponse("/sites", status_code=SEE_OTHER)
     return templates.TemplateResponse(request, "login.html", {})
 
 
@@ -87,7 +87,7 @@ def login(
 
     throttle.clear(db, marker)
     _start_session(request, user.id)
-    return RedirectResponse("/", status_code=SEE_OTHER)
+    return RedirectResponse("/sites", status_code=SEE_OTHER)
 
 
 @router.post("/logout")
