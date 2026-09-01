@@ -14,7 +14,7 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LOCK = ROOT / "requirements.lock"
+LOCK = ROOT / "requirements.txt"
 
 
 def _declared() -> list[str]:
@@ -46,7 +46,7 @@ def test_every_declared_dependency_is_pinned():
         not in pinned
     ]
 
-    assert not missing, f"declared in pyproject but not in requirements.lock: {missing}"
+    assert not missing, f"declared in pyproject but not in requirements.txt: {missing}"
 
 
 def test_every_pin_carries_a_hash():
@@ -71,5 +71,5 @@ def test_the_image_installs_from_the_lock_and_demands_hashes():
     """Wiring, not decoration. The lock does nothing unless the build reads it."""
     dockerfile = (ROOT / "Dockerfile").read_text()
 
-    assert "requirements.lock" in dockerfile, "the image never copies the lock"
+    assert "requirements.txt" in dockerfile, "the image never copies the lock"
     assert "--require-hashes" in dockerfile, "the image installs without checking hashes"

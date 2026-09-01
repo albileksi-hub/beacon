@@ -6,19 +6,26 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# pyproject declares what this depends on; requirements.lock decides which exact
+# pyproject declares what this depends on; requirements.txt decides which exact
 # versions arrive, with a hash for every artefact. The floors in pyproject alone
 # meant two people building this image a week apart got different software and
 # neither could say what changed -- which for self-hosted analytics is the whole
 # supply chain resting on whatever PyPI served that afternoon.
 #
+# Named requirements.txt, not requirements.lock, because Dependabot's pip
+# ecosystem recognises the conventional name and there is no evidence it
+# recognises the other. Get that wrong and the file the image actually
+# installs from never receives a security update, while Dependabot happily
+# bumps floors in pyproject that nobody installs from -- the supply chain
+# work defeated silently, in the direction that still looks healthy.
+#
 # The lock is generated, never hand-edited, so it cannot drift from pyproject
-# the way a hand-kept requirements.txt does; a test fails the build if a
+# the way a hand-maintained one does; a test fails the build if a
 # declared dependency is missing from it.
-COPY pyproject.toml README.md requirements.lock ./
+COPY pyproject.toml README.md requirements.txt ./
 COPY app ./app
 RUN pip install --upgrade pip \
- && pip install --require-hashes --no-deps -r requirements.lock \
+ && pip install --require-hashes --no-deps -r requirements.txt \
  && pip install --no-deps .
 
 COPY migrations ./migrations
