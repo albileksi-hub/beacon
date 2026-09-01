@@ -1460,7 +1460,7 @@ afternoon -- and nobody was watching it: no lock, no audit, no Dependabot, so a
 compromised release upstream would have arrived on the next rebuild of every
 instance, silently.
 
-`requirements.lock` pins all 45 packages in the runtime tree with a hash for
+`requirements.txt` pins all 45 packages in the runtime tree with a hash for
 every artefact, and the image installs with `--require-hashes`, so the build
 fails rather than substitutes if any byte differs from what was locked.
 
@@ -1472,6 +1472,17 @@ adds a dependency and never regenerates it -- so three tests hold it shut.
 Every declared dependency must be pinned, every pin must carry a hash, and the
 image must actually read the lock and demand those hashes. Each was confirmed
 by breaking it and watching the right test fail.
+
+The file is called `requirements.txt` and not `requirements.lock`, which is not
+cosmetic. Dependabot's pip ecosystem recognises the conventional name; there is
+no evidence it recognises the other, and the repository's own dependency-graph
+API would not answer to confirm either way. Guessing wrong there fails in the
+worst available direction: Dependabot goes on opening tidy pull requests
+against the floors in `pyproject.toml`, which nothing installs from, while the
+file the image actually reads quietly stops receiving security updates. The
+dashboard stays green and the supply chain stops moving. Given a choice between
+a name that is definitely understood and one that might be, there was no
+argument for the second.
 
 `pip-audit` and `pip-tools` are dev dependencies now: one regenerates the lock
 from pyproject, the other checks the locked versions against the advisory
