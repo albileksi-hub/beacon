@@ -14,6 +14,8 @@ import pytest
 from app.models import Event
 from app.services import accounts
 from tests.conftest import (
+    CHROME_MAC,
+    OWNER_EMAIL,
     OWNER_PASSWORD,
     SITE_DOMAIN,
     with_local_bucket,
@@ -104,16 +106,21 @@ def test_a_stranger_cannot_export_a_private_site(client, site):
     assert client.get(f"/sites/{SITE_DOMAIN}/export.csv").status_code == 404
 
 
-def test_anyone_may_export_a_published_site(client, db_session, site, rebuild_rollups):
-    """The API already serves these numbers; refusing the file would be theatre."""
+def test_a_published_site_does_not_hand_its_export_to_strangers(
+    client, db_session, site, rebuild_rollups
+):
+    """This asserted the opposite, on reasoning that did not survive measurement.
+
+    "The API already serves these numbers; refusing the file would be theatre."
+    It does not serve them: breakdowns cap at ten and a larger limit is
+    refused, while this file has no cap. The test below counts the difference.
+    """
     add_event(db_session, visitor_id="a")
     accounts.set_visibility(db_session, site=site, public=True)
     rebuild_rollups()
 
-    response = client.get(f"/sites/{SITE_DOMAIN}/export.csv")
-
-    assert response.status_code == 200
-    assert len(_rows(response.text)) > 1
+    assert client.get(f"/sites/{SITE_DOMAIN}").status_code == 200
+    assert client.get(f"/sites/{SITE_DOMAIN}/export.csv").status_code == 404
 
 
 def test_one_account_cannot_export_anothers_site(signed_in, db_session):
@@ -212,3 +219,64 @@ def test_a_visitor_cannot_put_a_live_formula_in_the_owners_export(
     dangerous = [c for c in cells if c.startswith(("=", "+", "@")) or c.startswith("-")]
     assert not dangerous, f"cells a spreadsheet would execute: {dangerous}"
     assert [c for c in cells if "HYPERLINK" in c], "the campaign never reached the export"
+
+
+def test_publishing_a_dashboard_does_not_publish_the_whole_export(
+    client, db_session, account, site, rebuild_rollups
+):
+    """The export used to resolve through readability, so a public site gave it away.
+
+    The reasoning recorded at the time was that a published dashboard already
+    serves these numbers over the API, making it theatre to withhold them in
+    another shape. That was measurably false. Breakdowns are capped at ten and
+    the API answers 422 to a larger limit; this file has no cap. On a site with
+    forty distinct pages a stranger saw ten and could download all forty --
+    plus every referrer, campaign and screen size ever recorded. The long tail
+    that cap hides is unlinked pages, staging paths and internal tools.
+
+    The template only ever showed the download link to the owner, so the intent
+    was never in doubt. The control was in the markup rather than the handler,
+    which is not a control.
+    """
+    for i in range(40):
+        client.post(
+            "/api/event",
+            json={"site_id": SITE_DOMAIN, "url": f"https://{SITE_DOMAIN}/unlinked-{i:02d}"},
+            headers={"user-agent": CHROME_MAC},
+        )
+    rebuild_rollups()
+    site.public = True
+    db_session.commit()
+    client.post("/logout")
+
+    dashboard = client.get(f"/sites/{SITE_DOMAIN}")
+    export = client.get(f"/sites/{SITE_DOMAIN}/export.csv?range=30d")
+
+    assert dashboard.status_code == 200, "publishing must still publish the dashboard"
+    assert export.status_code == 404, "a stranger downloaded the full history"
+
+    # And the cap the dashboard relies on is real, so the two are not equivalent.
+    capped = client.get(f"/api/stats/{SITE_DOMAIN}/breakdown/page")
+    assert capped.status_code == 200
+    assert len(capped.json()) <= 10, "the dashboard's cap is what made this a leak"
+
+
+def test_everyone_invited_to_a_site_can_still_export_it(client, db_session, account, site):
+    """Tightening the gate must not shut out the people it is for."""
+    from app.models import Role
+    from app.services import accounts as accounts_service
+
+    for email, role in [("adm@x.example", Role.ADMIN), ("vw@x.example", Role.VIEWER)]:
+        accounts_service.register(db_session, email=email, password=OWNER_PASSWORD)
+        accounts_service.add_member(db_session, site=site, email=email, role=role)
+    accounts_service.register(db_session, email="stranger@x.example", password=OWNER_PASSWORD)
+
+    def export_status(email):
+        client.post("/logout")
+        client.post("/login", data={"email": email, "password": OWNER_PASSWORD})
+        return client.get(f"/sites/{SITE_DOMAIN}/export.csv?range=30d").status_code
+
+    assert export_status(OWNER_EMAIL) == 200, "the owner lost their own export"
+    assert export_status("adm@x.example") == 200, "an admin lost the export"
+    assert export_status("vw@x.example") == 200, "a viewer lost the export"
+    assert export_status("stranger@x.example") == 404, "a non-member gained the export"

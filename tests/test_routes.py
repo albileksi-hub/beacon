@@ -29,7 +29,10 @@ ROUTER_MODULES = ("auth", "dashboard", "exports", "ingest", "keys", "sites", "st
 # timezone are administration rather than ownership: an admin does the work on
 # a site and the owner decides who is an admin. Deciding who may open the site
 # at all stays behind OwnedSite.
-OWNERSHIP = ("OwnedSite", "AdministeredSite", "RequiredUser")
+# MemberSite sits with ownership rather than with read access on purpose: it
+# demands a role on the site, and unlike ReadableSite a published dashboard
+# does not satisfy it. That distinction is the whole reason it exists.
+OWNERSHIP = ("OwnedSite", "AdministeredSite", "MemberSite", "RequiredUser")
 READ_ACCESS = ("ReadableSite",)
 ALL_GUARDS = OWNERSHIP + READ_ACCESS + ("CurrentUser", "ApiAccount")
 

@@ -1106,6 +1106,35 @@ path, which measured 0.2ms against a same-machine baseline of about 1ms. That
 is under the jitter of any real network and is not being claimed as zero --
 only as no longer a signal anybody can read.
 
+## Publishing a dashboard is not publishing the history
+
+A site can be published, and then anyone may read its dashboard without an
+account. The export resolved through the same check, on reasoning written into
+the handler at the time: the API already serves these numbers, so withholding
+the same numbers in another shape would be theatre rather than a control.
+
+The reasoning was wrong, and wrong in a way that measuring settles. Breakdowns
+are capped at ten rows and the API answers `422` to a larger limit; the export
+has no cap at all. On a site with forty distinct pages a stranger saw ten and
+could download all forty -- with every referrer, campaign and screen size ever
+recorded. The long tail that cap hides is the interesting part: unlinked pages,
+staging paths, internal tools, customer-specific URLs. Someone publishing their
+traffic as a gesture of openness is not offering that.
+
+The intent was never actually in doubt. The template puts the download link
+inside `{% if is_owner %}`, so the control was written -- it was just in the
+markup rather than in the handler, which is not a control at all. Anyone who
+had guessed the URL had it.
+
+`MemberSite` is the gate now: any role on the site, and publishing is not a
+role. Owner, admin and viewer keep the export, an API key keeps it, and a
+stranger on a published site gets the same `404` as a stranger anywhere else.
+The dashboard is untouched -- publishing still publishes the dashboard, which
+is what the word was ever supposed to mean.
+
+The route audit classifies `MemberSite` with the ownership guards rather than
+with `ReadableSite`, because what makes it useful is the thing it refuses.
+
 ## The site ID is not a password
 
 The site ID sits in the tracking snippet on every page of the site it measures.

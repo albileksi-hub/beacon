@@ -155,6 +155,16 @@ def owned_site(db: Session, *, owner: User, domain: str) -> Site | None:
     return _site_for(db, user=owner, domain=domain, allowed={Role.OWNER})
 
 
+def member_site(db: Session, *, user: User, domain: str) -> Site | None:
+    """The site, for anyone actually invited to it, whatever their role.
+
+    Distinct from readable_site, which also says yes to a stranger when the
+    owner has published the dashboard. Publishing is a decision about the
+    numbers on that page; it is not a decision to hand over the whole export.
+    """
+    return _site_for(db, user=user, domain=domain, allowed=set(Role))
+
+
 def administered_site(db: Session, *, user: User, domain: str) -> Site | None:
     """The site, for anyone who may change its settings.
 

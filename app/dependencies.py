@@ -134,6 +134,29 @@ def require_readable_site(
 ReadableSite = Annotated[Site, Depends(require_readable_site)]
 
 
+def require_member_site(
+    site_id: str, db: DbSession, user: CurrentUser, api_account: ApiAccount
+) -> Site:
+    """The site, for someone who was invited to it -- not merely a passer-by.
+
+    ReadableSite is the wrong gate for anything that hands over more than the
+    dashboard shows, because it also admits strangers to a published site.
+    """
+    viewer = user or api_account
+    if viewer is None:
+        # Nobody at all. The published-dashboard case stops here, which is the
+        # whole point of this dependency existing next to ReadableSite.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such site")
+
+    site = accounts.member_site(db, user=viewer, domain=site_id)
+    if site is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such site")
+    return site
+
+
+MemberSite = Annotated[Site, Depends(require_member_site)]
+
+
 def require_time_range(
     site: ReadableSite,
     period: Period = Period.LAST_30_DAYS,
