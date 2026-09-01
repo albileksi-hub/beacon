@@ -11,14 +11,21 @@ concurrency:
 
 jobs:
   lint-and-test:
-    name: Lint and test (SQLite)
+    # Both the version the project has always run on and the one the Docker
+    # image ships. Shipping an image on a Python the suite never exercises is
+    # worse than either choice on its own.
+    name: Lint and test (SQLite, Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: pyproject.toml
 
