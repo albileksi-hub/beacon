@@ -107,6 +107,31 @@ jobs:
       - name: Check the migration reverses
         run: alembic downgrade base
 
+  audit:
+    # pip-audit was already a declared dev dependency, described as checking the
+    # locked versions against the advisory database -- but nothing ran it, so it
+    # was an intention rather than a gate.
+    name: Dependencies have no known vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: pip install "pip-audit>=2.10.1"
+
+      # --disable-pip audits the pins as written instead of resolving them,
+      # which is both faster and the only thing that works against a lock
+      # containing uvloop -- it has no Windows build, so a developer cannot
+      # otherwise run this locally at all.
+      - name: Audit the locked tree
+        run: pip-audit --requirement requirements.txt --disable-pip --require-hashes
+
   docker:
     name: Docker image builds
     runs-on: ubuntu-latest
