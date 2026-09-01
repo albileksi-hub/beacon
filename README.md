@@ -33,7 +33,7 @@ If your site sends a Content Security Policy, it needs one more step — see [Ge
 | **A year of traffic renders in 9.6 ms** | instead of 2,027 ms — **211x**, by pre-aggregating on a daily grain |
 | **Bot filtering went 65.5% → 100%** | measured against 2,118 real crawler user-agents; the third it used to miss included `ChatGPT-User`, `Applebot` and `Bytespider` |
 | **p99 ingest 915 ms → 91 ms** | moving the write off the request path; worst case 4,249 ms → 135 ms |
-| **740 tests, 100% coverage of `app/`** | `ruff` and `mypy --strict` clean, run against SQLite *and* Postgres in CI |
+| **741 tests, 100% coverage of `app/`** | `ruff` and `mypy --strict` clean, run against SQLite *and* Postgres in CI |
 | **Zero JavaScript on the dashboard** | charts are server-rendered SVG; the page works with scripting disabled |
 | **Read it from anywhere** | `Authorization: Bearer` keys on the stats API — read-only by construction, so a leaked key can pull numbers and change nothing |
 
@@ -98,6 +98,12 @@ Four jobs on every push: lint and test on SQLite with coverage gated at 100%;
 the whole suite again on real Postgres; `alembic check` to catch a model changed
 without a migration, plus a full downgrade to prove it reverses; and a Docker
 build that starts the image and waits for `/health`.
+
+## Running it in anger
+
+Backups, restore, upgrades, and what to watch: [docs/OPERATIONS.md](docs/OPERATIONS.md).
+Read the backup section before you put real traffic through it — once raw
+events age past retention, the aggregates are the only copy there is.
 
 ## Licence
 
