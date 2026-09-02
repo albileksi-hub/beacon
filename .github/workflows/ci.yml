@@ -141,11 +141,15 @@ jobs:
       - name: Build
         run: docker build -t beacon:ci .
 
+      # Reached over plain HTTP on localhost and thrown away a minute later,
+      # which is the case the flag exists for. The app refuses to start
+      # without it, and that refusal is what the flag below acknowledges.
       - name: Start it against a throwaway SQLite database
         run: |
           docker run -d --name beacon-ci -p 8000:8000 \
             -e BEACON_DATABASE_URL=sqlite:////tmp/ci.db \
             -e BEACON_SESSION_SECRET=ci-only-secret \
+            -e BEACON_ALLOW_INSECURE_SESSIONS=true \
             beacon:ci
 
       - name: Wait for the health check to pass
