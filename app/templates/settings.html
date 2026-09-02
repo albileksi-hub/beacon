@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Settings — {{ site.domain }} — Beacon{% endblock %}
+
+{% block content %}
+<section class="stack narrow">
+  <div class="page-head">
+    <h1>Settings</h1>
+    <p class="muted">
+      For <a href="/sites/{{ site.domain }}">{{ site.domain }}</a>.
+    </p>
+  </div>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <div class="card danger">
+    <h2>Delete this site</h2>
+    <p class="muted">
+      Removes the site and everything recorded against it: every event, every
+      daily and hourly aggregate, the salts, the funnels, and everyone else's
+      access to it. Nothing here can be recovered afterwards, which is the
+      point of it.
+    </p>
+    {# The domain typed out, so this cannot happen by clicking one row above
+       the one intended. #}
+    <form method="post" action="/sites/{{ site.domain }}/delete" class="form">
+      <label>
+        Type <strong>{{ site.domain }}</strong> to confirm
+        <input type="text" name="confirm" required autocomplete="off"
+               placeholder="{{ site.domain }}" />
+      </label>
+      <button type="submit" class="button danger">Delete this site and its data</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

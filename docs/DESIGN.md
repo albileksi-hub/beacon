@@ -716,6 +716,41 @@ refusing to issue resets at all would lock the operator out of their own
 install. `mail.deliver` never raises, because a mail outage must not become a
 way of asking which addresses exist.
 
+## Deleting things
+
+A product whose first line is "without collecting anything that identifies
+them" has to be able to stop holding what it does collect. Until recently
+nothing here could be deleted at all: not a site, not an account.
+
+The schema makes the obvious implementation wrong. Memberships and funnels
+reference `sites.id`, so the database removes them on its own -- but `events`,
+`daily_salts`, `daily_stats` and `hourly_stats` key on the **domain as a plain
+string**, with no foreign key to cascade along. Deleting the `Site` row alone
+leaves every event and every aggregate in place, still queryable by whoever
+registers that domain next. A delete that orphans the data is the same promise
+with none of the effect, which is worse than not offering one.
+
+So `app/services/erasure.py` discovers those tables from the metadata rather
+than listing them. Adding a table keyed by `site_id` and forgetting to clear
+it is exactly the mistake this is written to survive, and a hand-maintained
+list is how that mistake gets through. A test asserts the discovered set, and
+another asserts nothing survives with the site's domain on it.
+
+The salts matter most of the four. A surviving salt makes that day's visitor
+IDs re-derivable, so leaving them behind would be a privacy failure rather
+than merely untidy -- which is why it has a test of its own.
+
+Two different confirmations, for two different accidents:
+
+- **A site** needs its domain typed out, because the realistic mistake is
+  clicking the row above the one you meant.
+- **An account** needs the current password, because the realistic mistake is
+  somebody else using a session left open on a shared machine.
+
+Deleting an account takes every site it *owns*. Sites owned by other people
+that the account merely has access to are untouched: being a member of a site
+is not owning it.
+
 ## Accounts and tenancy
 
 Sign up, add a domain, get a snippet. A domain belongs to exactly one account,

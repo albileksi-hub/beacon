@@ -81,6 +81,8 @@
 
         {% if is_owner %}<a class="link-button" href="/sites/{{ site_id }}/people">People</a>{% endif %}
 
+        {% if is_owner %}<a class="link-button" href="/sites/{{ site_id }}/settings">Settings</a>{% endif %}
+
         <form method="post" action="/sites/{{ site_id }}/visibility" class="control">
           <input type="hidden" name="public" value="{{ 'false' if is_public else 'true' }}" />
           <button type="submit" class="link-button">

@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.dependencies import AdministeredSite, DbSession, OwnedSite, RequiredUser
 from app.models import Role, Site, User
 from app.routers.dashboard import PERIOD_LABELS
-from app.services import accounts, funnels, timeranges, tokens, zones
+from app.services import accounts, erasure, funnels, timeranges, tokens, zones
 from app.services.timeranges import Period
 from app.templating import templates
 
@@ -244,3 +244,40 @@ def delete_funnel(
     return RedirectResponse(
         f"/sites/{site.domain}/funnels", status_code=status.HTTP_303_SEE_OTHER
     )
+
+
+@router.get("/sites/{site_id}/settings", response_class=HTMLResponse)
+def site_settings(request: Request, site: OwnedSite, user: RequiredUser) -> Response:
+    """Where the irreversible things live, away from the daily controls."""
+    return templates.TemplateResponse(request, "settings.html", {"user": user, "site": site})
+
+
+@router.post("/sites/{site_id}/delete")
+def delete_site(
+    request: Request,
+    db: DbSession,
+    user: RequiredUser,
+    site: OwnedSite,
+    confirm: Annotated[str, Form()],
+) -> Response:
+    """Delete a site and everything recorded against its domain.
+
+    Behind OwnedSite rather than AdministeredSite: an admin runs a site, but
+    destroying it is the owner's decision. The typed confirmation is the
+    domain itself, so this cannot be reached by a stray click on the row above
+    the one intended.
+    """
+    if confirm.strip().lower() != site.domain.lower():
+        return templates.TemplateResponse(
+            request,
+            "settings.html",
+            {
+                "user": user,
+                "site": site,
+                "error": f"Type {site.domain} exactly to confirm.",
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    erasure.delete_site(db, site=site)
+    return RedirectResponse("/sites", status_code=status.HTTP_303_SEE_OTHER)

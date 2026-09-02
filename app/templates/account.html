@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Your account — Beacon{% endblock %}
+
+{% block content %}
+<section class="stack narrow">
+  <div class="page-head">
+    <h1>Your account</h1>
+    <p class="muted">{{ user.email }}</p>
+  </div>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <div class="card danger">
+    <h2>Delete your account</h2>
+    <p class="muted">
+      Closes this account and erases every site you own, along with all of
+      their events, aggregates and salts. Sites other people own that you have
+      access to are not affected. None of it can be recovered.
+    </p>
+    {# The password rather than a typed phrase: a session left open on a shared
+       machine is how this would otherwise be triggered by the wrong person. #}
+    <form method="post" action="/account/delete" class="form">
+      <label>
+        Confirm your password
+        <input type="password" name="password" required autocomplete="current-password" />
+      </label>
+      <button type="submit" class="button danger">Delete my account and all its data</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

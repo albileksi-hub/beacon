@@ -3,9 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Form, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.dependencies import CurrentUser, DbSession, SettingsDep
+from app.dependencies import CurrentUser, DbSession, RequiredUser, SettingsDep
 from app.models import User
-from app.services import accounts, mail, recovery, throttle
+from app.services import accounts, erasure, mail, recovery, throttle
 from app.services.client import client_ip
 from app.services.passwords import InvalidPassword
 from app.templating import templates
@@ -201,3 +201,31 @@ def reset(
     # cookie for this account stopped being accepted a moment ago.
     _start_session(request, user)
     return RedirectResponse("/sites", status_code=SEE_OTHER)
+
+
+@router.post("/account/delete")
+def delete_account(
+    request: Request, db: DbSession, user: RequiredUser, password: PasswordField
+) -> Response:
+    """Close an account and erase everything it owns.
+
+    Guarded by the current password rather than a typed phrase. A session left
+    open on a shared machine is the realistic way this gets triggered by
+    somebody who should not, and only the password stops that.
+    """
+    if accounts.authenticate(db, email=user.email, password=password) is None:
+        return templates.TemplateResponse(
+            request,
+            "account.html",
+            {"user": user, "error": "That password does not match."},
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    erasure.delete_account(db, user=user)
+    request.session.clear()
+    return RedirectResponse("/", status_code=SEE_OTHER)
+
+
+@router.get("/account", response_class=HTMLResponse)
+def account_page(request: Request, user: RequiredUser) -> Response:
+    return templates.TemplateResponse(request, "account.html", {"user": user})
