@@ -279,3 +279,41 @@ def test_the_proxy_overwrites_the_forwarded_header_rather_than_appending() -> No
     assert "proxy_set_header X-Forwarded-For $remote_addr;" in "\n".join(directives)
     appending = "$proxy_add_x_forwarded_for"
     assert not [d for d in directives if appending in d], "appending lets a visitor forge it"
+
+
+def test_the_app_refuses_to_start_with_insecure_session_cookies(monkeypatch) -> None:
+    """The guard that was missing beside the one above it.
+
+    A session cookie without Secure travels over plain HTTP, so anybody on the
+    path can lift it and be that account. Unlike a forged cookie that needs the
+    signing key, this needs nothing at all.
+    """
+    from app import main
+    from app.config import Settings
+
+    monkeypatch.setattr(
+        main,
+        "get_settings",
+        lambda: Settings(session_secret="something-random-enough", session_https_only=False),
+    )
+
+    with pytest.raises(RuntimeError, match="plain HTTP"):
+        main.create_app()
+
+
+def test_the_same_flag_excuses_both_insecure_defaults(monkeypatch) -> None:
+    """One flag means "this is a throwaway instance", for every such default."""
+    from app import main
+    from app.config import Settings
+
+    monkeypatch.setattr(
+        main,
+        "get_settings",
+        lambda: Settings(
+            session_secret="something-random-enough",
+            session_https_only=False,
+            allow_insecure_sessions=True,
+        ),
+    )
+
+    assert main.create_app() is not None

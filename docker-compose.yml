@@ -36,8 +36,12 @@ services:
       #   export BEACON_SESSION_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
       BEACON_SESSION_SECRET: "${BEACON_SESSION_SECRET:?set it first - see the comment above}"
       BEACON_ROLLUP_INTERVAL_SECONDS: 60
-      # Enable once there is TLS in front of the app.
+      # This stack serves plain HTTP on localhost, so the Secure flag would stop
+      # the cookie being sent at all. Saying so explicitly is what the app now
+      # requires: running without Secure is allowed, but only on purpose.
+      # Turn both of these round the moment there is TLS in front.
       BEACON_SESSION_HTTPS_ONLY: "false"
+      BEACON_ALLOW_INSECURE_SESSIONS: "true"
     depends_on:
       db:
         condition: service_healthy

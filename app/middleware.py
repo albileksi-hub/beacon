@@ -43,12 +43,25 @@ SECURITY_HEADERS: tuple[tuple[bytes, bytes], ...] = (
     ),
 )
 
+# Sent only where TLS is actually in front. On a plain-HTTP instance it is at
+# best ignored and at worst a foot-gun: a browser that sees it once will refuse
+# to reach that host over HTTP again for the whole max-age, which on localhost
+# means breaking every other project on that port. The flag that says the
+# cookie may carry Secure is the same signal, so it decides this too.
+STRICT_TRANSPORT = (b"strict-transport-security", b"max-age=31536000; includeSubDomains")
+
 
 class SecurityHeaders:
     """Adds the headers every response should carry."""
 
-    def __init__(self, app: Callable[[Scope, Receive, Send], Awaitable[None]]) -> None:
+    def __init__(
+        self,
+        app: Callable[[Scope, Receive, Send], Awaitable[None]],
+        *,
+        https: bool = False,
+    ) -> None:
         self.app = app
+        self.headers = SECURITY_HEADERS + ((STRICT_TRANSPORT,) if https else ())
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -60,7 +73,7 @@ class SecurityHeaders:
                 headers = list(message.get("headers", []))
                 present = {name.lower() for name, _ in headers}
                 headers.extend(
-                    (name, value) for name, value in SECURITY_HEADERS if name not in present
+                    (name, value) for name, value in self.headers if name not in present
                 )
                 message["headers"] = headers
             await send(message)

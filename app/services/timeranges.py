@@ -20,6 +20,19 @@ class Period(StrEnum):
     LAST_12_MONTHS = "12mo"
 
 
+# How each period is written for a person. It lives beside the enum rather
+# than in a router because two routers render it, and the one that happened to
+# define it was being imported by the other -- a sibling reaching sideways for
+# a constant, which is the shape of coupling that spreads.
+LABELS = {
+    Period.TODAY: "Today",
+    Period.LAST_7_DAYS: "7 days",
+    Period.LAST_30_DAYS: "30 days",
+    Period.LAST_6_MONTHS: "6 months",
+    Period.LAST_12_MONTHS: "12 months",
+}
+
+
 class Interval(StrEnum):
     HOUR = "hour"
     DAY = "day"

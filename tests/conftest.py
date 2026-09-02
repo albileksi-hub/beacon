@@ -5,6 +5,11 @@ import os
 # against a real secret rather than waving the check through, so the guard in
 # create_app is exercised the way a deployment would meet it.
 os.environ.setdefault("BEACON_SESSION_SECRET", "a-secret-for-the-test-suite-only")
+# And the same for the other guard, rather than waving it through with
+# ALLOW_INSECURE_SESSIONS. It means the cookie carries Secure, so the client
+# below has to speak https for it to be sent back at all -- which is what a
+# deployment looks like, and is the configuration worth running the suite under.
+os.environ.setdefault("BEACON_SESSION_HTTPS_ONLY", "true")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -101,7 +106,12 @@ def client(db_session):
     app.dependency_overrides[get_session_factory] = lambda: sessionmaker(
         bind=db_session.get_bind(), autoflush=False, expire_on_commit=False
     )
-    with TestClient(app, headers={"user-agent": CHROME_MAC}) as test_client:
+    # https, because the session cookie is Secure: over http the client
+    # would quietly drop it and every signed-in test would fail for a
+    # reason that has nothing to do with what it is testing.
+    with TestClient(
+        app, base_url="https://testserver", headers={"user-agent": CHROME_MAC}
+    ) as test_client:
         yield test_client
 
 

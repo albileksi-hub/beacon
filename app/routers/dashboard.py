@@ -29,15 +29,6 @@ PANELS = (
     ("medium", "Mediums", BreakdownProperty.MEDIUM),
 )
 
-PERIOD_LABELS = {
-    Period.TODAY: "Today",
-    Period.LAST_7_DAYS: "7 days",
-    Period.LAST_30_DAYS: "30 days",
-    Period.LAST_6_MONTHS: "6 months",
-    Period.LAST_12_MONTHS: "12 months",
-}
-
-
 @router.get("/", response_class=HTMLResponse)
 def index(request: Request, user: CurrentUser) -> Response:
     """The front page, whoever is looking at it.
@@ -110,7 +101,7 @@ def site_dashboard(
             f"compared with the {span} {nights} before"
         )
     else:
-        window_label = f"{PERIOD_LABELS[period].lower()}, compared with the period before"
+        window_label = f"{timeranges.LABELS[period].lower()}, compared with the period before"
     series = reports.timeseries(db, site_id=site.domain, time_range=time_range)
 
     return templates.TemplateResponse(
@@ -125,7 +116,7 @@ def site_dashboard(
             "timezones": zones.COMMON,
             "is_owner": user is not None and site.owner_id == user.id,
             "period": period,
-            "period_labels": PERIOD_LABELS,
+            "period_labels": timeranges.LABELS,
             "window_label": window_label,
             "chose_dates": chose_dates,
             "range_from": start.isoformat() if start else "",

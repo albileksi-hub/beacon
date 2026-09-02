@@ -89,6 +89,22 @@ def create_app() -> FastAPI:
             "instance are forgeable by anyone with the source."
         )
 
+    if not settings.session_https_only and not settings.allow_insecure_sessions:
+        # The neighbouring insecure default, and it was going unguarded while
+        # the one above it was refused. A session cookie without Secure is sent
+        # over plain HTTP, so anyone between the browser and the server can
+        # lift it and be signed in as that account -- and unlike a forged
+        # cookie, this needs no secret at all. One flag already means "this is
+        # a throwaway instance"; it may as well mean it for both.
+        raise RuntimeError(
+            "BEACON_SESSION_HTTPS_ONLY is false, so session cookies will be sent "
+            "over plain HTTP and can be read off the wire. Set it to true once "
+            "TLS is in front of this app:\n\n"
+            "    BEACON_SESSION_HTTPS_ONLY=true\n\n"
+            "Or set BEACON_ALLOW_INSECURE_SESSIONS=true if this really is a "
+            "throwaway instance nobody can reach."
+        )
+
     # samesite="lax" means the cookie is not sent on cross-site POSTs, which is
     # what stands in for CSRF tokens on these forms.
     app.add_middleware(
@@ -107,7 +123,9 @@ def create_app() -> FastAPI:
         allow_headers=["Content-Type"],
     )
 
-    app.add_middleware(SecurityHeaders)
+    # HSTS only where TLS is in front; see app.middleware for why sending it
+    # from a plain-HTTP instance is worse than not sending it.
+    app.add_middleware(SecurityHeaders, https=settings.session_https_only)
 
     # The stylesheet is 36 KB of text and was going over the wire uncompressed;
     # CSS is mostly repeated identifiers, so it packs down by roughly eight to

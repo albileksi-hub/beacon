@@ -751,6 +751,43 @@ Deleting an account takes every site it *owns*. Sites owned by other people
 that the account merely has access to are untouched: being a member of a site
 is not owning it.
 
+## Two guards on the same flag
+
+The app refuses to start on the built-in session secret. It now also refuses to
+start with `BEACON_SESSION_HTTPS_ONLY` off, and both are excused by the same
+`BEACON_ALLOW_INSECURE_SESSIONS`.
+
+They are the same class of mistake and only one of them was being caught. A
+forged cookie needs the signing key; a cookie sent without `Secure` needs
+nothing at all, because it travels over plain HTTP where anyone on the path can
+read it and be that account. Guarding the harder attack and not the easier one
+is not a position anybody would choose deliberately.
+
+`HSTS` follows the same flag rather than being sent always. On a plain-HTTP
+instance the header is at best ignored, and at worst a foot-gun: a browser that
+sees it once refuses to reach that host over HTTP for the whole `max-age`,
+which on `localhost` means breaking every other project that uses the port.
+
+The test suite runs under both guards rather than waiving them, which is why
+its client speaks `https://testserver` -- with `Secure` set, a client on plain
+HTTP would silently drop the session cookie and every signed-in test would fail
+for a reason unrelated to what it was testing.
+
+## Which way dependencies point
+
+Models, then services, then routers. The convention held for eighty commits
+with nothing checking it, and then quietly stopped: `routers/sites.py` had
+begun importing `PERIOD_LABELS` from `routers/dashboard.py`, so the page
+listing sites could not be read, moved or tested without the dashboard coming
+with it. The labels now sit beside the `Period` they describe.
+
+`tests/test_layering.py` reads the import statements with `ast` and fails on
+any service importing a router, any router importing a sibling router, and any
+model importing upwards. `app/services/client.py` is the one named exception:
+pulling the originating address out of a `Request` is its entire job. Naming it
+means a second service reaching for FastAPI has to be argued for rather than
+merely committed.
+
 ## Accounts and tenancy
 
 Sign up, add a domain, get a snippet. A domain belongs to exactly one account,

@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.dependencies import AdministeredSite, DbSession, OwnedSite, RequiredUser
 from app.models import Role, Site, User
-from app.routers.dashboard import PERIOD_LABELS
 from app.services import accounts, erasure, funnels, timeranges, tokens, zones
 from app.services.timeranges import Period
 from app.templating import templates
@@ -183,7 +182,7 @@ def _funnels_page(
             "site_id": site.domain,
             "funnels": measured,
             "period": period,
-            "period_labels": PERIOD_LABELS,
+            "period_labels": timeranges.LABELS,
             "retention_days": get_settings().raw_event_retention_days,
             "error": error,
         },

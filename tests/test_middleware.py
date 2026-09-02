@@ -102,3 +102,32 @@ def test_the_headers_reach_error_responses_too(signed_in, site):
 )
 def test_reading_the_declared_body_size(headers, expected):
     assert _declared_length({"headers": headers}) == expected
+
+
+def test_hsts_is_sent_where_there_is_tls(client):
+    """The suite runs with https_only on, which is what turns this header on."""
+    headers = client.get("/health").headers
+
+    assert "max-age=" in headers["strict-transport-security"]
+    assert "includeSubDomains" in headers["strict-transport-security"]
+
+
+def test_hsts_is_withheld_from_a_plain_http_instance():
+    """Sending it from an http instance is worse than not sending it.
+
+    A browser that sees it once refuses to reach that host over HTTP for the
+    whole max-age -- which on localhost means breaking every other project
+    that ever uses the port.
+    """
+    from starlette.applications import Starlette
+
+    from app.middleware import SecurityHeaders
+
+    plain = SecurityHeaders(Starlette(), https=False)
+    secured = SecurityHeaders(Starlette(), https=True)
+
+    names = {name for name, _ in plain.headers}
+    assert b"strict-transport-security" not in names
+    assert b"strict-transport-security" in {name for name, _ in secured.headers}
+    # Everything else is sent either way.
+    assert names == {name for name, _ in secured.headers} - {b"strict-transport-security"}
