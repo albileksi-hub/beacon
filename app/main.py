@@ -143,7 +143,12 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(ingest.router)
-    app.include_router(stats.router)
+    # Twice, under two prefixes. The versioned path is the documented one; the
+    # unversioned path is what v0.1.0 published an hour earlier and still
+    # answers, kept out of the schema so it does not read as a second API to
+    # choose between.
+    app.include_router(stats.router, prefix=stats.API_PREFIX)
+    app.include_router(stats.router, prefix=stats.LEGACY_PREFIX, include_in_schema=False)
     app.include_router(sites.router)
     app.include_router(keys.router)
     app.include_router(exports.router)

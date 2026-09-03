@@ -1,7 +1,9 @@
 import datetime as dt
 
+import pytest
+
 from app.models import Event
-from app.services import accounts
+from app.services import accounts, tokens
 from tests.conftest import OWNER_PASSWORD, SITE_DOMAIN, with_local_bucket
 
 
@@ -175,3 +177,39 @@ def test_entry_and_exit_page_endpoints(signed_in, db_session, rebuild_rollups, s
 def test_a_breakdown_the_whitelist_does_not_know_is_refused(signed_in, site):
     """The property is an enum, not a column name."""
     assert signed_in.get(f"/api/stats/{SITE_DOMAIN}/breakdown/passwords").status_code == 422
+
+
+@pytest.mark.parametrize("path", ["/summary", "/live", "/timeseries", "/breakdown/page"])
+def test_the_versioned_and_legacy_paths_are_the_same_api(client, db_session, account, site, path):
+    """One router, mounted twice. They cannot drift, and this says so.
+
+    An API key implies somebody's script, and a path with no version in it
+    leaves no way to change a response shape without breaking every one of them
+    at once -- and no way to announce it. Versioning was free at v0.1.0 because
+    there was nobody to break; it stops being free the moment there is.
+
+    The old path stays because v0.1.0 documented it an hour before this, and
+    publishing a path and then withdrawing it is a poor way to begin keeping a
+    contract.
+    """
+    _row, key = tokens.create(db_session, owner=account, name="both-paths")
+    headers = {"Authorization": f"Bearer {key}"}
+
+    versioned = client.get(f"/api/v1/stats/{SITE_DOMAIN}{path}", headers=headers)
+    legacy = client.get(f"/api/stats/{SITE_DOMAIN}{path}", headers=headers)
+
+    assert versioned.status_code == legacy.status_code == 200
+    assert versioned.json() == legacy.json()
+
+
+def test_only_the_versioned_path_is_documented(client):
+    """The alias answers; it is not advertised.
+
+    Two documented ways to call the same thing is a choice nobody should be
+    asked to make, and it would make the unversioned path look supported for
+    the long run rather than kept out of courtesy.
+    """
+    paths = client.get("/openapi.json").json()["paths"]
+
+    assert [p for p in paths if p.startswith("/api/v1/stats/")]
+    assert not [p for p in paths if p.startswith("/api/stats/")]

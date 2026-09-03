@@ -2,6 +2,19 @@
 
 Notable changes, newest first. Versions follow [semantic versioning](https://semver.org).
 
+## Unreleased
+
+- **The stats API is versioned.** `/api/v1/stats/{site}` is the documented
+  surface; `/api/stats/{site}` still answers but is no longer advertised. Both
+  are one router mounted twice, so they cannot drift. Within `v1`, fields are
+  added and never removed or retyped.
+- **A registered domain must be a hostname.** `quote".example` used to be a
+  valid site, and the domain reaches the CSV export's `Content-Disposition`,
+  where a quote closed the filename early. Non-ASCII domains are punycoded
+  rather than refused.
+- **The documented backup is rehearsed on every push**, and coverage counts
+  branches rather than statements.
+
 ## 0.1.0 — 2026-09-01
 
 The first tagged version. Everything below already existed on `main`; what is
@@ -25,7 +38,7 @@ Migrations run on start. A site or an account can be deleted, taking every
 event, salt and aggregate with it. Backup and restore are documented in
 `docs/OPERATIONS.md`.
 
-**How it is checked.** 810 tests at 100% branch coverage, `ruff` and
+**How it is checked.** 815 tests at 100% branch coverage, `ruff` and
 `mypy --strict` clean, run against SQLite and Postgres and on both Python 3.12
 and the 3.14 the image ships. Migrations are verified by applying them,
 diffing against the models, and reversing them to base. Dependencies are

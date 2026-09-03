@@ -9,7 +9,20 @@ from app.services.stats import DEFAULT_BREAKDOWN_LIMIT, BreakdownProperty
 
 # Every route resolves {site_id} through ReadableSite, so a caller sees only
 # their own sites and any their owner has published.
-router = APIRouter(prefix="/api/stats/{site_id}", tags=["stats"])
+# Versioned, because this is the surface other people's scripts talk to and an
+# API key implies exactly that. Without a version in the path there is no way
+# to change a response shape without breaking every consumer at once, and no
+# way to signal a transition -- so a first breaking change would have to be
+# either never or a surprise.
+#
+# Done at v0.1.0 with no consumers, which is the only moment it is free. The
+# router carries no prefix of its own: app.main mounts it twice, once under
+# each path, so the alias cannot drift from the versioned surface because there
+# is only one set of routes.
+API_PREFIX = "/api/v1/stats/{site_id}"
+LEGACY_PREFIX = "/api/stats/{site_id}"
+
+router = APIRouter(tags=["stats"])
 
 BreakdownLimit = Annotated[int, Query(ge=1, le=100)]
 

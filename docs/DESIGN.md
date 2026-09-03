@@ -1460,10 +1460,10 @@ real error page; the API keeps answering JSON.
 | Endpoint | Returns |
 | --- | --- |
 | `POST /api/event` | The collector. Answers `202` to everything, including bots. |
-| `GET /api/stats/{site}/summary` | Visitors, pageviews, views per visitor |
-| `GET /api/stats/{site}/timeseries` | One point per bucket, zero-filled |
-| `GET /api/stats/{site}/breakdown/{prop}` | Top pages, entry pages, exit pages, sources, countries, devices, browsers, systems, screens, goals, campaigns, or mediums |
-| `GET /api/stats/{site}/live` | Visitors in the last five minutes |
+| `GET /api/v1/stats/{site}/summary` | Visitors, pageviews, views per visitor |
+| `GET /api/v1/stats/{site}/timeseries` | One point per bucket, zero-filled |
+| `GET /api/v1/stats/{site}/breakdown/{prop}` | Top pages, entry pages, exit pages, sources, countries, devices, browsers, systems, screens, goals, campaigns, or mediums |
+| `GET /api/v1/stats/{site}/live` | Visitors in the last five minutes |
 
 `period` accepts `today`, `7d`, `30d`, `6mo`, `12mo`. Bucket size follows from
 the period rather than being chosen by the caller -- a year of hourly buckets
@@ -1492,7 +1492,7 @@ Umami both solve that with a key, and so does this:
 
 ```bash
 curl -H "Authorization: Bearer $BEACON_KEY" \
-  "https://your-host/api/stats/yoursite.com/summary?period=30d"
+  "https://your-host/api/v1/stats/yoursite.com/summary?period=30d"
 ```
 
 Keys are made and revoked on the account page, and shown exactly once.
@@ -1593,6 +1593,34 @@ tree were against `pip` itself, which is build tooling and not shipped.
 Not yet done: running that audit in CI. It belongs in the workflow file, which
 needs a scope the tooling to hand does not have, so for now it is a command a
 person runs. That is weaker than a gate and is not being described as one.
+
+## Putting a version in the path while it is still free
+
+The stats API shipped at `/api/stats/{site}` with no version in it, and nothing
+written down about what a consumer could rely on. An API key exists so that
+somebody's script can call this; an unversioned path means the first change to
+a response shape breaks every one of those at once, with no way to announce it
+and no way to run the old shape alongside the new one.
+
+The fix costs nothing exactly once, and that moment is now: v0.1.0 has no
+consumers to break. It stops being free the day it has one.
+
+`/api/v1/stats/{site}` is the documented surface. `/api/stats/{site}` still
+answers, because v0.1.0 published it an hour before this and withdrawing a path
+that quickly is a poor way to start keeping a contract -- but it is kept out of
+the OpenAPI schema, so there are not two documented ways to call the same thing
+and the older one does not read as supported for the long run.
+
+Both come from one router mounted twice under different prefixes rather than
+two routers sharing handlers. There is exactly one set of routes, so the alias
+cannot drift from the versioned surface; that is a structural guarantee rather
+than a thing to remember.
+
+### What `v1` promises
+
+Within `v1`, fields are added and never removed or retyped, and the meaning of
+an existing field does not change. Anything that cannot be done under those
+terms waits for `v2`, which would run alongside `v1` rather than replacing it.
 
 ## A domain has a shape, and nothing was checking it
 
