@@ -8,6 +8,7 @@ nor cheap to compute.
 import datetime as dt
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import assert_never
 
 from app.services import zones
 
@@ -218,6 +219,13 @@ def bucket_labels(time_range: TimeRange) -> list[str]:
             while cursor <= time_range.end:
                 labels.append(cursor.strftime(fmt))
                 cursor = _months_before(cursor, -1)
+        case _:  # pragma: no cover - unreachable while Interval has three members
+            # Not defensive padding: assert_never makes mypy reject a fourth
+            # interval that nobody handled here. Without it this silently
+            # returns no labels for it, and a chart with no x-axis is a subtler
+            # failure than a type error. The pragma marks an impossibility
+            # rather than something untested.
+            assert_never(time_range.interval)
 
     return labels
 

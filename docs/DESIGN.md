@@ -1594,6 +1594,36 @@ Not yet done: running that audit in CI. It belongs in the workflow file, which
 needs a scope the tooling to hand does not have, so for now it is a command a
 person runs. That is weaker than a gate and is not being described as one.
 
+## Counting the branches, not just the lines
+
+The coverage gate read 100% for eighty commits while measuring statements
+only. That number is worth less than it looks: a condition can be executed
+without ever being false, so the line is covered and half the behaviour is not.
+This project has already been bitten by the difference -- a test written here
+passed while proving nothing, an hour after the suite had been audited for
+exactly that.
+
+Turning branch coverage on found five such conditions across four modules:
+
+- a trusted proxy that sends no `X-Forwarded-For` at all, which is what a
+  health check on the internal address looks like;
+- a relay wanting neither TLS nor a login, which is the most common
+  self-hosted mail configuration there is;
+- a username configured without a password, the other side of an `and`;
+- an expiry that arrives already timezone-aware. That is the shape Postgres
+  returns and SQLite never does -- and the coverage job runs on SQLite, so the
+  branch the production database takes every time was the one nothing ran.
+
+The fifth was unreachable: a `match` over an enum with three members, all
+matched. It is now closed with `assert_never`, which turns "someone adds a
+fourth interval" from a chart that silently renders no axis into a type error.
+The pragma there marks an impossibility, not something untested.
+
+`branch = true` lives in `pyproject.toml` rather than in the CI command, so the
+number reported on a laptop is the number the build enforces. A coverage figure
+that means something different depending on where it is measured is worse than
+no figure at all.
+
 ## What CI checks
 
 Four jobs, on every push and pull request:

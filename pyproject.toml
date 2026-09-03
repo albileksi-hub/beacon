@@ -77,3 +77,13 @@ addopts = "-q"
 
 [tool.coverage.run]
 source = ["app"]
+# Branch coverage, not only statement coverage. The gate read 100% while five
+# conditions across four modules had only ever been taken one way: a trusted
+# proxy that sends no header, a relay wanting neither TLS nor a login, a
+# username with no password, and an already-aware expiry -- which is the shape
+# Postgres returns and SQLite never does, and the gate runs on SQLite.
+#
+# Set here rather than in the CI command, so the number reported locally is the
+# number the build enforces. A coverage figure that means something different
+# depending on where it is measured is worse than no figure.
+branch = true

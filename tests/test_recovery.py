@@ -400,3 +400,85 @@ def test_purging_spent_links_loads_nothing_into_memory(db_session, account):
 
     assert removed == 12, "the returned count must still be the number actually removed"
     assert seen == [("DELETE", False)], f"expected one set-based delete, saw {seen}"
+
+
+def test_a_relay_that_wants_neither_tls_nor_a_login(monkeypatch):
+    """The common self-hosted case: a relay on the same box, no auth, no TLS.
+
+    Both conditions in _send_over_smtp had only ever been exercised true, so
+    the configuration most likely to be sitting behind a docker-compose stack
+    was the one nothing ran. Nothing should be attempted that was not asked
+    for -- calling starttls on a relay that does not offer it fails the send.
+    """
+    calls: list[str] = []
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def starttls(self):
+            calls.append("starttls")
+
+        def login(self, username, password):
+            calls.append("login")
+
+        def send_message(self, message):
+            calls.append("send")
+
+    monkeypatch.setattr(mail.smtplib, "SMTP", FakeSMTP)
+    settings = Settings(smtp_host="localhost", smtp_starttls=False)
+
+    assert mail.deliver(settings, to="a@b.example", subject="S", body="B") is True
+    assert calls == ["send"], f"attempted more than asked: {calls}"
+
+
+def test_a_relay_with_a_username_but_no_password_does_not_half_log_in(monkeypatch):
+    """The `and` in that condition, from the side that has never been taken."""
+    calls: list[str] = []
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def starttls(self):
+            calls.append("starttls")
+
+        def login(self, username, password):
+            calls.append("login")
+
+        def send_message(self, message):
+            calls.append("send")
+
+    monkeypatch.setattr(mail.smtplib, "SMTP", FakeSMTP)
+    settings = Settings(smtp_host="localhost", smtp_starttls=True, smtp_username="u")
+
+    assert mail.deliver(settings, to="a@b.example", subject="S", body="B") is True
+    assert calls == ["starttls", "send"], f"logged in without a password: {calls}"
+
+
+def test_an_already_aware_expiry_is_not_stamped_twice(db_session, account):
+    """Postgres returns an aware datetime; SQLite returns a naive one.
+
+    The coverage gate runs on SQLite, so only the naive side of that branch was
+    ever taken locally -- the production database exercises the other one.
+    """
+    now = dt.datetime.now(dt.UTC)
+    _user, token = recovery.begin(db_session, email=OWNER_EMAIL)
+    stored = db_session.scalars(select(PasswordReset)).one()
+    stored.expires_at = now + dt.timedelta(hours=1)  # already aware
+    db_session.commit()
+
+    assert recovery.is_live(db_session, token, now=now) is True
+    assert recovery.is_live(db_session, token, now=now + dt.timedelta(hours=2)) is False
