@@ -35,8 +35,15 @@ def test_the_readme_states_the_real_test_count(request: pytest.FixtureRequest) -
     if not _whole_suite_ran(request.config):
         pytest.skip("only meaningful when the whole suite is collected")
 
-    claimed = re.search(r"\*\*([\d,]+) tests, 100% coverage", README.read_text(encoding="utf-8"))
-    assert claimed is not None, "the README no longer states a test count"
+    # "branch" is required, not optional. The gate measures branches now, and a
+    # README claiming plain coverage would be describing a weaker check than
+    # the one that runs. Changing the wording without changing this is how the
+    # sentence and the build drift apart -- which is what happened when the
+    # word was added: this assertion is the thing that noticed.
+    claimed = re.search(
+        r"\*\*([\d,]+) tests, 100% branch coverage", README.read_text(encoding="utf-8")
+    )
+    assert claimed is not None, "the README no longer states a test count and branch coverage"
 
     stated = int(claimed.group(1).replace(",", ""))
     collected = request.session.testscollected
@@ -126,3 +133,52 @@ def test_every_repository_link_in_the_readme_points_at_something_real():
     missing = sorted({t for t in targets if not (root / t.split("#")[0]).exists()})
 
     assert not missing, f"the README links to files that do not exist: {missing}"
+
+
+def test_the_changelog_names_the_version_being_shipped():
+    """The version in pyproject and the newest changelog heading must agree.
+
+    A tag whose changelog entry describes a different version is how a release
+    stops being a record of anything. Checked the same way the test count is:
+    by reading the file rather than trusting anyone to remember.
+    """
+    import re
+    import tomllib
+
+    root = Path(__file__).resolve().parent.parent
+    declared = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+    headings = re.findall(r"^## (\d+\.\d+\.\d+)", (root / "CHANGELOG.md").read_text(), re.M)
+
+    assert headings, "the changelog has no version headings"
+    assert headings[0] == declared, (
+        f"pyproject says {declared}, the newest changelog entry says {headings[0]}"
+    )
+
+
+def test_no_markdown_file_links_to_something_that_is_not_there():
+    """The README was checked; nothing else was.
+
+    Written after a changelog entry pointed at `docs/RUNBOOK.md`, which has
+    never existed -- the file is `docs/OPERATIONS.md`. Nothing would have
+    caught it, because the only link test read one file. A rule about links
+    should be a rule about links, not a rule about the README.
+    """
+    import re
+
+    root = Path(__file__).resolve().parent.parent
+    sources = [root / "README.md", root / "CHANGELOG.md", root / "SECURITY.md"]
+    sources += sorted((root / "docs").glob("*.md"))
+
+    broken = []
+    for path in sources:
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        targets = re.findall(r"\]\((?!https?://|#|mailto:)([^)]+)\)", text)
+        targets += re.findall(r'<img[^>]+src="(?!https?://)([^"]+)"', text)
+        for target in targets:
+            resolved = (path.parent / target.split("#", 1)[0]).resolve()
+            if not resolved.exists():
+                broken.append(f"{path.relative_to(root)} -> {target}")
+
+    assert not broken, f"links pointing at nothing: {broken}"

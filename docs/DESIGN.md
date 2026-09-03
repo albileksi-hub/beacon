@@ -76,7 +76,7 @@ only ran when a salt was created would leave the old ones re-derivable the
 whole time — which is precisely what the rotation exists to prevent.
 
 The schema has no column capable of holding an address, a raw User-Agent, an
-exact viewport width, or a cookie ID. [`tests/test_privacy.py`](tests/test_privacy.py) asserts both facts
+exact viewport width, or a cookie ID. [`tests/test_privacy.py`](../tests/test_privacy.py) asserts both facts
 against a live request, so the claims above fail the build if they stop being
 true.
 
@@ -197,7 +197,7 @@ regardless of table size.
 
 `app.services.stats` reads raw events and defines what a correct answer is.
 `app.services.reports` reads the aggregates and is what the dashboard calls.
-[`tests/test_reports.py`](tests/test_reports.py) asserts the two agree across
+[`tests/test_reports.py`](../tests/test_reports.py) asserts the two agree across
 every period and every dimension, so the optimisation cannot quietly start
 lying.
 
@@ -558,7 +558,7 @@ that hour would hold two identities inside a single Berlin day, and every
 weekly total would have drifted quietly above the truth. Salts are therefore
 per site as well as per day.
 
-[`tests/test_local_days.py`](tests/test_local_days.py) is written around exactly
+[`tests/test_local_days.py`](../tests/test_local_days.py) is written around exactly
 that case: two events at 23:30 and 00:30 UTC — 01:30 and 02:30 in Berlin, the
 same Berlin day — land on one day, resolve to one visitor, and roll up as one
 visitor with two pageviews.
