@@ -37,6 +37,10 @@ dev = [
     # anyway as somebody else's transitive dependency, which is not the same
     # as being available.
     "pyyaml>=6",
+    # Property-based tests. The example-based ones were written by someone
+    # imagining what an attacker might send; these put the same claims to a
+    # generator that shares none of those assumptions.
+    "hypothesis>=6.100",
     # Supply chain. pip-audit checks the locked versions against the advisory
     # database; pip-tools regenerates the lock from pyproject.
     "pip-audit>=2.10.1",

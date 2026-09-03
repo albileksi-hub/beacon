@@ -12,3 +12,6 @@ htmlcov/
 *.db-shm
 .env
 .ruff_cache/
+
+# Hypothesis' database of previously-failing examples.
+.hypothesis/

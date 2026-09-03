@@ -1594,6 +1594,44 @@ Not yet done: running that audit in CI. It belongs in the workflow file, which
 needs a scope the tooling to hand does not have, so for now it is a command a
 person runs. That is weaker than a gate and is not being described as one.
 
+## Properties, for the inputs nobody pictured
+
+Branch coverage says every condition has been taken both ways. It does not say
+the tests would notice if the answer changed -- a test can execute a line,
+assert nothing that depends on it, and count. That has happened here twice, so
+the next rung is worth climbing.
+
+Mutation testing is the direct answer to it, and the tooling did not cooperate:
+mutmut's own pytest invocation runs clean by hand and fails inside its harness.
+Rather than spend the effort there, the same idea arrives from the other
+direction. Property-based tests state a claim over a range of inputs and let a
+generator look for the counterexample, which is exactly the gap: every
+interesting bug found in this project came from an input its author had not
+pictured.
+
+Seven properties, over the code where a surprising input is most expensive:
+
+- **No host that merely ends with the domain is ever accepted.** The suffix
+  trap, as a rule instead of the two examples someone thought to write.
+  Deleting the leading dot from the check falsifies it in under a second, with
+  `domain='0.0'` and `prefix='0'` -- inputs no person would have chosen.
+- **The domain as a prefix of somebody else's is never accepted.**
+- **A subdomain is accepted however the rest of the URL looks.** The check must
+  not reject the traffic it exists to keep.
+- **A query string never changes a pathname.** The privacy promise as a rule
+  rather than as the `?email=` example.
+- **Normalising a domain twice equals normalising it once.**
+- **Money survives conversion at every amount**, not only at the `0.29` that
+  prompted the original fix.
+- **`host_of` never raises**, whatever a stranger sends it.
+
+The generator found one failure on the first run, and it was in a property
+rather than in the code: "the query string does not appear in the result" is
+false for `query="0"`, because a single character turns up inside paths
+constantly. The claim was right and written wrongly, which is the ordinary way
+these go, and worth recording because a property that cannot be falsified is
+the same trap in a new coat.
+
 ## Counting the branches, not just the lines
 
 The coverage gate read 100% for eighty commits while measuring statements
