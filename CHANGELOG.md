@@ -25,7 +25,7 @@ Migrations run on start. A site or an account can be deleted, taking every
 event, salt and aggregate with it. Backup and restore are documented in
 `docs/OPERATIONS.md`.
 
-**How it is checked.** 789 tests at 100% branch coverage, `ruff` and
+**How it is checked.** 791 tests at 100% branch coverage, `ruff` and
 `mypy --strict` clean, run against SQLite and Postgres and on both Python 3.12
 and the 3.14 the image ships. Migrations are verified by applying them,
 diffing against the models, and reversing them to base. Dependencies are

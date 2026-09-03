@@ -50,6 +50,17 @@ docker compose start app
 Rehearse it against a scratch database before you ever need it. A restore you
 have not performed is a procedure you do not have.
 
+That sentence was true of this page. The commands sat here unrun, which is the
+same standing as a comment claiming what code does. The SQLite path is now
+rehearsed on every push by `tests/test_backup_restore.py`: it fills a database,
+backs it up with the command printed above, deletes the original, restores, and
+counts the rows back. A backup that silently captured nothing fails it -- which
+is checked by making the restore return an empty database and watching the test
+notice.
+
+The Postgres path above still needs a real server and is not covered. That is a
+gap, and naming it is better than implying the whole page is exercised.
+
 ---
 
 ## Upgrade
