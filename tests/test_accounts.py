@@ -172,3 +172,80 @@ def test_the_collector_sees_a_new_timezone_immediately(db_session, site):
 
 def test_an_untracked_domain_reports_utc(db_session):
     assert accounts.timezone_for(db_session, "nobody.example") == "UTC"
+
+
+@pytest.mark.parametrize(
+    ("domain", "why"),
+    [
+        ('quote".example', "a quote closes the export's filename early"),
+        ('a".exe;x="b.example', "and decides what the saved file appears to be"),
+        ("crlf.example\r\nX-Injected: yes", "CRLF belongs in no stored value"),
+        ("semi;.example", "a separator in a header parameter"),
+        ("sp ace.example", "hostnames have no spaces"),
+        ("under_score.example", "nor underscores"),
+        ("-leading.example", "a label may not start with a hyphen"),
+        ("trailing-.example", "nor end with one"),
+    ],
+)
+def test_a_domain_that_is_not_a_hostname_is_refused(db_session, account, domain, why):
+    """Nothing checked the shape, so anything typeable could be registered.
+
+    The domain is interpolated into the CSV export's Content-Disposition, and
+    a quote closed the filename early:
+
+        attachment; filename="beacon-quote".example-...csv"
+
+    which lets the domain decide where the name ends and, with
+    `a".exe;x="b.example`, what it looks like. CRLF went in as well. Nothing
+    split a response, because Starlette percent-encodes a Location header --
+    but that is somebody else's escaping covering a value this service should
+    never have stored.
+    """
+    with pytest.raises(accounts.InvalidDomain):
+        accounts.add_site(db_session, owner=account, domain=domain)
+    assert why  # the reason is the point of the row
+
+
+@pytest.mark.parametrize(
+    ("typed", "stored"),
+    [
+        ("blue-mug.example", "blue-mug.example"),
+        ("shop.eu.blue-mug.example", "shop.eu.blue-mug.example"),
+        ("localhost", "localhost"),
+        ("MÜNCHEN.de", "xn--mnchen-3ya.de"),
+        ("日本.jp", "xn--wgv71a.jp"),
+    ],
+)
+def test_real_domains_are_still_accepted(db_session, account, typed, stored):
+    """Refusing what is not a hostname must not refuse what is.
+
+    Non-ASCII is encoded to punycode rather than rejected, which is the form
+    that appears in DNS anyway -- so an international site works instead of
+    being told it does not look like a domain.
+    """
+    site = accounts.add_site(db_session, owner=account, domain=typed)
+
+    assert site.domain == stored
+
+
+@pytest.mark.parametrize(
+    ("domain", "why"),
+    [
+        ("ü" * 70 + ".de", "a label longer than punycode allows"),
+        ("​.de", "a zero-width space, which is not a character a domain has"),
+        ("ü..de", "an empty label"),
+    ],
+)
+def test_non_ascii_that_is_not_a_domain_is_refused_rather_than_raising(
+    db_session, account, domain, why
+):
+    """The punycode conversion has a failing side, and a stranger can reach it.
+
+    Encoding is attempted so that a real international domain works. When it
+    cannot be encoded the answer has to be the same refusal as any other
+    non-domain -- not a UnicodeEncodeError escaping into a 500, which is both
+    a worse message and a way of telling one kind of bad input from another.
+    """
+    with pytest.raises(accounts.InvalidDomain):
+        accounts.add_site(db_session, owner=account, domain=domain)
+    assert why

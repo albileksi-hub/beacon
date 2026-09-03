@@ -13,6 +13,8 @@ import pytest
 
 from app.models import Event
 from app.services import accounts
+from app.services.exports import filename_for
+from app.services.timeranges import Period, resolve_window
 from tests.conftest import (
     CHROME_MAC,
     OWNER_EMAIL,
@@ -280,3 +282,22 @@ def test_everyone_invited_to_a_site_can_still_export_it(client, db_session, acco
     assert export_status("adm@x.example") == 200, "an admin lost the export"
     assert export_status("vw@x.example") == 200, "a viewer lost the export"
     assert export_status("stranger@x.example") == 404, "a non-member gained the export"
+
+
+@pytest.mark.parametrize(
+    "domain", ['quote".example', 'a".exe;x="b.example', "crlf.example\r\nX-Injected: yes"]
+)
+def test_the_download_name_is_safe_even_for_a_domain_that_should_not_exist(domain):
+    """The second lock on the door registration now bolts.
+
+    Registration refuses these, so this should never have work to do. It is
+    here because the value goes straight into Content-Disposition, and a header
+    built from stored data should not depend on every writer of that data
+    having been careful. One missing check was what made the quote reachable.
+    """
+    name = filename_for(domain, resolve_window(Period("30d"), None, None))
+
+    assert '"' not in name
+    assert ";" not in name
+    assert "\r" not in name and "\n" not in name
+    assert name.endswith(".csv")

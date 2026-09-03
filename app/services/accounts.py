@@ -1,6 +1,7 @@
 """Accounts, sites, and the ownership checks that keep tenants apart."""
 
 import datetime as dt
+import re
 import threading
 
 from sqlalchemy import select
@@ -88,6 +89,47 @@ def set_password(*, user: User, password: str) -> None:
     user.session_epoch += 1
 
 
+# A hostname label: letters, digits and hyphens, not leading or trailing with
+# one, at most 63 characters. Anything else is not a domain, whatever else it
+# might be.
+_LABEL = r"(?!-)[a-z0-9-]{1,63}(?<!-)"
+_HOSTNAME = re.compile(rf"^{_LABEL}(\.{_LABEL})*$")
+
+
+def as_hostname(cleaned: str) -> str:
+    """Whatever the user typed, reduced to a hostname or refused.
+
+    Deliberately not part of normalise_domain: the collector calls that on
+    every single event, and this is a registration-time question asked once.
+
+    Nothing checked the shape before, so `quote".example` could be registered.
+    That domain is interpolated into the CSV export's Content-Disposition, and
+    the quote closed the filename early:
+
+        attachment; filename="beacon-quote".example-...csv"
+
+    which lets a domain decide where the filename ends -- and with
+    `a".exe;x="b.example`, what it appears to be called. CRLF went in too;
+    Starlette percent-encodes a Location header so nothing split there, but
+    relying on that is relying on somebody else's escaping to cover a value
+    this service never should have stored.
+
+    Non-ASCII is encoded to punycode rather than refused, so a real
+    international domain works: munchen.de with an umlaut arrives as
+    xn--mnchen-3ya.de, which is the form that appears in DNS anyway.
+    """
+    if not cleaned.isascii():
+        try:
+            cleaned = cleaned.encode("idna").decode("ascii")
+        except UnicodeError as error:
+            raise InvalidDomain("That does not look like a domain name.") from error
+
+    if not _HOSTNAME.match(cleaned):
+        raise InvalidDomain("That does not look like a domain name.")
+
+    return cleaned
+
+
 def add_site(db: Session, *, owner: User, domain: str) -> Site:
     hostname = normalise_domain(domain)
     if not hostname:
@@ -96,6 +138,7 @@ def add_site(db: Session, *, owner: User, domain: str) -> Site:
         # SQLite ignores VARCHAR lengths, so without this an over-long domain
         # is accepted in development and rejected in production.
         raise InvalidDomain("That domain is too long.")
+    hostname = as_hostname(hostname)
     if db.scalar(select(Site).where(Site.domain == hostname)) is not None:
         raise DomainAlreadyRegistered("That domain is already being tracked.")
 

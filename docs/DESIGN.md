@@ -1594,6 +1594,48 @@ Not yet done: running that audit in CI. It belongs in the workflow file, which
 needs a scope the tooling to hand does not have, so for now it is a command a
 person runs. That is weaker than a gate and is not being described as one.
 
+## A domain has a shape, and nothing was checking it
+
+Registration checked that a domain was non-empty and short enough for its
+column, and nothing else. `quote".example` was a valid site. So was
+`crlf.example\r\nX-Injected: yes`.
+
+That matters because the domain is not only displayed -- it is interpolated
+into an HTTP header. The CSV export sets
+
+```
+attachment; filename="beacon-{domain}-2026-08-05-to-2026-09-03.csv"
+```
+
+and a quote inside the domain closes that filename early:
+
+```
+attachment; filename="beacon-quote".example-...csv"
+```
+
+With `a".exe;x="b.example` the domain decides not only where the name ends but
+what the saved file appears to be called. Nothing split a response, because
+Starlette percent-encodes a `Location` header -- but that is somebody else's
+escaping covering a value this service should never have stored, and it held
+only for the one header that happened to go through it.
+
+Registration now requires a hostname: labels of letters, digits and hyphens,
+none leading or trailing with one, at most 63 characters each. Non-ASCII is
+encoded to punycode instead of refused, so `MÜNCHEN.de` becomes
+`xn--mnchen-3ya.de` and an international site works rather than being told it
+does not look like a domain. When that encoding fails -- an over-long label, a
+zero-width space, an empty label -- the answer is the same refusal as any other
+non-domain, rather than a `UnicodeEncodeError` reaching a 500.
+
+The check is deliberately not in `normalise_domain`. The collector calls that
+on every event; this is a registration-time question asked once.
+
+The export filename is sanitised as well, which is redundant by design.
+Registration should mean it never has work to do, but a header assembled from
+stored data should not depend on every writer of that data having been careful
+-- and one missing check is exactly what made the quote reachable in the first
+place.
+
 ## Properties, for the inputs nobody pictured
 
 Branch coverage says every condition has been taken both ways. It does not say

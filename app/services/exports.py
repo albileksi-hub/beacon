@@ -12,6 +12,7 @@ site's export a way to run the process out of it.
 
 import csv
 import io
+import re
 from collections.abc import Iterator
 from typing import Any
 
@@ -82,9 +83,28 @@ class _Line:
         return line
 
 
+# Everything a hostname may contain, and nothing a header quotes or ends with.
+_FILENAME_SAFE = re.compile(r"[^a-z0-9.-]")
+
+
 def filename_for(site_id: str, time_range: TimeRange) -> str:
+    """The download name, with the domain reduced to characters a header allows.
+
+    Registration refuses anything that is not a hostname, so this should never
+    have work to do. It is here because it is the second lock on the same door:
+    this value goes straight into Content-Disposition, and a domain containing
+    a quote closed the filename early --
+
+        attachment; filename="beacon-quote".example-...csv"
+
+    -- which let the domain decide what the saved file appeared to be called.
+    That was reachable because one validation was missing. A header built from
+    stored data should not depend on every writer of that data having been
+    careful.
+    """
     start, end = time_range.days
-    return f"beacon-{site_id}-{start.isoformat()}-to-{end.isoformat()}.csv"
+    safe = _FILENAME_SAFE.sub("-", site_id.lower())
+    return f"beacon-{safe}-{start.isoformat()}-to-{end.isoformat()}.csv"
 
 
 def daily_stats_csv(
