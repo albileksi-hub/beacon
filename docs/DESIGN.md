@@ -1730,6 +1730,41 @@ constantly. The claim was right and written wrongly, which is the ordinary way
 these go, and worth recording because a property that cannot be falsified is
 the same trap in a new coat.
 
+## Running the tracking script, finally
+
+Everything in `static/beacon.js` had been asserted structurally -- that the API
+is installed before any bail-out, that the opt-out is read -- because there is
+no JavaScript toolchain here. Structural assertions are the right shape for
+those properties, but none of them is the same as the script having run.
+
+It has now, in a real browser against a real collector. A page served from
+`localhost`, the snippet as documented, and four events arrived and were stored
+correctly:
+
+```
+pageview   /js_probe.html
+signup     /js_probe.html          (window.beacon("signup"))
+pageview   /step-two               (history.pushState, so the SPA patching works)
+download   /quarterly-report.pdf   (the click handler, same-origin check passed)
+```
+
+All four attributed to one visitor, with the user agent parsed to
+Chrome / Mac OS X / desktop. Setting `beacon_ignore` in `localStorage` and
+reloading produced no fifth event, so the opt-out is real rather than
+decorative.
+
+Nothing was broken. What the exercise found was a gap in the *tests* rather
+than in the script: I wrote `data-site` from memory when building the probe
+page, and the script reads `data-site-id`. It installed cleanly, recorded
+nothing, and warned only to a console nobody was watching -- which is exactly
+what a site owner would see if a documented snippet ever carried the wrong
+name. Their dashboard would simply stay empty.
+
+So a test now checks that every `data-` attribute handed out by a snippet that
+loads `beacon.js` -- in the README, the design notes, or a template -- is one
+the script actually reads. Spelling it `data-site` in the README fails it by
+name.
+
 ## Counting the branches, not just the lines
 
 The coverage gate read 100% for eighty commits while measuring statements

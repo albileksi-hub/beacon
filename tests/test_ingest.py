@@ -546,3 +546,41 @@ def test_a_flood_of_spoofed_events_writes_one_log_line(client, site, caplog):
     warnings = [r for r in caplog.records if "not on that domain" in r.getMessage()]
     assert len(warnings) == 1, f"25 spoofed events wrote {len(warnings)} lines"
     assert "blue-mug.example" in warnings[0].getMessage()
+
+
+def test_every_attribute_the_snippet_hands_out_is_one_the_script_reads():
+    """A snippet with the wrong attribute name fails silently on the visitor's page.
+
+    The script bails when `data-site-id` is missing -- correctly, and with a
+    console warning nobody is watching. So a documented snippet that spelled it
+    `data-site` would install cleanly, record nothing, and give the site owner
+    an empty dashboard with no error anywhere they would think to look.
+
+    I wrote `data-site` from memory while testing this script in a browser, and
+    it took reading the source to notice. That is the whole failure mode: the
+    name is guessable-looking and wrong quietly.
+
+    Only snippets that actually load beacon.js are checked, so an unrelated
+    `data-` attribute elsewhere in a template is not dragged in.
+    """
+    import re
+
+    root = Path(__file__).resolve().parent.parent
+    script = (root / "static" / "beacon.js").read_text(encoding="utf-8")
+    understood = set(re.findall(r'(?:get|has)Attribute\("([^"]+)"\)', script))
+    assert "data-site-id" in understood, "the script stopped reading its own site id"
+
+    sources = [
+        root / "README.md",
+        *(root / "docs").glob("*.md"),
+        *(root / "app" / "templates").glob("*.html"),
+    ]
+    handed_out: dict[str, str] = {}
+    for path in sources:
+        for tag in re.findall(r"<script[^>]*beacon\.js[^>]*>", path.read_text(encoding="utf-8")):
+            for name in re.findall(r"\b(data-[a-z0-9-]+)=", tag):
+                handed_out[name] = path.name
+
+    assert handed_out, "no tracking snippet found to check"
+    unknown = {n: where for n, where in handed_out.items() if n not in understood}
+    assert not unknown, f"documented attributes the script never reads: {unknown}"
