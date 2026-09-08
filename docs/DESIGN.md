@@ -1470,13 +1470,28 @@ took a whole block out. Everything downstream follows
 sparklines, the breakdown bars, the focus ring and the brand mark.
 
 One token exists only because contrast does not survive a palette swap.
-`--on-accent` is the colour of text sitting *on* the accent, white in the light
-theme and near-black in the dark one — that is the primary button on every
-sign-in and sign-up form, and orange is exactly the hue where getting it wrong
-is easiest: a vivid `#f97316` carries white at 2.8:1. The light accent is
-therefore a burnt `#c2410c` rather than a brighter orange. Both themes clear
-WCAG AA on every text pair, the tightest being 5.02:1, and the live dot clears
-the 3:1 that applies to it as a graphic rather than as text. Static assets carry a hash of their contents in the URL, so a browser
+`--on-accent` is the colour of text sitting *on* the accent — the primary
+button on every sign-in and sign-up form — and it is near-black in both themes,
+because the fill behind it is bright yellow in both. Yellow is the hue that
+forces the distinction: `#facc15` carries near-black at 11:1 and white at
+1.6:1, so the accent that text is drawn *in* and the accent text is drawn *on*
+cannot be the same value. Hence `--accent`, a dark ochre `#a16207` in the light
+theme where nothing brighter can carry text, beside `--accent-fill`, bright in
+both.
+
+Both themes clear WCAG AA on every text pair, and the live dot clears the 3:1
+that applies to it as a graphic rather than as text. That is now checked rather
+than stated: `tests/test_contrast.py` reads the tokens out of the stylesheet
+and computes the ratios, for both themes, on every pair.
+
+It is checked because it had rotted. This paragraph described the orange
+palette two rewrites after the palette stopped being orange — it cited
+`#f97316` and `#c2410c`, neither of which is in the file, and said `--on-accent`
+was white in the light theme when both themes set it near-black. It also
+claimed a tightest ratio of 5.02:1; the real figure is 4.72:1, on `--accent`
+against the page background in the light theme. Still above the 4.5:1 line, so
+nothing was ever wrong for a reader — but a number nobody recomputes is a
+number that drifts, which is the argument for the test rather than the prose. Static assets carry a hash of their contents in the URL, so a browser
 holding yesterday's stylesheet cannot render new markup against it.
 
 A signed-out visitor gets a page explaining what Beacon is, rather than being

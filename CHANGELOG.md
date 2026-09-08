@@ -4,6 +4,13 @@ Notable changes, newest first. Versions follow [semantic versioning](https://sem
 
 ## Unreleased
 
+- **Colour contrast is tested, not asserted.** Both themes, every text pair,
+  read from the stylesheet's own tokens. The design notes had drifted two
+  palettes behind and cited a tightest ratio of 5.02:1; it is 4.72:1.
+- **The tracking snippet's attributes are checked against the script**, so a
+  documented `data-site` where the script reads `data-site-id` fails a test
+  rather than silently recording nothing.
+
 - **A session secret shorter than 32 characters is refused.** Comparing against
   the built-in default alone missed every other placeholder, including the one
   this repository's own compose file used to substitute.
@@ -47,7 +54,7 @@ Migrations run on start. A site or an account can be deleted, taking every
 event, salt and aggregate with it. Backup and restore are documented in
 `docs/OPERATIONS.md`.
 
-**How it is checked.** 822 tests at 100% branch coverage, `ruff` and
+**How it is checked.** 846 tests at 100% branch coverage, `ruff` and
 `mypy --strict` clean, run against SQLite and Postgres and on both Python 3.12
 and the 3.14 the image ships. Migrations are verified by applying them,
 diffing against the models, and reversing them to base. Dependencies are
