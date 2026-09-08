@@ -4,7 +4,9 @@ import os
 # settings at import time and they are cached from then on. The suite runs
 # against a real secret rather than waving the check through, so the guard in
 # create_app is exercised the way a deployment would meet it.
-os.environ.setdefault("BEACON_SESSION_SECRET", "a-secret-for-the-test-suite-only")
+os.environ.setdefault(
+    "BEACON_SESSION_SECRET", "a-secret-for-the-test-suite-only-and-well-over-the-minimum"
+)
 # And the same for the other guard, rather than waving it through with
 # ALLOW_INSECURE_SESSIONS. It means the cookie carries Secure, so the client
 # below has to speak https for it to be sent back at all -- which is what a

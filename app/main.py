@@ -56,6 +56,83 @@ class CachedStatic(StaticFiles):
         return response
 
 
+# A secret from the documented command is 64 characters. This is a floor
+# against placeholders, not a measure of entropy -- thirty-two identical
+# characters would clear it. It is set where it is because every stand-in that
+# has actually appeared in this repository fell under it, while anything a
+# person generates by following the instructions clears it twice over.
+MIN_SESSION_SECRET = 32
+
+
+def _session_secret_complaint(secret: str) -> str | None:
+    """Why this secret will not do, or None if it is fine.
+
+    Comparing against the built-in default alone was not enough, and this
+    repository proved it: docker-compose.yml used to substitute
+    `change-me-before-deploying`, a different constant in the same public
+    repository, and started cleanly past a guard that knew one string. A rule
+    about the shape of the value catches the next stand-in as well as that one.
+    """
+    if secret == Settings.model_fields["session_secret"].default:
+        return "is still the built-in default, which is a constant in a public repository"
+
+    if len(secret) < MIN_SESSION_SECRET:
+        return (
+            f"is only {len(secret)} characters, and anything short enough to type "
+            f"is short enough to guess (the minimum is {MIN_SESSION_SECRET})"
+        )
+
+    return None
+
+
+def _refuse_unsafe_settings(settings: Settings) -> None:
+    """Stop before building anything, if the configuration is not safe to run.
+
+    Separated from create_app because it is a different job: this decides
+    whether to start at all, and everything after it assembles an application
+    on the assumption that answer was yes. The middleware stack below stays
+    inline, because there the order is the meaning.
+
+    Both refusals share one escape hatch. It is named at that length so nobody
+    sets it while meaning something else.
+    """
+    complaint = _session_secret_complaint(settings.session_secret)
+    if complaint is not None:
+        # A warning was not enough. A secret anybody can read or guess means
+        # session cookies here are forgeable, and anyone could mint one for any
+        # account. That is not a thing to mention in a log nobody reads on the
+        # one morning it matters; it is a thing to refuse.
+        if not settings.allow_insecure_sessions:
+            raise RuntimeError(
+                f"BEACON_SESSION_SECRET {complaint} -- anyone could forge a session "
+                "for any account on this instance. Set it to something random:\n\n"
+                '    BEACON_SESSION_SECRET="$(python -c '
+                "\"import secrets; print(secrets.token_urlsafe(48))\")\"\n\n"
+                "Or set BEACON_ALLOW_INSECURE_SESSIONS=true if this really is a "
+                "throwaway instance nobody can reach."
+            )
+
+        logger.warning(
+            "Running with a session secret that %s. Session cookies on this "
+            "instance are forgeable.",
+            complaint,
+        )
+
+    if not settings.session_https_only and not settings.allow_insecure_sessions:
+        # The neighbouring insecure default. A session cookie without Secure is
+        # sent over plain HTTP, so anyone between the browser and the server can
+        # lift it and be signed in as that account -- and unlike a forged
+        # cookie, that needs no secret at all.
+        raise RuntimeError(
+            "BEACON_SESSION_HTTPS_ONLY is false, so session cookies will be sent "
+            "over plain HTTP and can be read off the wire. Set it to true once "
+            "TLS is in front of this app:\n\n"
+            "    BEACON_SESSION_HTTPS_ONLY=true\n\n"
+            "Or set BEACON_ALLOW_INSECURE_SESSIONS=true if this really is a "
+            "throwaway instance nobody can reach."
+        )
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Beacon",
@@ -67,43 +144,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(level=settings.log_level, json_output=settings.log_json)
 
-    if settings.session_secret == Settings.model_fields["session_secret"].default:
-        # A warning was not enough. The default is a constant in a public
-        # repository, so an instance running on it will sign session cookies
-        # with a key the whole internet has -- anyone could mint a cookie for
-        # any account on it. That is not a thing to mention in a log nobody
-        # reads on the one morning it matters; it is a thing to refuse.
-        if not settings.allow_insecure_sessions:
-            raise RuntimeError(
-                "BEACON_SESSION_SECRET is still the built-in default, which is a "
-                "constant in a public repository -- anyone could forge a session "
-                "for any account on this instance. Set it to something random:\n\n"
-                '    BEACON_SESSION_SECRET="$(python -c '
-                "\"import secrets; print(secrets.token_urlsafe(48))\")\"\n\n"
-                "Or set BEACON_ALLOW_INSECURE_SESSIONS=true if this really is a "
-                "throwaway instance nobody can reach."
-            )
-
-        logger.warning(
-            "Running with the built-in session secret. Session cookies on this "
-            "instance are forgeable by anyone with the source."
-        )
-
-    if not settings.session_https_only and not settings.allow_insecure_sessions:
-        # The neighbouring insecure default, and it was going unguarded while
-        # the one above it was refused. A session cookie without Secure is sent
-        # over plain HTTP, so anyone between the browser and the server can
-        # lift it and be signed in as that account -- and unlike a forged
-        # cookie, this needs no secret at all. One flag already means "this is
-        # a throwaway instance"; it may as well mean it for both.
-        raise RuntimeError(
-            "BEACON_SESSION_HTTPS_ONLY is false, so session cookies will be sent "
-            "over plain HTTP and can be read off the wire. Set it to true once "
-            "TLS is in front of this app:\n\n"
-            "    BEACON_SESSION_HTTPS_ONLY=true\n\n"
-            "Or set BEACON_ALLOW_INSECURE_SESSIONS=true if this really is a "
-            "throwaway instance nobody can reach."
-        )
+    _refuse_unsafe_settings(settings)
 
     # samesite="lax" means the cookie is not sent on cross-site POSTs, which is
     # what stands in for CSRF tokens on these forms.

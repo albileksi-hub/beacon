@@ -1267,6 +1267,34 @@ The test suite does not use the hatch. It sets a real secret before the
 application is imported, so the guard is exercised the way a deployment meets
 it rather than waved past.
 
+### And knowing one bad string was not enough
+
+The guard compared the secret against the built-in default and nothing else,
+which this repository defeated on the same day: `docker-compose.yml`
+substituted `change-me-before-deploying` when the variable was unset -- a
+different constant, in the same public repository, shared by every copy of that
+stack -- and the application started on it happily.
+
+There is a rule about the value's shape now as well: under 32 characters is
+refused. That is what every stand-in which has actually appeared here had in
+common, while a secret generated the way the docs say clears it twice over. It
+is a floor against placeholders and not a measure of entropy -- thirty-two
+identical characters would pass -- and saying so is better than implying the
+check is cleverer than it is.
+
+The rule waited a week for an unrelated reason: the CI image smoke test passed
+a fourteen-character secret, so landing it would have turned the build red on a
+file the tooling in use could not push. That job now sets the escape hatch
+alongside the short secret, which is an honest description of a container that
+lives ninety seconds on a runner nobody can reach -- and with the hatch set the
+rule warns instead of refusing, so the blocker dissolved without anyone having
+to do anything about it.
+
+The two refusals moved out of `create_app` into `_refuse_unsafe_settings`,
+because deciding whether to start at all is a different job from assembling an
+application on the assumption the answer was yes. The middleware stack stayed
+inline: there, the order is the meaning.
+
 ### The compose file walked straight past it
 
 The refusal compares against the built-in default, and this repository beat it

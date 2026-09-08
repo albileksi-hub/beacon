@@ -4,6 +4,10 @@ Notable changes, newest first. Versions follow [semantic versioning](https://sem
 
 ## Unreleased
 
+- **A session secret shorter than 32 characters is refused.** Comparing against
+  the built-in default alone missed every other placeholder, including the one
+  this repository's own compose file used to substitute.
+
 - **Dependabot no longer bumps `pydantic-core` or `psycopg-binary` on their
   own.** Their parents pin them with `==`, so moving one alone produces a lock
   that cannot import the parent. A test now checks the lock is internally
@@ -43,7 +47,7 @@ Migrations run on start. A site or an account can be deleted, taking every
 event, salt and aggregate with it. Backup and restore are documented in
 `docs/OPERATIONS.md`.
 
-**How it is checked.** 816 tests at 100% branch coverage, `ruff` and
+**How it is checked.** 821 tests at 100% branch coverage, `ruff` and
 `mypy --strict` clean, run against SQLite and Postgres and on both Python 3.12
 and the 3.14 the image ships. Migrations are verified by applying them,
 diffing against the models, and reversing them to base. Dependencies are

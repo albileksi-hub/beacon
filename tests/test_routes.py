@@ -177,7 +177,9 @@ def test_a_real_secret_needs_no_permission(monkeypatch) -> None:
     from app.config import Settings
 
     monkeypatch.setattr(
-        main, "get_settings", lambda: Settings(session_secret="something-random-enough")
+        main,
+        "get_settings",
+        lambda: Settings(session_secret="x" * main.MIN_SESSION_SECRET),
     )
 
     assert main.create_app() is not None
@@ -294,7 +296,9 @@ def test_the_app_refuses_to_start_with_insecure_session_cookies(monkeypatch) -> 
     monkeypatch.setattr(
         main,
         "get_settings",
-        lambda: Settings(session_secret="something-random-enough", session_https_only=False),
+        # Long enough to clear the secret check, which runs first -- otherwise
+        # this asserts on the wrong refusal.
+        lambda: Settings(session_secret="x" * main.MIN_SESSION_SECRET, session_https_only=False),
     )
 
     with pytest.raises(RuntimeError, match="plain HTTP"):
@@ -317,3 +321,71 @@ def test_the_same_flag_excuses_both_insecure_defaults(monkeypatch) -> None:
     )
 
     assert main.create_app() is not None
+
+
+@pytest.mark.parametrize(
+    ("secret", "why"),
+    [
+        ("change-me-before-deploying", "the placeholder this repository's compose file used"),
+        ("ci-only-secret", "the one its own CI smoke test still passes"),
+        ("short", "anything a person would type"),
+        ("", "nothing at all"),
+    ],
+)
+def test_a_session_secret_short_enough_to_type_is_refused(monkeypatch, secret, why) -> None:
+    """Knowing one bad string was not enough, and this repository proved it.
+
+    docker-compose.yml substituted `change-me-before-deploying` when the
+    variable was unset -- a different constant, in the same public repository,
+    shared by every copy of that stack -- and it started cleanly, because the
+    guard compared against the built-in default and nothing else.
+
+    A rule about the shape of the value catches the next stand-in too. It is a
+    floor against placeholders, not a measure of entropy: thirty-two identical
+    characters still clear it, which is why the constant is named for a minimum
+    length rather than for safety.
+    """
+    from app import main
+    from app.config import Settings
+
+    monkeypatch.setattr(
+        main,
+        "get_settings",
+        lambda: Settings(session_secret=secret, session_https_only=True),
+    )
+
+    with pytest.raises(RuntimeError, match="short enough to guess"):
+        main.create_app()
+    assert len(secret) < main.MIN_SESSION_SECRET, why
+
+
+def test_a_throwaway_instance_may_use_a_short_secret_with_a_warning(monkeypatch) -> None:
+    """The CI image smoke test is exactly this, and must keep working.
+
+    It runs the built image with a fourteen-character secret and the hatch set,
+    which is an honest description of a container that lives for ninety seconds
+    on a runner nobody can reach. Refusing there would have meant the rule could
+    not land without also editing a workflow file.
+    """
+    from app import main
+    from app.config import Settings
+
+    monkeypatch.setattr(
+        main,
+        "get_settings",
+        lambda: Settings(
+            session_secret="ci-only-secret",
+            allow_insecure_sessions=True,
+            session_https_only=False,
+        ),
+    )
+
+    # Watching the call rather than the log: create_app runs configure_logging,
+    # which replaces the root handlers and takes caplog's away with them.
+    warnings: list[str] = []
+    monkeypatch.setattr(main.logger, "warning", lambda msg, *a: warnings.append(msg % a))
+
+    assert main.create_app() is not None
+    assert any("forgeable" in w for w in warnings), (
+        "a throwaway instance should still be told what it is running"
+    )
