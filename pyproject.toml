@@ -32,7 +32,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "httpx>=0.28.1",
     "ruff>=0.16.5",
-    "mypy>=1.11",
+    "mypy>=2.3.1",
     # Only for the test that parses docker-compose.yml. It was importable
     # anyway as somebody else's transitive dependency, which is not the same
     # as being available.
