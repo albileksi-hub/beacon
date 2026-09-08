@@ -37,6 +37,10 @@ dev = [
     # anyway as somebody else's transitive dependency, which is not the same
     # as being available.
     "pyyaml>=6",
+    # Parsing the lock's requirement specifiers in test_supply_chain. Present
+    # anyway as somebody else's transitive dependency, which is not the same as
+    # being available -- the same reasoning as pyyaml above.
+    "packaging>=24",
     # Property-based tests. The example-based ones were written by someone
     # imagining what an attacker might send; these put the same claims to a
     # generator that shares none of those assumptions.
