@@ -13,21 +13,23 @@ updates:
     # arrive while ruff, pytest, mypy, hypothesis and pip-tools held every slot.
     # A cap that lets housekeeping crowd out security fixes is the wrong cap.
     open-pull-requests-limit: 10
-    ignore:
-      # These two are not independently upgradable. Their parents pin them with
-      # `==`, so Dependabot bumping one on its own produces a lock that cannot
-      # import the parent -- which is what happened: pydantic-core went to
-      # 2.48.0 while pydantic stayed at 2.13.5, and the image build died with
-      #
-      #   SystemError: The installed pydantic-core version (2.48.0) is
-      #   incompatible with the current pydantic version, which requires 2.46.5
-      #
-      # Only the Docker job noticed, because it is the only one installing from
-      # the hash-pinned lock; the rest resolve from pyproject and quietly pick
-      # a compatible pair. The right version of each is whatever the parent
-      # asks for, and pip-compile fills that in when the parent moves.
-      - dependency-name: pydantic-core
-      - dependency-name: psycopg-binary
+    # pydantic-core and psycopg-binary used to be ignored here, because their
+    # parents pin them with `==` and bumping one alone produces a lock that
+    # cannot import the other -- pydantic-core went to 2.48.0 while pydantic
+    # stayed at 2.13.5 and the image build died with
+    #
+    #   SystemError: The installed pydantic-core version (2.48.0) is
+    #   incompatible with the current pydantic version, which requires 2.46.5
+    #
+    # Ignoring them fixed the standalone bump and broke the paired one. An
+    # ignored dependency is also left out of the group below, so the group
+    # moved psycopg to 3.3.6 while psycopg-binary stayed at 3.3.5, the install
+    # became unresolvable, and it blocked the one pull request carrying four
+    # advisory fixes. The same mismatch, arriving the other way round.
+    #
+    # Grouping is what actually solves it: the parent and the child move
+    # together in one pull request, which is the only way either of them
+    # works.
     groups:
       # One PR for the routine bumps; anything that needs reading arrives alone.
       minor-and-patch:
