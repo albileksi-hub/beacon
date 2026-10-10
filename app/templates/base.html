@@ -51,6 +51,23 @@
 
     <main>{% block content %}{% endblock %}</main>
 
+    {# Every page had its content simply stop, with the viewport below it left
+       black. A footer is the cheapest thing that makes a page look finished,
+       and these are the four links a reader of this particular product
+       actually wants. #}
+    <footer class="site-foot">
+      <p class="foot-line">
+        <strong>Beacon</strong> &mdash; privacy-first, cookieless web analytics.
+        No cookies, no personal data at rest, no consent banner.
+      </p>
+      <nav class="foot-links">
+        <a href="https://github.com/albileksi-hub/beacon">Source</a>
+        <a href="https://github.com/albileksi-hub/beacon/blob/main/docs/DESIGN.md">Design notes</a>
+        <a href="https://github.com/albileksi-hub/beacon/blob/main/docs/OPERATIONS.md">Running it</a>
+        <a href="https://github.com/albileksi-hub/beacon/blob/main/LICENSE">MIT</a>
+      </nav>
+    </footer>
+
     <script src="{{ asset('theme.js') }}" defer></script>
     {% block scripts %}{% endblock %}
   </body>

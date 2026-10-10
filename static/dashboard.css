@@ -961,7 +961,12 @@ h2 {
   position: absolute;
   left: 0;
   top: 0;
-  width: 230px;
+  /* Measured from the centre of the page, so a fixed length reaches past the
+     edge of a narrow one and gives the whole document a horizontal scrollbar.
+     This is the second time: the first cap went when the lighthouse was
+     rebuilt, and nothing failed, because no test can see a layout. The cap
+     only binds below about 550px; every wider screen gets the full beam. */
+  width: min(230px, 42vw);
   height: 140px;
   margin-top: -70px;
   transform-origin: 0 50%;
@@ -1107,10 +1112,25 @@ h2 {
 .points {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
-  gap: 1.75rem 1.5rem;
-  max-width: 60rem;
-  margin: 4.5rem auto 0;
+  gap: 1rem;
+  max-width: 62rem;
+  /* Was 4.5rem, which left the three of them adrift between two sections
+     that both had edges. */
+  margin: 3.5rem auto 0;
+  padding: 0 1rem;
 }
+
+/* Bare paragraphs on a flat background read as a draft. Giving them the same
+   surface as the ledger above makes the page three stacked things rather than
+   one dark field with text on it. */
+.point {
+  padding: 1.15rem 1.25rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.point p { margin: 0; font-size: 0.9rem; }
 
 .point h2 {
   margin-bottom: 0.5rem;
@@ -1488,7 +1508,7 @@ textarea:focus-visible {
 
 .try {
   max-width: 62rem;
-  margin: 4.5rem auto 0;
+  margin: 4rem auto 0;
   padding: 0 1rem;
 }
 
@@ -1629,3 +1649,34 @@ textarea:focus-visible {
   .ledger-row.head { display: none; }
   .inputs { grid-template-columns: 1fr; }
 }
+
+/* ---- site footer ----
+   Pages used to end and leave the rest of the viewport black, which reads as
+   unfinished however good the thing above it is. */
+.site-foot {
+  margin-top: 5rem;
+  padding: 2rem 1.5rem 2.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  text-align: center;
+}
+
+.foot-line {
+  max-width: 34rem;
+  margin: 0 auto 0.9rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.foot-line strong { color: var(--text-soft); }
+
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem 1.4rem;
+  font-size: 0.86rem;
+}
+
+.foot-links a { color: var(--text-soft); text-decoration: none; }
+.foot-links a:hover { color: var(--accent); text-decoration: underline; }
