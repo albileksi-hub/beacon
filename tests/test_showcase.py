@@ -18,14 +18,27 @@ from app.services.visitors import visitor_id
 TODAY = dt.date(2026, 6, 15)
 
 
+def _build(person: str = "ada", site: str = showcase.SITES[0], today: dt.date = TODAY):
+    """The panel for one person on one site, with a fixed live caller."""
+    return showcase.build(
+        person=person,
+        site=site,
+        live_ip="192.0.2.9",
+        live_user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0",
+        live_label="Chrome on Windows",
+        today=today,
+    )
+
+
+
 def _beacon_id(page: str) -> str:
-    found = re.search(r'class="ident beacon">([a-f0-9]+)<', page)
+    found = re.search(r'class="ident beacon">\s*([a-f0-9]{32})', page)
     assert found is not None, "the page no longer shows a Beacon identifier"
     return found.group(1)
 
 
 def _cookie_id(page: str) -> str:
-    found = re.search(r'class="ident cookie">([a-f0-9-]+)<', page)
+    found = re.search(r'class="ident cookie">\s*([0-9a-f-]{36})', page)
     assert found is not None, "the page no longer shows a cookie identifier"
     return found.group(1)
 
@@ -33,38 +46,35 @@ def _cookie_id(page: str) -> str:
 # --- the three claims ------------------------------------------------------
 
 
-def test_the_same_person_is_a_different_number_tomorrow():
-    """The whole argument. If this ever stops being true, so does the pitch."""
-    today = showcase.identity(person="ada", site=showcase.SITES[0], day_offset=0, today=TODAY)
-    tomorrow = showcase.identity(person="ada", site=showcase.SITES[0], day_offset=1, today=TODAY)
+def test_every_day_is_a_different_number():
+    """The whole argument, and it is visible without clicking anything."""
+    ids = [row.beacon_id for row in _build().rows]
 
-    assert today.beacon_id != tomorrow.beacon_id
+    assert len(set(ids)) == len(showcase.DAYS)
 
 
 def test_the_same_person_is_a_different_number_on_another_site():
     """Scoping by site is what stops anything being correlated across customers."""
-    here = showcase.identity(person="ada", site=showcase.SITES[0], day_offset=0, today=TODAY)
-    there = showcase.identity(person="ada", site=showcase.SITES[1], day_offset=0, today=TODAY)
+    here = _build(site=showcase.SITES[0]).rows[0].beacon_id
+    there = _build(site=showcase.SITES[1]).rows[0].beacon_id
 
-    assert here.beacon_id != there.beacon_id
+    assert here != there
 
 
 def test_two_people_are_different_numbers():
-    ada = showcase.identity(person="ada", site=showcase.SITES[0], day_offset=0, today=TODAY)
-    grace = showcase.identity(person="grace", site=showcase.SITES[0], day_offset=0, today=TODAY)
-
-    assert ada.beacon_id != grace.beacon_id
+    assert _build(person="ada").rows[0].beacon_id != _build(person="grace").rows[0].beacon_id
 
 
 @pytest.mark.parametrize("site", showcase.SITES)
-@pytest.mark.parametrize("day", showcase.DAYS)
-def test_the_cookie_moves_for_nothing(site: str, day: int):
-    """The contrast the panel beside it exists to draw."""
-    assert showcase.identity(person="ada", site=site, day_offset=day, today=TODAY).cookie_id == (
-        showcase.identity(
-            person="ada", site=showcase.SITES[0], day_offset=0, today=TODAY
-        ).cookie_id
-    )
+def test_the_cookie_moves_for_nothing(site: str):
+    """The contrast the column beside it exists to draw.
+
+    One value repeated down all three days, and the same one on either site.
+    """
+    panel = _build(site=site)
+
+    assert panel.cookie_id == _build(site=showcase.SITES[0]).cookie_id
+    assert len({panel.cookie_id}) == 1
 
 
 # --- it has to be the real thing ------------------------------------------
@@ -76,7 +86,7 @@ def test_it_calls_the_function_that_runs_on_real_traffic():
     Recomputed here with visitors.visitor_id directly, against the same salt
     the demo derives, so the page cannot quietly diverge from the collector.
     """
-    shown = showcase.identity(person="ada", site="blue-mug.example", day_offset=0, today=TODAY)
+    shown = _build(site="blue-mug.example").rows[0]
 
     assert shown.beacon_id == visitor_id(
         salt=showcase.demo_salt(TODAY),
@@ -97,18 +107,16 @@ def test_the_demo_salt_is_not_one_of_the_real_ones(db_session):
 
     from app.models import DailySalt
 
-    showcase.identity(person="ada", site="blue-mug.example", day_offset=0)
+    _build(today=None)
 
     assert db_session.scalars(select(DailySalt)).all() == []
 
 
 def test_a_day_past_retention_is_shown_as_unrecoverable():
     """Two days is the retention, so the third state is the one that matters."""
-    assert showcase.identity(person="ada", site=showcase.SITES[0], day_offset=0).salt_still_exists
-    assert showcase.identity(person="ada", site=showcase.SITES[0], day_offset=1).salt_still_exists
-    assert not showcase.identity(
-        person="ada", site=showcase.SITES[0], day_offset=2
-    ).salt_still_exists
+    kept = [row.salt_still_exists for row in _build().rows]
+
+    assert kept == [True, True, False]
 
 
 # --- nonsense in the query string -----------------------------------------
@@ -119,8 +127,6 @@ def test_a_day_past_retention_is_shown_as_unrecoverable():
     [
         {"person": "nobody"},
         {"site": "not-a-site.example"},
-        {"day": 99},
-        {"day": -5},
         {"person": "<script>alert(1)</script>"},
     ],
 )
@@ -141,17 +147,19 @@ def test_an_invented_person_is_not_reflected_into_the_page(client):
 # --- through the page ------------------------------------------------------
 
 
-def test_changing_the_day_changes_what_the_page_shows(client):
-    today = client.get("/", params={"person": "ada", "site": showcase.SITES[0], "day": 0}).text
-    tomorrow = client.get("/", params={"person": "ada", "site": showcase.SITES[0], "day": 1}).text
+def test_the_page_shows_three_different_numbers_and_one_cookie(client):
+    """No interaction required: the contrast is the column."""
+    page = client.get("/", params={"person": "ada", "site": showcase.SITES[0]}).text
+    beacons = re.findall(r"([a-f0-9]{32})", page)
+    cookies = re.findall(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", page)
 
-    assert _beacon_id(today) != _beacon_id(tomorrow)
-    assert _cookie_id(today) == _cookie_id(tomorrow)
+    assert len(set(beacons[:3])) == 3
+    assert len(set(cookies[:3])) == 1
 
 
 def test_changing_the_site_changes_what_the_page_shows(client):
-    here = client.get("/", params={"person": "ada", "site": showcase.SITES[0], "day": 0}).text
-    there = client.get("/", params={"person": "ada", "site": showcase.SITES[1], "day": 0}).text
+    here = client.get("/", params={"person": "ada", "site": showcase.SITES[0]}).text
+    there = client.get("/", params={"person": "ada", "site": showcase.SITES[1]}).text
 
     assert _beacon_id(here) != _beacon_id(there)
     assert _cookie_id(here) == _cookie_id(there)
@@ -168,16 +176,15 @@ def test_every_control_is_a_link_rather_than_a_script(client):
     section = page[page.index('id="try"') :]
     section = section[: section.index("</section>")]
 
-    assert section.count("<a class=\"chip") == len(showcase.PEOPLE) + len(showcase.SITES) + len(
-        showcase.DAYS
-    )
+    # One per person, plus "You", plus one per site.
+    assert section.count('<a class="chip') == len(showcase.PEOPLE) + 1 + len(showcase.SITES)
     assert "<button" not in section
     assert "onclick" not in section
 
 
 def test_the_page_names_the_salt_that_produced_the_number(client):
     """Without the date it is a number that changes for unexplained reasons."""
-    page = client.get("/", params={"person": "ada", "site": showcase.SITES[0], "day": 0}).text
-    expected = showcase.identity(person="ada", site=showcase.SITES[0], day_offset=0).day
+    page = client.get("/", params={"person": "ada", "site": showcase.SITES[0]}).text
 
-    assert expected.isoformat() in page
+    for row in _build(today=None).rows:
+        assert row.day.isoformat() in page

@@ -80,74 +80,100 @@
   <div class="try-head">
     <h2>Watch an identity expire</h2>
     <p class="muted">
-      Every control here is a link. Change one and the page comes back with the
-      answer recomputed on the server &mdash; by the same function that runs on
-      real traffic, not a copy of it.
+      Three days of the same person on the same site. Beacon&rsquo;s number is
+      different every day; the cookie beside it is the same one forever.
+      Nothing here is pre-baked &mdash; pick <strong>You</strong> and it runs
+      on the request your browser just made.
     </p>
   </div>
 
   <div class="try-controls">
-    {% set choices = [
-      ("Visitor", "person", people.keys(), demo.person),
-      ("Site", "site", sites, demo.site),
-    ] %}
-    {% for label, field, options, current in choices %}
-      <div class="choice">
-        <span class="choice-label">{{ label }}</span>
-        <div class="choice-options">
-          {% for option in options %}
-            <a class="chip {% if option == current %}on{% endif %}"
-               href="?person={{ demo.person if field != 'person' else option }}&amp;site={{ demo.site if field != 'site' else option }}&amp;day={{ demo.day_offset }}#try">{{ option | title if field == 'person' else option }}</a>
-          {% endfor %}
-        </div>
+    <div class="choice">
+      <span class="choice-label">Visitor</span>
+      <div class="choice-options">
+        <a class="chip {% if demo.person == live_key %}on{% endif %}"
+           href="?person={{ live_key }}&amp;site={{ demo.site }}#try">You</a>
+        {% for name in people %}
+          <a class="chip {% if demo.person == name %}on{% endif %}"
+             href="?person={{ name }}&amp;site={{ demo.site }}#try">{{ name | title }}</a>
+        {% endfor %}
       </div>
-    {% endfor %}
+    </div>
 
     <div class="choice">
-      <span class="choice-label">Day</span>
+      <span class="choice-label">Site</span>
       <div class="choice-options">
-        {% for offset in days %}
-          <a class="chip {% if offset == demo.day_offset %}on{% endif %}"
-             href="?person={{ demo.person }}&amp;site={{ demo.site }}&amp;day={{ offset }}#try">
-            {{ "Today" if offset == 0 else ("Tomorrow" if offset == 1 else "In two days") }}
-          </a>
+        {% for option in sites %}
+          <a class="chip {% if option == demo.site %}on{% endif %}"
+             href="?person={{ demo.person }}&amp;site={{ option }}#try">{{ option }}</a>
         {% endfor %}
       </div>
     </div>
   </div>
 
-  <div class="try-results">
-    <div class="card result">
-      <h3>What Beacon stores</h3>
-      <code class="ident beacon">{{ demo.beacon_id }}</code>
-      <p class="muted">
-        A keyed hash of the address, the browser and
-        <strong>{{ demo.site }}</strong>, under the salt for
-        <strong>{{ demo.day }}</strong>. Change the person, the site or the day
-        and this is a different number, because all three go into it.
-      </p>
-      {% if demo.salt_still_exists %}
-        <p class="note live">That day&rsquo;s salt still exists, so this can still be recomputed.</p>
-      {% else %}
-        <p class="note gone">
-          That day&rsquo;s salt has been deleted. Nothing can reproduce this
-          number now &mdash; not an attacker with the database, and not us.
-        </p>
-      {% endif %}
-    </div>
+  {% if demo.is_live %}
+    {# The part a mock-up cannot produce: their actual browser and system,
+       read off the request that fetched this page. #}
+    <p class="running-on">
+      Running on your request &mdash; <strong>{{ demo.person_label }}</strong>.
+      Your address went into the hash and is not shown anywhere on this page.
+    </p>
+  {% endif %}
 
-    <div class="card result">
-      <h3>What a cookie stores</h3>
-      <code class="ident cookie">{{ demo.cookie_id }}</code>
-      <p class="muted">
-        Assigned once and written to the device. It is not computed from the
-        site or the day, so there is nothing for either to change. The same
-        value follows this person to every site that sets it, for as long as
-        they keep it.
-      </p>
-      <p class="note gone">Nothing here expires on its own.</p>
+  <div class="ledger">
+    <div class="ledger-row head">
+      <span>Day</span>
+      <span>What Beacon stores</span>
+      <span>What a cookie stores</span>
     </div>
+    {% for row in demo.rows %}
+      <div class="ledger-row {% if not row.salt_still_exists %}expired{% endif %}">
+        <span class="when">
+          {{ row.label }}
+          <small>{{ row.day }}</small>
+        </span>
+        <span class="ident beacon">
+          {{ row.beacon_id }}
+          {% if not row.salt_still_exists %}
+            <small class="gone">salt deleted &mdash; nobody can recompute this, including us</small>
+          {% endif %}
+        </span>
+        {# Deliberately repeated rather than spanned: three identical values
+           read as "it never changes" far better than one merged cell. #}
+        <span class="ident cookie">{{ demo.cookie_id }}</span>
+      </div>
+    {% endfor %}
   </div>
+
+  <details class="working">
+    <summary>Where that number comes from</summary>
+    <p class="muted">
+      The same function the collector runs, with the same inputs in the same
+      order. {% if demo.is_live %}These are your real ones.{% endif %}
+    </p>
+    <dl class="inputs">
+      <dt>site</dt><dd>{{ demo.site }}</dd>
+      <dt>address</dt>
+      <dd class="withheld">
+        not shown &mdash; it is hashed and discarded, and a page that printed
+        it back at you would be arguing against itself
+      </dd>
+      <dt>user agent</dt><dd>{{ demo.user_agent }}</dd>
+      <dt>salt</dt><dd>the one generated for {{ demo.rows[0].day }}, deleted two days later</dd>
+    </dl>
+    <p class="muted">Check it yourself, against the code in this repository:</p>
+    <pre class="snippet"><code>from app.services.showcase import demo_salt
+from app.services.visitors import keyed_hash
+import datetime as dt
+
+keyed_hash(
+    "{{ demo.site }}",
+    "&lt;the address&gt;",
+    "{{ demo.user_agent }}",
+    salt=demo_salt(dt.date.fromisoformat("{{ demo.rows[0].day }}")),
+)
+# -&gt; '{{ demo.rows[0].beacon_id }}'</code></pre>
+  </details>
 </section>
 
 <section class="points">

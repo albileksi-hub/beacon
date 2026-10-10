@@ -1,19 +1,27 @@
 """A playable version of the one idea the product rests on.
 
-The landing page can assert that a daily salt makes an identifier expire, and
-nobody has to believe it. This lets a visitor move the three things that go
-into the hash -- who, which site, which day -- and watch the answer change,
-beside a cookie that changes for none of them.
+The landing page can assert that a rotating salt makes an identifier expire,
+and nobody has to believe it. This shows three days at once, so the three
+different numbers and the one unchanging cookie beside them are visible
+without anybody clicking anything, and lets a reader swap the visitor and the
+site to watch all of them move together.
 
-It calls the real visitor_id, not a reimplementation. A demo that mocked the
-hash would be a drawing of the argument rather than the argument, and the
-first time the two drifted apart the page would be lying.
+Two things keep it from reading as decoration.
 
-What it does not use is the real salt table. Salts there are random and
-deleted after two days, which is exactly what makes them unsuitable here: the
-page has to show the same answer to everyone, including on a day the salt
-would already be gone. These are derived from a fixed seed instead, so the
-demo is reproducible and no part of it can reveal a real one.
+It runs on the reader's own request when they ask it to. Their browser, system
+and device are their real ones, which no mock-up can produce; the address that
+goes into the hash is deliberately never shown, because displaying the one
+value the product exists not to keep would undercut the whole argument.
+
+It calls the real visitor_id rather than a reimplementation, and the page
+prints the command that reproduces the number. A demonstration that invented
+its own hash would be a drawing of the argument rather than the argument, and
+would start lying the first time the two drifted apart.
+
+What it does not use is the real salt table. Those salts are random and
+deleted after two days, which is exactly what makes them unusable here: the
+page has to show the same thing to every reader, including for a day whose
+salt would already be gone. These come from a fixed, clearly-named seed.
 """
 
 import datetime as dt
@@ -21,37 +29,55 @@ import hashlib
 import uuid
 from dataclasses import dataclass
 
-from app.services.visitors import visitor_id
+from app.services.visitors import keyed_hash
 
-# Not a secret and not used for anything real. Named so that it cannot be
-# mistaken for one of the rotating salts in daily_salts.
+# Not a secret, and not used for anything real. Named so it cannot be mistaken
+# for one of the rotating salts in daily_salts.
 DEMO_SEED = b"beacon-landing-page-demonstration-only"
 
-# Stand-ins for an address and a User-Agent, which are the real inputs. Asking
-# a visitor to type their own would collect the two things this page exists to
-# say are not collected.
+# Stand-ins for an address and a User-Agent. A reader can also pick themselves,
+# in which case these are replaced by the real ones off the request.
 PEOPLE: dict[str, tuple[str, str]] = {
     "ada": ("203.0.113.7", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15"),
     "grace": ("198.51.100.42", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"),
 }
 
+LIVE = "you"
 SITES = ("blue-mug.example", "red-bowl.example")
 
-# Far enough to cross the two-day salt retention, which is the point being made.
+# Far enough to cross the two-day salt retention, which is the point.
 DAYS = (0, 1, 2)
+DAY_LABELS = {0: "Today", 1: "Tomorrow", 2: "In two days"}
+
+# Two days of retention: beyond that the salt is gone and nothing can
+# recompute the identifier that used it.
+SALT_RETENTION_DAYS = 2
 
 
 @dataclass(frozen=True, slots=True)
-class Identity:
-    """One row of the demo: what each approach would store for these inputs."""
+class Row:
+    """One day of the same person on the same site."""
 
-    person: str
-    site: str
-    day_offset: int
+    offset: int
+    label: str
     day: dt.date
     beacon_id: str
-    cookie_id: str
     salt_still_exists: bool
+
+
+@dataclass(frozen=True, slots=True)
+class Showcase:
+    """Everything the panel renders."""
+
+    person: str
+    person_label: str
+    site: str
+    rows: list[Row]
+    cookie_id: str
+    # The real inputs, so the number has visible provenance. The address is
+    # named rather than shown.
+    user_agent: str
+    is_live: bool
 
 
 def demo_salt(day: dt.date) -> bytes:
@@ -60,35 +86,57 @@ def demo_salt(day: dt.date) -> bytes:
 
 
 def cookie_id(person: str) -> str:
-    """What a cookie would hold: one value, assigned once, never derived.
+    """What a cookie holds: one value, assigned once, derived from nothing.
 
-    A UUID from the person alone -- no site, no day -- because that is the
-    whole of the difference. It cannot expire, because nothing about it is
-    computed from anything that expires.
+    No site and no day go into it, which is the whole of the difference. It
+    cannot expire, because nothing about it is computed from anything that
+    does.
     """
     return str(uuid.uuid5(uuid.NAMESPACE_OID, f"beacon-demo-cookie:{person}"))
 
 
-def identity(*, person: str, site: str, day_offset: int, today: dt.date | None = None) -> Identity:
-    """What each approach stores for one person, on one site, on one day."""
-    if person not in PEOPLE:
-        person = next(iter(PEOPLE))
+def build(
+    *,
+    person: str,
+    site: str,
+    live_ip: str,
+    live_user_agent: str,
+    live_label: str,
+    today: dt.date | None = None,
+) -> Showcase:
+    """The three days for one person on one site, and the cookie beside them."""
+    if person not in PEOPLE and person != LIVE:
+        person = LIVE
     if site not in SITES:
         site = SITES[0]
-    if day_offset not in DAYS:
-        day_offset = 0
 
-    day = (today or dt.datetime.now(dt.UTC).date()) + dt.timedelta(days=day_offset)
-    ip, user_agent = PEOPLE[person]
+    if person == LIVE:
+        ip, user_agent, label = live_ip, live_user_agent, live_label
+    else:
+        ip, user_agent = PEOPLE[person]
+        label = person.title()
 
-    return Identity(
+    start = today or dt.datetime.now(dt.UTC).date()
+    rows = []
+    for offset in DAYS:
+        day = start + dt.timedelta(days=offset)
+        rows.append(
+            Row(
+                offset=offset,
+                label=DAY_LABELS[offset],
+                day=day,
+                # The same construction the collector uses, in the same order.
+                beacon_id=keyed_hash(site, ip, user_agent, salt=demo_salt(day)),
+                salt_still_exists=offset < SALT_RETENTION_DAYS,
+            )
+        )
+
+    return Showcase(
         person=person,
+        person_label=label,
         site=site,
-        day_offset=day_offset,
-        day=day,
-        beacon_id=visitor_id(salt=demo_salt(day), site_id=site, ip=ip, user_agent=user_agent),
+        rows=rows,
         cookie_id=cookie_id(person),
-        # Two days of retention: a salt for a day beyond that has been deleted,
-        # so nothing can recompute the identifier that used it.
-        salt_still_exists=day_offset < 2,
+        user_agent=user_agent,
+        is_live=person == LIVE,
     )

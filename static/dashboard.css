@@ -1543,41 +1543,89 @@ textarea:focus-visible {
   font-weight: 580;
 }
 
-.try-results {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-  gap: 1rem;
-  align-items: start;
+/* Three days at once. The argument is the column: every Beacon value differs
+   and every cookie value is the same, which is visible before anybody clicks
+   anything. */
+.running-on {
+  margin: 0 0 0.9rem;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.86rem;
+  color: var(--text-soft);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-sm);
 }
 
-.result h3 { font-size: 1rem; margin-bottom: 0.7rem; }
+.ledger {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.ledger-row {
+  display: grid;
+  grid-template-columns: 9rem 1fr 1fr;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--border);
+  align-items: baseline;
+}
+
+.ledger-row:first-child { border-top: 0; }
+
+.ledger-row.head {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  background: var(--panel-soft);
+}
+
+.ledger-row.expired { background: var(--danger-bg); }
+
+.when { color: var(--text); font-weight: 560; }
+.when small { display: block; font-weight: 400; color: var(--muted); font-size: 0.78rem; }
 
 .ident {
-  display: block;
-  margin-bottom: 0.75rem;
-  padding: 0.6rem 0.7rem;
-  font-size: 0.8rem;
-  /* Long hashes must wrap rather than widen the card on a phone. */
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
   overflow-wrap: anywhere;
-  border-radius: var(--radius-sm);
-  background: var(--panel-soft);
-  border: 1px solid var(--border);
 }
 
 .ident.beacon { color: var(--accent); }
-.ident.cookie { color: var(--text-soft); }
+.ident.cookie { color: var(--muted); }
+.ident small.gone { display: block; margin-top: 0.3rem; font-family: inherit; color: var(--danger-text); }
 
-.note {
-  margin: 0.75rem 0 0;
-  padding-top: 0.7rem;
-  border-top: 1px solid var(--border);
+.working { margin-top: 1rem; }
+
+.working summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+  padding: 0.5rem 0;
+}
+
+.working summary:hover { color: var(--accent); }
+
+.inputs {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0.8rem 0;
   font-size: 0.85rem;
 }
 
-.note.live { color: var(--muted); }
-.note.gone { color: var(--danger-text); }
+.inputs dt { color: var(--muted); }
+.inputs dd { margin: 0; overflow-wrap: anywhere; }
+.inputs dd.withheld { color: var(--danger-text); }
 
 @media (max-width: 640px) {
   .try { margin-top: 3rem; }
   .try-controls { gap: 1rem 1.25rem; }
+  /* Three columns will not fit; the day becomes a heading for its own pair. */
+  .ledger-row { grid-template-columns: 1fr; gap: 0.35rem; }
+  .ledger-row.head { display: none; }
+  .inputs { grid-template-columns: 1fr; }
 }

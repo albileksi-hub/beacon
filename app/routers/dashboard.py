@@ -6,8 +6,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.dependencies import CurrentUser, DbSession, RequiredUser
 from app.services import accounts, charts, reports, showcase, timeranges, tokens, zones
+from app.services.client import client_ip
 from app.services.stats import BreakdownProperty
 from app.services.timeranges import Period, resolve
+from app.services.user_agent import profile
 from app.templating import templates
 
 # Rendered pages, not part of the public API surface.
@@ -33,9 +35,8 @@ PANELS = (
 def index(
     request: Request,
     user: CurrentUser,
-    person: str = "ada",
+    person: str = "you",
     site: str = "blue-mug.example",
-    day: int = 0,
 ) -> Response:
     """The front page, whoever is looking at it.
 
@@ -49,10 +50,17 @@ def index(
     # with scripting switched off -- changing a choice is a link, and the page
     # that comes back has the new answer in it. Nothing about it needs a
     # browser that runs code.
-    chosen = showcase.identity(
+    # "You" runs on this very request: a real browser and system, which is the
+    # part a mock-up cannot produce. The address goes into the hash and is
+    # never shown -- displaying the one value the product exists not to keep
+    # would undercut the argument the panel is making.
+    client = profile(request.headers.get("user-agent", ""))
+    chosen = showcase.build(
         person=person,
         site=site,
-        day_offset=day,
+        live_ip=client_ip(request),
+        live_user_agent=request.headers.get("user-agent", ""),
+        live_label=f"{client.browser} on {client.os}",
     )
     return templates.TemplateResponse(
         request,
@@ -62,7 +70,7 @@ def index(
             "demo": chosen,
             "people": showcase.PEOPLE,
             "sites": showcase.SITES,
-            "days": showcase.DAYS,
+            "live_key": showcase.LIVE,
         },
     )
 
