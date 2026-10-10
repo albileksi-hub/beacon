@@ -8,8 +8,21 @@ from app.services.rollups import TOTAL, VALUE_LIMIT
 from app.services.timeranges import Period, resolve
 from tests.conftest import with_local_bucket
 
-DAY = dt.date(2026, 8, 18)
-NOON = dt.datetime(2026, 8, 18, 12, 0, tzinfo=dt.UTC)
+# Relative to today, not a fixed calendar date, and the whole suite seeds
+# against these two.
+#
+# They used to be 2026-08-18. Tests that seed on that day and then ask for "the
+# last 30 days" passed for a month and began failing on 2026-09-17, when the
+# clock moved the window past the data -- with nothing in the repository having
+# changed. Nobody saw it for three weeks because nothing pushed, so CI never
+# ran: a test that depends on the wall clock is a test that fails on a date
+# rather than on a commit, which is the hardest kind to attribute.
+#
+# Yesterday rather than today, so the events sit inside every relative window
+# the suite asks for except TODAY, and so no assertion straddles midnight
+# halfway through a run.
+DAY = dt.datetime.now(dt.UTC).date() - dt.timedelta(days=1)
+NOON = dt.datetime.combine(DAY, dt.time(12, 0), tzinfo=dt.UTC)
 SITE = "blue-mug.example"
 
 
@@ -304,3 +317,39 @@ def test_the_watermark_is_recorded_where_a_rebuild_will_read_it(db_session, site
     assert marked == DAY - dt.timedelta(days=30)
     assert rollups.can_rebuild(marked, marked) is False
     assert rollups.can_rebuild(marked + dt.timedelta(days=1), marked) is True
+
+
+def test_the_seeded_day_sits_inside_every_window_the_suite_queries():
+    """The invariant the fixed date quietly stopped satisfying.
+
+    Most of this suite seeds events on DAY and then asks for a period defined
+    relative to now. When DAY was a calendar constant those two drifted apart
+    on their own: the data was still there, the window simply moved past it,
+    and two revenue tests began failing on a date rather than on a commit.
+
+    TODAY is excluded deliberately -- DAY is yesterday, so a test asking for
+    today should see nothing, and several rely on exactly that.
+    """
+    for period in (
+        Period.LAST_7_DAYS,
+        Period.LAST_30_DAYS,
+        Period.LAST_6_MONTHS,
+        Period.LAST_12_MONTHS,
+    ):
+        first, last = resolve(period).days
+        assert first <= DAY <= last, (
+            f"{period.value} covers {first}..{last}, which does not include the "
+            f"seeded day {DAY}. Every test that seeds data and asks for this "
+            "period will find nothing."
+        )
+
+
+def test_the_seeded_timestamp_falls_on_the_seeded_day():
+    """DAY and NOON are a pair, and the rollups only agree if they stay one.
+
+    with_local_bucket derives the stored day and hour from NOON, while the
+    assertions compare against DAY. Editing one and not the other would file
+    every event under a day no test looks at.
+    """
+    assert NOON.date() == DAY
+    assert NOON.tzinfo is dt.UTC

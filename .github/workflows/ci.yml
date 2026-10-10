@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Weekly, because a suite that only runs on a push cannot catch anything that
+  # breaks without one. Two revenue tests seeded a fixed calendar date and asked
+  # for "the last 30 days"; they began failing on 2026-09-17 when the window
+  # moved past the data, and nobody knew for three weeks because nothing was
+  # pushed in that time. The same blind spot covers an advisory published
+  # against a pinned dependency, which also arrives without a commit.
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

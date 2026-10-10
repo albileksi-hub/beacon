@@ -788,6 +788,28 @@ pulling the originating address out of a `Request` is its entire job. Naming it
 means a second service reaching for FastAPI has to be argued for rather than
 merely committed.
 
+## Tests that fail on a date rather than on a commit
+
+Most of this suite seeds events on a single day and then asks for a period
+defined relative to now. That day used to be the calendar constant
+`2026-08-18`, which worked until the clock moved: on 2026-09-17 the thirty-day
+window slid past the data and two revenue tests began failing, with nothing in
+the repository having changed.
+
+Nobody noticed for three weeks, because CI only ran on a push and there were
+none. Dependabot's own update checks kept reporting green runs on `main`,
+which look identical in the runs list and are not the test suite.
+
+Both halves are fixed. The seeded day is now yesterday, derived at import, so
+it sits inside every relative window except `TODAY`; a test asserts exactly
+that, and fails naming the window and the day if the date is ever pinned
+again. A second test holds `DAY` and `NOON` together, since the stored day is
+derived from one and every assertion compares against the other.
+
+CI also runs weekly now. A suite that only runs on a push cannot catch
+anything that breaks without one -- not a clock-dependent test, and not an
+advisory published against a dependency that is already pinned.
+
 ## Accounts and tenancy
 
 Sign up, add a domain, get a snippet. A domain belongs to exactly one account,
