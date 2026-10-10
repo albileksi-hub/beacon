@@ -38,8 +38,15 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      # Constrained to the lock, which is what the image installs. Without this
+      # the suite resolved freely and tested versions nothing ships: CI had
+      # moved to SQLAlchemy 2.1 while the image stayed on the locked 2.0.52,
+      # and 2.1's variadic Select made the type annotations fail against a
+      # library no deployment runs.
       - name: Install
-        run: pip install ".[dev]"
+        run: |
+          grep -E '^[a-zA-Z0-9_.-]+==' requirements.txt | awk '{print $1}' > /tmp/constraints.txt
+          pip install -c /tmp/constraints.txt ".[dev]"
 
       - name: Lint
         run: ruff check .
@@ -84,8 +91,15 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      # Constrained to the lock, which is what the image installs. Without this
+      # the suite resolved freely and tested versions nothing ships: CI had
+      # moved to SQLAlchemy 2.1 while the image stayed on the locked 2.0.52,
+      # and 2.1's variadic Select made the type annotations fail against a
+      # library no deployment runs.
       - name: Install
-        run: pip install ".[dev]"
+        run: |
+          grep -E '^[a-zA-Z0-9_.-]+==' requirements.txt | awk '{print $1}' > /tmp/constraints.txt
+          pip install -c /tmp/constraints.txt ".[dev]"
 
       - name: Test
         run: pytest
@@ -104,8 +118,15 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      # Constrained to the lock, which is what the image installs. Without this
+      # the suite resolved freely and tested versions nothing ships: CI had
+      # moved to SQLAlchemy 2.1 while the image stayed on the locked 2.0.52,
+      # and 2.1's variadic Select made the type annotations fail against a
+      # library no deployment runs.
       - name: Install
-        run: pip install ".[dev]"
+        run: |
+          grep -E '^[a-zA-Z0-9_.-]+==' requirements.txt | awk '{print $1}' > /tmp/constraints.txt
+          pip install -c /tmp/constraints.txt ".[dev]"
 
       - name: Apply migrations
         run: alembic upgrade head

@@ -7,7 +7,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Raised from 5, which the routine dev-tool bumps had filled. Dependabot
+    # stops opening pull requests at the limit, so four advisories against the
+    # locked runtime -- three in urllib3, one in multidict -- had nowhere to
+    # arrive while ruff, pytest, mypy, hypothesis and pip-tools held every slot.
+    # A cap that lets housekeeping crowd out security fixes is the wrong cap.
+    open-pull-requests-limit: 10
     ignore:
       # These two are not independently upgradable. Their parents pin them with
       # `==`, so Dependabot bumping one on its own produces a lock that cannot

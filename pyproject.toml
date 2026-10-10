@@ -28,11 +28,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8",
+    "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "httpx>=0.28.1",
-    "ruff>=0.16.5",
-    "mypy>=1.11",
+    "ruff>=0.16.6",
+    "mypy>=2.3.1",
     # Only for the test that parses docker-compose.yml. It was importable
     # anyway as somebody else's transitive dependency, which is not the same
     # as being available.
@@ -44,11 +44,11 @@ dev = [
     # Property-based tests. The example-based ones were written by someone
     # imagining what an attacker might send; these put the same claims to a
     # generator that shares none of those assumptions.
-    "hypothesis>=6.100",
+    "hypothesis>=6.167.1",
     # Supply chain. pip-audit checks the locked versions against the advisory
     # database; pip-tools regenerates the lock from pyproject.
     "pip-audit>=2.10.1",
-    "pip-tools>=7.4",
+    "pip-tools>=7.6.1",
 ]
 
 [tool.setuptools.packages.find]
