@@ -29,6 +29,11 @@ import hashlib
 import uuid
 from dataclasses import dataclass
 
+from sqlalchemy.orm import Session
+
+from app.schemas import StatsSummary, TimeseriesPoint
+from app.services import accounts, reports
+from app.services.timeranges import Period, resolve
 from app.services.visitors import keyed_hash
 
 # Not a secret, and not used for anything real. Named so it cannot be mistaken
@@ -139,4 +144,48 @@ def build(
         cookie_id=cookie_id(person),
         user_agent=user_agent,
         is_live=person == LIVE,
+    )
+
+
+# The site whose numbers the front page puts on display. Seeded by seed.py and
+# published, so it is readable without an account.
+PREVIEW_SITE = "demo.example"
+
+PREVIEW_PERIODS = (Period.LAST_7_DAYS, Period.LAST_30_DAYS, Period.LAST_12_MONTHS)
+
+
+@dataclass(frozen=True, slots=True)
+class Preview:
+    """Enough of a real dashboard to put in a hero."""
+
+    site: str
+    period: Period
+    summary: StatsSummary
+    series: list[TimeseriesPoint]
+    live: int
+    interval: str
+
+
+def preview(db: Session, *, period: Period) -> Preview | None:
+    """The demo site's real numbers, or None when there are none to show.
+
+    A fresh clone has no traffic until seed.py runs, and a hero built around
+    an empty chart is worse than one built around a picture. The caller falls
+    back to the lighthouse in that case.
+    """
+    if not accounts.site_is_registered(db, PREVIEW_SITE):
+        return None
+
+    window = resolve(period)
+    summary = reports.summary(db, site_id=PREVIEW_SITE, time_range=window)
+    if summary.pageviews == 0:
+        return None
+
+    return Preview(
+        site=PREVIEW_SITE,
+        period=period,
+        summary=summary,
+        series=reports.timeseries(db, site_id=PREVIEW_SITE, time_range=window),
+        live=reports.live_visitors(db, site_id=PREVIEW_SITE).visitors,
+        interval=window.interval.value,
     )

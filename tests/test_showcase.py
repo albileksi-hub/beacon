@@ -13,6 +13,7 @@ import re
 import pytest
 
 from app.services import showcase
+from app.services.timeranges import Period
 from app.services.visitors import visitor_id
 
 TODAY = dt.date(2026, 6, 15)
@@ -188,3 +189,53 @@ def test_the_page_names_the_salt_that_produced_the_number(client):
 
     for row in _build(today=None).rows:
         assert row.day.isoformat() in page
+
+
+# --- the live hero ---------------------------------------------------------
+
+
+def test_the_hero_shows_the_demo_site_when_it_has_traffic(client, db_session, account):
+    """The front page opens with the product rather than a picture of it."""
+    from app.services import accounts, rollups
+    from tests.test_rollups import DAY, add_event
+
+    # Registered as well as populated: the collector only records events for a
+    # domain somebody has added, so a hero reading from one that was never
+    # registered would be reading rows that could not exist.
+    accounts.add_site(db_session, owner=account, domain=showcase.PREVIEW_SITE)
+    for index in range(5):
+        add_event(db_session, site_id=showcase.PREVIEW_SITE, visitor_id=f"v{index}")
+    db_session.commit()
+    rollups.rebuild_day(db_session, site_id=showcase.PREVIEW_SITE, day=DAY)
+
+    page = client.get("/").text
+
+    assert "live-hero" in page
+    assert showcase.PREVIEW_SITE in page
+
+
+def test_an_unseeded_install_falls_back_to_the_lighthouse(client, db_session):
+    """A fresh clone has no traffic, and a hero built on an empty chart is
+    worse than one built on a picture."""
+    page = client.get("/").text
+
+    assert showcase.preview(db_session, period=Period.LAST_30_DAYS) is None
+    assert "live-hero" not in page
+    assert "hero-scene" in page
+
+
+def test_a_registered_site_with_no_traffic_also_falls_back(db_session, account):
+    """Registered is not the same as having anything to draw."""
+    from app.services import accounts
+
+    accounts.add_site(db_session, owner=account, domain=showcase.PREVIEW_SITE)
+
+    assert showcase.preview(db_session, period=Period.LAST_30_DAYS) is None
+
+
+def test_the_period_chips_are_links_rather_than_script(client):
+    """Same rule as the rest of the page: changing the view is a navigation."""
+    page = client.get("/").text
+
+    for period in showcase.PREVIEW_PERIODS:
+        assert f'href="?show={period.value}"' in page or "live-hero" not in page

@@ -34,9 +34,11 @@ PANELS = (
 @router.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
+    db: DbSession,
     user: CurrentUser,
     person: str = "you",
     site: str = "blue-mug.example",
+    show: Period = Period.LAST_30_DAYS,
 ) -> Response:
     """The front page, whoever is looking at it.
 
@@ -62,11 +64,24 @@ def index(
         live_user_agent=request.headers.get("user-agent", ""),
         live_label=f"{client.browser} on {client.os}",
     )
+    # The hero is the product rather than a picture of it: the demo site's
+    # real numbers, in the same chart the dashboard draws. None on a fresh
+    # clone with no traffic, and the lighthouse stands in.
+    live = showcase.preview(db, period=show)
     return templates.TemplateResponse(
         request,
         "landing.html",
         {
             "user": user,
+            "preview": live,
+            "preview_periods": showcase.PREVIEW_PERIODS,
+            "period_labels": timeranges.LABELS,
+            "chart": charts.build(
+                [point.visitors for point in live.series],
+                [point.bucket for point in live.series],
+            )
+            if live
+            else None,
             "demo": chosen,
             "people": showcase.PEOPLE,
             "sites": showcase.SITES,
