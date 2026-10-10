@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.dependencies import CurrentUser, DbSession, RequiredUser
-from app.services import accounts, charts, reports, timeranges, tokens, zones
+from app.services import accounts, charts, reports, showcase, timeranges, tokens, zones
 from app.services.stats import BreakdownProperty
 from app.services.timeranges import Period, resolve
 from app.templating import templates
@@ -30,7 +30,13 @@ PANELS = (
 )
 
 @router.get("/", response_class=HTMLResponse)
-def index(request: Request, user: CurrentUser) -> Response:
+def index(
+    request: Request,
+    user: CurrentUser,
+    person: str = "ada",
+    site: str = "blue-mug.example",
+    day: int = 0,
+) -> Response:
     """The front page, whoever is looking at it.
 
     It used to be two pages behind one URL -- an explanation when signed out
@@ -39,7 +45,26 @@ def index(request: Request, user: CurrentUser) -> Response:
     than to the front page, and there was no way back to it at all without
     signing out. The list lives at /sites now and this is just the front page.
     """
-    return templates.TemplateResponse(request, "landing.html", {"user": user})
+    # The demo is driven by query parameters and rendered here, so it works
+    # with scripting switched off -- changing a choice is a link, and the page
+    # that comes back has the new answer in it. Nothing about it needs a
+    # browser that runs code.
+    chosen = showcase.identity(
+        person=person,
+        site=site,
+        day_offset=day,
+    )
+    return templates.TemplateResponse(
+        request,
+        "landing.html",
+        {
+            "user": user,
+            "demo": chosen,
+            "people": showcase.PEOPLE,
+            "sites": showcase.SITES,
+            "days": showcase.DAYS,
+        },
+    )
 
 
 @router.get("/sites", response_class=HTMLResponse)

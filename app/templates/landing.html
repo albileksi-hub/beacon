@@ -76,6 +76,80 @@
   <pre class="snippet"><code>&lt;script src="/static/beacon.js" data-site-id="yoursite.com" defer&gt;&lt;/script&gt;</code></pre>
 </section>
 
+<section class="try" id="try">
+  <div class="try-head">
+    <h2>Watch an identity expire</h2>
+    <p class="muted">
+      Every control here is a link. Change one and the page comes back with the
+      answer recomputed on the server &mdash; by the same function that runs on
+      real traffic, not a copy of it.
+    </p>
+  </div>
+
+  <div class="try-controls">
+    {% set choices = [
+      ("Visitor", "person", people.keys(), demo.person),
+      ("Site", "site", sites, demo.site),
+    ] %}
+    {% for label, field, options, current in choices %}
+      <div class="choice">
+        <span class="choice-label">{{ label }}</span>
+        <div class="choice-options">
+          {% for option in options %}
+            <a class="chip {% if option == current %}on{% endif %}"
+               href="?person={{ demo.person if field != 'person' else option }}&amp;site={{ demo.site if field != 'site' else option }}&amp;day={{ demo.day_offset }}#try">{{ option | title if field == 'person' else option }}</a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+
+    <div class="choice">
+      <span class="choice-label">Day</span>
+      <div class="choice-options">
+        {% for offset in days %}
+          <a class="chip {% if offset == demo.day_offset %}on{% endif %}"
+             href="?person={{ demo.person }}&amp;site={{ demo.site }}&amp;day={{ offset }}#try">
+            {{ "Today" if offset == 0 else ("Tomorrow" if offset == 1 else "In two days") }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="try-results">
+    <div class="card result">
+      <h3>What Beacon stores</h3>
+      <code class="ident beacon">{{ demo.beacon_id }}</code>
+      <p class="muted">
+        A keyed hash of the address, the browser and
+        <strong>{{ demo.site }}</strong>, under the salt for
+        <strong>{{ demo.day }}</strong>. Change the person, the site or the day
+        and this is a different number, because all three go into it.
+      </p>
+      {% if demo.salt_still_exists %}
+        <p class="note live">That day&rsquo;s salt still exists, so this can still be recomputed.</p>
+      {% else %}
+        <p class="note gone">
+          That day&rsquo;s salt has been deleted. Nothing can reproduce this
+          number now &mdash; not an attacker with the database, and not us.
+        </p>
+      {% endif %}
+    </div>
+
+    <div class="card result">
+      <h3>What a cookie stores</h3>
+      <code class="ident cookie">{{ demo.cookie_id }}</code>
+      <p class="muted">
+        Assigned once and written to the device. It is not computed from the
+        site or the day, so there is nothing for either to change. The same
+        value follows this person to every site that sets it, for as long as
+        they keep it.
+      </p>
+      <p class="note gone">Nothing here expires on its own.</p>
+    </div>
+  </div>
+</section>
+
 <section class="points">
   <div class="point">
     <h2>No cookies, no banner</h2>

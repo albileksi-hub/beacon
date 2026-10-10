@@ -1481,3 +1481,103 @@ textarea:focus-visible {
   border-color: var(--accent);
   box-shadow: var(--ring);
 }
+
+/* ---- the playable identity demo on the landing page ----
+   Every control is an anchor, so this works with scripting off: a choice is a
+   link, and the server sends back the page with the answer recomputed. */
+
+.try {
+  max-width: 62rem;
+  margin: 4.5rem auto 0;
+  padding: 0 1rem;
+}
+
+.try-head { max-width: 40rem; margin: 0 auto 1.75rem; text-align: center; }
+/* The global h2 is a small uppercase panel label; this one is a real heading,
+   so it has to undo all four of those properties rather than just the size. */
+.try-head h2 {
+  font-size: 1.5rem;
+  font-weight: 650;
+  text-transform: none;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.try-head p { margin-top: 0.6rem; }
+
+.try-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.5rem 2.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.choice { display: flex; flex-direction: column; gap: 0.45rem; }
+
+.choice-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+}
+
+.choice-options { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+.chip {
+  padding: 0.34rem 0.8rem;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.chip:hover { border-color: var(--border-strong); color: var(--text); }
+
+.chip.on {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 580;
+}
+
+.try-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.result h3 { font-size: 1rem; margin-bottom: 0.7rem; }
+
+.ident {
+  display: block;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.8rem;
+  /* Long hashes must wrap rather than widen the card on a phone. */
+  overflow-wrap: anywhere;
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+}
+
+.ident.beacon { color: var(--accent); }
+.ident.cookie { color: var(--text-soft); }
+
+.note {
+  margin: 0.75rem 0 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.note.live { color: var(--muted); }
+.note.gone { color: var(--danger-text); }
+
+@media (max-width: 640px) {
+  .try { margin-top: 3rem; }
+  .try-controls { gap: 1rem 1.25rem; }
+}
