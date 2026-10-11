@@ -1,18 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Beacon — privacy-first web analytics{% endblock %}
 
+{# The sky reaches both edges, so this page's main carries no measure and
+   each section brings its own. #}
+{% block main_class %}bleed{% endblock %}
+
 {% block content %}
-<section class="hero">
-  {# A lighthouse, because the product is called Beacon and a beacon's whole
-     behaviour is a light going round. The tower stands still, as a tower does,
-     and the beam is the thing that turns -- so the only motion on the page is
-     the one that describes what this is. CSS transforms only: no script, no
-     library, and it still stands there with JavaScript off. #}
+<section class="hero sky" data-sky>
+  {# Three depths, drifting at three speeds. Pointer movement shifts them by
+     different amounts, which is the whole of the parallax; a click leaves a
+     star that fades. Decorative, so none of it is announced. #}
+  <div class="sky-layer sky-far" aria-hidden="true"></div>
+  <div class="sky-layer sky-mid" aria-hidden="true"></div>
+  <div class="sky-layer sky-near" aria-hidden="true"></div>
+  <div class="sky-glow" aria-hidden="true"></div>
+
+  <div class="hero-inner">
+  {# The front page opens on the product rather than a drawing of a
+     lighthouse. An analytics tool that leads with an illustration is asking
+     to be taken on trust; this leads with real rows. #}
 {% if preview %}
   {# The product rather than a picture of it. Real numbers from the published
      demo site, drawn by the same chart code the dashboard uses, and every
-     control is a link so it works with scripting off. The lighthouse is the
-     fallback for a fresh clone that has no traffic yet. #}
+     control is a link so it works with scripting off. Absent on a fresh
+     clone that has no traffic yet. #}
   <div class="live-hero">
     <div class="live-head">
       <span class="live-site">
@@ -86,50 +97,6 @@
       account needed.
     </p>
   </div>
-{% else %}
-  <div class="hero-scene" aria-hidden="true">
-    {% for mx, my, ms, md in [
-      ("6%", "20%", "5px", "3.4s"), ("15%", "62%", "3px", "4.1s"),
-      ("24%", "9%", "4px", "3.0s"), ("76%", "14%", "3px", "4.6s"),
-      ("86%", "56%", "5px", "3.7s"), ("93%", "28%", "3px", "3.2s"),
-      ("70%", "76%", "4px", "4.3s"),
-    ] %}
-      <span class="mote" style="--mx: {{ mx }}; --my: {{ my }}; --ms: {{ ms }}; --md: {{ md }}"></span>
-    {% endfor %}
-
-    {# Behind the tower, so the tower occludes the beam that points away. #}
-    <div class="beam-spin">
-      <span class="beam"></span>
-      <span class="beam beam-back"></span>
-    </div>
-    <span class="lantern-glow"></span>
-
-    <span class="tower-shadow"></span>
-    <div class="beacon-float">
-      <div class="beacon-stage">
-        <div class="beacon-tilt">
-          <div class="beacon-sway">
-            <span class="plinth-cap"></span>
-            {% for i in range(36) %}<span class="plinth-facet" style="--i: {{ i }}"></span>{% endfor %}
-            {% for i in range(36) %}<span class="tower-facet" style="--i: {{ i }}"></span>{% endfor %}
-            {% for i in range(36) %}<span class="gallery-facet" style="--i: {{ i }}"></span>{% endfor %}
-            <span class="gallery-floor"></span>
-            {% for i in range(12) %}<span class="rail-post" style="--i: {{ i }}"></span>{% endfor %}
-            <span class="rail-ring"></span>
-            {% for i in range(36) %}<span class="lantern-facet" style="--i: {{ i }}"></span>{% endfor %}
-            {% for i in range(36) %}<span class="roof-facet" style="--i: {{ i }}"></span>{% endfor %}
-            <span class="finial"></span>
-            <span class="lamp"></span>
-          </div>
-        </div>
-      </div>
-      {# The studio light does not sway with the tower; that is what makes each
-         cylinder read as round rather than as a painted strip. #}
-      <span class="plinth-light"></span>
-      <span class="tower-light"></span>
-      <span class="lantern-light"></span>
-    </div>
-  </div>
 {% endif %}
 
   <p class="eyebrow">Open-source web analytics</p>
@@ -154,6 +121,7 @@
 
   <p class="snippet-caption">The entire integration:</p>
   <pre class="snippet"><code>&lt;script src="/static/beacon.js" data-site-id="yoursite.com" defer&gt;&lt;/script&gt;</code></pre>
+</div>
 </section>
 
 <section class="try" id="try">
@@ -283,4 +251,10 @@ keyed_hash(
     </p>
   </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+  {# Parallax and the click-to-add-a-visit stars. The sky drifts without it;
+     this only adds what answers to a pointer. #}
+  <script src="{{ asset('sky.js') }}" defer></script>
 {% endblock %}

@@ -644,6 +644,31 @@ h2 {
   text-align: center;
 }
 
+/* The sky has to reach both edges of the page, so the section stops being the
+   thing that holds the measure and an inner wrapper takes over. Without this
+   the stars stop in a hard vertical line 48rem wide, which looks like a bug
+   because it is one. */
+main.bleed { max-width: none; padding-left: 0; padding-right: 0; }
+
+.hero.sky {
+  max-width: none;
+  margin-top: 0;
+}
+
+.hero-inner {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.hero-inner h1,
+.hero-inner .lede,
+.hero-inner .snippet-caption,
+.hero-inner .snippet {
+  max-width: 44rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .hero::before {
   content: "";
   position: absolute;
@@ -658,406 +683,127 @@ h2 {
   pointer-events: none;
 }
 
-/* ---- the product shot on the landing page ----
-   A can, the way a drinks advert renders one: the object turns, the studio
-   light stays still.
+/* ---- the hero sky ----
+   Replaces a lighthouse that was four surfaces of revolution and four hundred
+   lines of CSS, to draw an object the product is only named after.
 
-   Three surfaces of revolution, each approximated by 36 flat facets. The
-   body is a cylinder of radius 56, and each of its facets shows one
-   9.7738px slice of a single wrapped SVG label. The shoulder is a real
-   cone rather than a step: its facets are trapezoids, narrowing from the body
-   chord to the neck chord, leaned inward by 28.07deg so their edges meet
-   exactly. The neck is a short cylinder of radius 40, capped by the lid.
+   Stars are repeating radial-gradients rather than elements: a field of
+   several hundred costs three painted layers and no DOM at all. Only the ones
+   a visitor makes by clicking are real nodes, and each removes itself. */
 
-   The lighting is a fixed overlay sized to each cylinder rather than to the
-   whole box, so it shades the metal without laying a dark rectangle across the
-   transparent space around it.
-
-   CSS transforms only: the content security policy allows no third-party
-   script, and the cover works with scripting disabled. The label is a data:
-   image, which img-src already permits. */
-
-.hero-scene {
+.sky {
   position: relative;
-  width: min(330px, 80vw);
-  height: 300px;
-  margin: 0 auto 1rem;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 4rem 1rem 3rem;
+  /* Night at the top, fading into the page. Without this the "sky" is just
+     the page colour with specks on it. */
+  background:
+    radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%),
+    linear-gradient(to bottom, #0d1020 0%, #0b0d18 45%, var(--bg) 100%);
+  /* Set by sky.js on pointer movement; the layers do the arithmetic. */
+  --mx: 0;
+  --my: 0;
+}
+
+:root[data-theme="light"] .sky {
+  background:
+    radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+    linear-gradient(to bottom, #e8ecf7 0%, #f1f0ea 50%, var(--bg) 100%);
+}
+
+.sky-layer {
+  position: absolute;
+  inset: -10%;
+  z-index: -1;
   pointer-events: none;
+  will-change: transform;
 }
 
-.mote {
+/* Depth is three things moving together: size, brightness, and how far each
+   layer travels when the pointer does. */
+.sky-far {
+  background-image:
+    radial-gradient(1px 1px at 18px 24px, #fff, transparent),
+    radial-gradient(1px 1px at 72px 96px, #fff, transparent),
+    radial-gradient(1px 1px at 128px 42px, #fff, transparent),
+    radial-gradient(1px 1px at 156px 132px, #fff, transparent),
+    radial-gradient(1px 1px at 44px 150px, #fff, transparent),
+    radial-gradient(1px 1px at 110px 8px, #fff, transparent);
+  background-size: 180px 170px;
+  opacity: 0.45;
+  transform: translate(calc(var(--mx) * 7px), calc(var(--my) * 7px));
+  animation: drift-far 180s linear infinite;
+}
+
+.sky-mid {
+  background-image:
+    radial-gradient(1.5px 1.5px at 40px 60px, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 190px 30px, var(--accent), transparent),
+    radial-gradient(1.3px 1.3px at 120px 150px, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 250px 110px, #fff, transparent),
+    radial-gradient(1.3px 1.3px at 20px 190px, var(--accent-hover), transparent);
+  background-size: 280px 220px;
+  opacity: 0.6;
+  transform: translate(calc(var(--mx) * 16px), calc(var(--my) * 16px));
+  animation: drift-mid 110s linear infinite;
+}
+
+.sky-near {
+  background-image:
+    radial-gradient(2.2px 2.2px at 80px 120px, var(--accent), transparent),
+    radial-gradient(2px 2px at 300px 50px, #fff, transparent),
+    radial-gradient(2.4px 2.4px at 180px 230px, var(--accent-hover), transparent);
+  background-size: 360px 300px;
+  opacity: 0.75;
+  transform: translate(calc(var(--mx) * 30px), calc(var(--my) * 30px));
+  animation: drift-near 70s linear infinite;
+}
+
+/* The light the product is named after, reduced to what it actually is: a
+   glow on the horizon rather than a model of a tower. */
+.sky-glow {
   position: absolute;
-  left: var(--mx);
-  top: var(--my);
-  width: var(--ms);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 80%, #fff);
-  filter: blur(1px);
-  opacity: 0.7;
-  animation: mote-drift var(--md) ease-in-out infinite alternate;
-}
-
-/* ---- the beacon ----
-
-   A lighthouse, because the product is called Beacon and a beacon's whole
-   behaviour is a light going round. The tower stands still, as a tower does,
-   and the beam is what turns.
-
-   Banded red and cream, on wet dark stone, with cool slate metalwork. The
-   tower is the one thing on the site allowed to be an illustration rather than
-   a signal, so it does not have to answer to the palette -- but the metalwork
-   is cool on purpose, because it is what the warm light is seen against.
-
-   The lamp, the glass it sits behind and the beam it throws are the accent's
-   own yellow, so the cover and the interface agree about what colour a light
-   is. That is the only place the two meet.
-
-   Every solid is a surface of revolution built from 36 facets, each rotated
-   about the centre and pushed out by the radius, with backface-visibility
-   hiding the far half so it reads as solid rather than as a wire cage. Where a
-   shape tapers the facet is a trapezoid tilted about X by the slant angle:
-
-     facet width  = 2A * tan(180deg / 36)      the wider end
-     facet height = hypot(A - B, H)            along the slant, not the vertical
-     rotateX      = atan2(A - B, H)
-     translateZ   = (A + B) / 2                the mean radius
-     clip inset   = half the width difference, as a percentage
-
-                   width    slant   rotateX   Z     inset
-     plinth 48->44 8.399   22.361   10.305   46.0    4.17%
-     tower  40->31 6.999  150.270    3.434   35.5   11.25%
-     gallery 38    6.649    9.000    0        38.0   0
-     lantern 26    4.549   36.000    0        26.0   0
-     roof   32->2  5.599   37.202   53.746   17.0   46.88%
-
-   The taper is gentle on purpose. An earlier version ran 42 to 30 over 140px
-   and stood on a plinth that flared out to 58, which together read as a
-   traffic cone rather than a tower. */
-
-.beacon-float {
-  position: absolute;
-  left: 50%;
-  top: 10px;
-  width: 160px;
-  height: 280px;
-  margin-left: -80px;
-  z-index: 1;
-}
-
-.beacon-stage {
-  position: absolute;
-  inset: 0;
-  perspective: 640px;
-  perspective-origin: 50% 44%;
-}
-
-.beacon-tilt {
-  position: absolute;
-  inset: 0;
-  transform: rotateX(7deg);
-  transform-style: preserve-3d;
-}
-
-/* Not a full turn. A lighthouse that spun would be a lie about the object, but
-   twenty degrees each way is enough to see round the near side of it. */
-.beacon-sway {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-  animation: beacon-sway 15s ease-in-out infinite alternate;
-}
-
-.plinth-facet,
-.tower-facet,
-.gallery-facet,
-.lantern-facet,
-.roof-facet,
-.rail-post {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  backface-visibility: hidden;
-}
-
-/* The rock it stands on. Barely tapered, so the silhouette stays a tower with
-   a footing rather than a cone. */
-.plinth-facet {
-  width: 8.399px;
-  margin-left: -4.1995px;
-  height: 22.361px;
-  margin-top: -11.18px;
-  transform: translateY(107px) rotateY(calc(var(--i) * 10deg)) translateZ(46px)
-    rotateX(10.305deg);
-  clip-path: polygon(4.17% 0, 95.83% 0, 100% 100%, 0 100%);
-  background: linear-gradient(to bottom, #4a5058, #1f2328);
-}
-
-/* Painted in bands, which is what makes a tower read as a lighthouse before
-   anything else about it does. */
-.tower-facet {
-  width: 6.999px;
-  margin-left: -3.4995px;
-  height: 150.27px;
-  margin-top: -75.135px;
-  transform: translateY(21px) rotateY(calc(var(--i) * 10deg)) translateZ(35.5px)
-    rotateX(3.434deg);
-  clip-path: polygon(11.25% 0, 88.75% 0, 100% 100%, 0 100%);
-  background: repeating-linear-gradient(
-    to bottom,
-    #f4ead6 0 26px,
-    #b3261e 26px 52px
-  );
-}
-
-/* The gallery is a short cylinder rather than a flat disc. As a disc it read
-   as a hoop floating around the tower: a ring of colour with the background
-   showing through the middle, because a disc seen almost edge-on has no
-   thickness to catch the light. */
-.gallery-facet {
-  width: 6.649px;
-  margin-left: -3.3245px;
-  height: 9px;
-  margin-top: -4.5px;
-  transform: translateY(-58.5px) rotateY(calc(var(--i) * 10deg)) translateZ(38px);
-  background: linear-gradient(to bottom, #6b7480, #2b3138);
-}
-
-/* The deck laid on top of it, and the rail around the edge. */
-.gallery-floor,
-.rail-ring,
-.plinth-cap {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  border-radius: 50%;
-  transform-style: preserve-3d;
-}
-
-.gallery-floor {
-  width: 76px;
-  height: 76px;
-  margin: -38px 0 0 -38px;
-  transform: translateY(-63px) rotateX(90deg);
-  background: radial-gradient(circle, #4f575f 60%, #6b7480 82%, #2b3138 100%);
-}
-
-.plinth-cap {
-  width: 88px;
-  height: 88px;
-  margin: -44px 0 0 -44px;
-  transform: translateY(96px) rotateX(90deg);
-  background: radial-gradient(circle, #565e66, #232930 76%);
-}
-
-/* Twelve uprights. Light enough to see against the tower behind them, which
-   the last set were not -- they were drawn in the same browns as the gallery
-   and disappeared into it. */
-.rail-post {
-  width: 2.2px;
-  margin-left: -1.1px;
-  height: 13px;
-  margin-top: -6.5px;
-  transform: translateY(-69.5px) rotateY(calc(var(--i) * 30deg)) translateZ(36px);
-  background: linear-gradient(to bottom, #9aa4b0, #4a5058);
-}
-
-.rail-ring {
-  width: 74px;
-  height: 74px;
-  margin: -37px 0 0 -37px;
-  transform: translateY(-76px) rotateX(90deg);
-  border: 1.5px solid #7d8794;
-}
-
-/* The glass the lamp sits behind. Lit from the inside, which is the whole
-   point of the object -- the previous version was a dark brown cage that read
-   as a chimney. */
-.lantern-facet {
-  width: 4.549px;
-  margin-left: -2.2745px;
-  height: 36px;
-  margin-top: -18px;
-  transform: translateY(-94px) rotateY(calc(var(--i) * 10deg)) translateZ(26px);
-  background: linear-gradient(
-    to bottom,
-    rgba(254, 240, 138, 0.44),
-    rgba(253, 224, 71, 0.32) 55%,
-    rgba(161, 98, 7, 0.36)
-  );
-  border-left: 0.6px solid rgba(70, 38, 12, 0.55);
-}
-
-/* A real cone: 36 triangles leaning in at 54 degrees, meeting at a point. */
-.roof-facet {
-  width: 5.599px;
-  margin-left: -2.7995px;
-  height: 37.202px;
-  margin-top: -18.6px;
-  transform: translateY(-123px) rotateY(calc(var(--i) * 10deg)) translateZ(17px)
-    rotateX(53.746deg);
-  clip-path: polygon(46.88% 0, 53.12% 0, 100% 100%, 0 100%);
-  background: linear-gradient(to bottom, #7d8794, #232930);
-}
-
-.finial {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 5px;
-  height: 5px;
-  margin-left: -2.5px;
-  border-radius: 50%;
-  transform: translateY(-136px);
-  background: #c8d0da;
-}
-
-/* The lamp, and the halo it throws onto the glass. */
-.lamp {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 34px;
-  height: 34px;
-  margin-left: -17px;
-  margin-top: -17px;
-  border-radius: 50%;
-  transform: translateY(-94px);
-  background: radial-gradient(circle, #fffdf2 20%, #fde047 46%, rgba(250, 204, 21, 0) 78%);
-  animation: lamp-throb 6s ease-in-out infinite;
-}
-
-.lantern-glow {
-  position: absolute;
-  left: 50%;
-  top: 56px;
-  width: 210px;
-  height: 210px;
-  margin-left: -105px;
-  margin-top: -105px;
-  border-radius: 50%;
+  inset: auto 0 0 0;
+  height: 45%;
+  z-index: -1;
+  pointer-events: none;
   background: radial-gradient(
-    circle,
-    rgba(253, 224, 71, 0.34) 0%,
-    rgba(250, 204, 21, 0.15) 36%,
-    rgba(250, 204, 21, 0) 68%
+    55% 100% at 50% 110%,
+    color-mix(in srgb, var(--accent) 26%, transparent),
+    transparent 72%
   );
-  animation: lamp-throb 6s ease-in-out infinite;
+  animation: glow-breathe 11s ease-in-out infinite;
 }
 
-/* The beam. Anchored at the lamp and turning around it -- the one piece of
-   motion on this page that describes what the product is named after. Two of
-   them, opposed, which is how a real optic is built. */
-.beam-spin {
+/* One click, one visit: it arrives bright, fades, and is gone, which is the
+   same sentence as the rest of the page. */
+.visit {
   position: absolute;
-  left: 50%;
-  top: 56px;
-  width: 0;
-  height: 0;
-  animation: beam-sweep 7s linear infinite;
-}
-
-.beam {
-  position: absolute;
-  left: 0;
-  top: 0;
-  /* Measured from the centre of the page, so a fixed length reaches past the
-     edge of a narrow one and gives the whole document a horizontal scrollbar.
-     This is the second time: the first cap went when the lighthouse was
-     rebuilt, and nothing failed, because no test can see a layout. The cap
-     only binds below about 550px; every wider screen gets the full beam. */
-  width: min(230px, 42vw);
-  height: 140px;
-  margin-top: -70px;
-  transform-origin: 0 50%;
-  /* Widening with distance, and gone well before the edge of the scene, so it
-     never runs into the headline underneath. */
-  clip-path: polygon(0 46%, 100% 0, 100% 100%, 0 54%);
-  background: linear-gradient(
-    90deg,
-    rgba(253, 224, 71, 0.42) 0%,
-    rgba(250, 204, 21, 0.16) 38%,
-    rgba(250, 204, 21, 0) 74%
-  );
-  filter: blur(5px);
-}
-
-.beam-back { transform: rotate(180deg); }
-
-.tower-shadow {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  width: 200px;
-  height: 24px;
-  transform: translateX(-50%);
+  z-index: -1;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
   border-radius: 50%;
-  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.55), transparent 70%);
-  filter: blur(6px);
+  background: var(--accent);
+  box-shadow: 0 0 14px 3px color-mix(in srgb, var(--accent) 65%, transparent);
+  pointer-events: none;
+  animation: visit-fade 5.2s ease-out forwards;
 }
 
-/* The light does not sway with the tower. A bright band a third of the way
-   across falling off to darkened edges is what reads as a cylinder, and each
-   overlay is clipped to its own taper so it never spills past the solid. */
-.tower-light,
-.lantern-light,
-.plinth-light {
-  position: absolute;
-  left: 50%;
-  z-index: 2;
-  background: linear-gradient(
-    90deg,
-    rgba(6, 6, 8, 0.60) 0%,
-    rgba(6, 6, 8, 0.17) 10%,
-    rgba(255, 255, 255, 0.30) 26%,
-    rgba(255, 255, 255, 0.08) 37%,
-    rgba(6, 6, 8, 0) 52%,
-    rgba(6, 6, 8, 0.36) 80%,
-    rgba(6, 6, 8, 0.64) 100%
-  );
-}
+@keyframes drift-far { to { background-position: 180px 0; } }
+@keyframes drift-mid { to { background-position: -280px 0; } }
+@keyframes drift-near { to { background-position: 360px 0; } }
 
-.tower-light {
-  top: 96px;
-  width: 80px;
-  margin-left: -40px;
-  height: 150px;
-  clip-path: polygon(11.25% 0, 88.75% 0, 100% 100%, 0 100%);
-}
-
-.lantern-light {
-  top: 38px;
-  width: 52px;
-  margin-left: -26px;
-  height: 36px;
-  opacity: 0.55;
-}
-
-.plinth-light {
-  top: 246px;
-  width: 96px;
-  margin-left: -48px;
-  height: 22px;
-  clip-path: polygon(4.17% 0, 95.83% 0, 100% 100%, 0 100%);
-}
-
-@keyframes beacon-sway {
-  from { transform: rotateY(-20deg); }
-  to { transform: rotateY(20deg); }
-}
-
-@keyframes beam-sweep {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes lamp-throb {
-  0%, 100% { opacity: 0.85; }
+@keyframes glow-breathe {
+  0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
 }
 
-@keyframes mote-drift {
-  from { transform: translateY(6px); opacity: 0.35; }
-  to { transform: translateY(-12px); opacity: 0.8; }
+@keyframes visit-fade {
+  0% { transform: scale(0.2); opacity: 0; }
+  12% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0; }
 }
 
 .eyebrow {
@@ -1298,10 +1044,10 @@ h2 {
   .tile-value { font-size: 1.75rem; }
   .share { display: none; }
   .hero { margin-top: 1.5rem; }
+  .sky { padding: 2.25rem 1rem 1.75rem; }
   /* The glow bleeds 6rem past the hero, which is fine when there is margin
      either side of it and is 96px of horizontal scroll when there is not. */
   .hero::before { inset: -6rem 0 auto; }
-  .hero-scene { height: 258px; }
   .beacon-float { transform: scale(0.82); transform-origin: top center; }
   .points { margin-top: 3rem; }
 }
@@ -1460,8 +1206,6 @@ h2 {
      declaration -- only an important one outranks the animation. Without it
      the tower sits square-on at its first frame and the beam parks pointing
      flat right, which is measurably true rather than a guess. */
-  .beacon-sway { transform: rotateY(-9deg) !important; }
-  .beam-spin { transform: rotate(28deg) !important; }
 }
 
 

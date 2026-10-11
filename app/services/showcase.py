@@ -170,8 +170,8 @@ def preview(db: Session, *, period: Period) -> Preview | None:
     """The demo site's real numbers, or None when there are none to show.
 
     A fresh clone has no traffic until seed.py runs, and a hero built around
-    an empty chart is worse than one built around a picture. The caller falls
-    back to the lighthouse in that case.
+    an empty chart is worse than no card at all. The caller omits it in that
+    case and the page opens on the sky alone.
     """
     if not accounts.site_is_registered(db, PREVIEW_SITE):
         return None

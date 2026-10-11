@@ -66,7 +66,7 @@ def index(
     )
     # The hero is the product rather than a picture of it: the demo site's
     # real numbers, in the same chart the dashboard draws. None on a fresh
-    # clone with no traffic, and the lighthouse stands in.
+    # clone with no traffic, and the page simply opens on the sky.
     live = showcase.preview(db, period=show)
     return templates.TemplateResponse(
         request,

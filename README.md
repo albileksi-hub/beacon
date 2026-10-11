@@ -1,7 +1,5 @@
 # Beacon
 
-<img src="docs/lighthouse.gif" alt="The Beacon cover: a lighthouse turning, its beam sweeping" align="right" width="300">
-
 **Privacy-first, cookieless web analytics.** A self-hosted alternative to Google
 Analytics that answers what a site owner actually asks — how many people came,
 what they read, where they came from — without collecting anything that
@@ -9,8 +7,6 @@ identifies them.
 
 No cookies. No personal data at rest. No consent banner, because there is
 nothing to consent to.
-
-<br clear="right">
 
 ![The Beacon dashboard](docs/dashboard.png)
 
@@ -33,7 +29,7 @@ If your site sends a Content Security Policy, it needs one more step — see [Ge
 | **A year of traffic renders in 9.6 ms** | instead of 2,027 ms — **211x**, by pre-aggregating on a daily grain |
 | **Bot filtering went 65.5% → 100%** | measured against 2,118 real crawler user-agents; the third it used to miss included `ChatGPT-User`, `Applebot` and `Bytespider` |
 | **p99 ingest 915 ms → 91 ms** | moving the write off the request path; worst case 4,249 ms → 135 ms |
-| **868 tests, 100% branch coverage of `app/`** | `ruff` and `mypy --strict` clean, run against SQLite *and* Postgres in CI |
+| **867 tests, 100% branch coverage of `app/`** | `ruff` and `mypy --strict` clean, run against SQLite *and* Postgres in CI |
 | **Zero JavaScript on the dashboard** | charts are server-rendered SVG; the page works with scripting disabled |
 | **Read it from anywhere** | `Authorization: Bearer` keys on the stats API — read-only by construction, so a leaked key can pull numbers and change nothing |
 

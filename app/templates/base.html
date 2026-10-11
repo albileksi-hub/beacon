@@ -49,7 +49,7 @@
       </div>
     </header>
 
-    <main>{% block content %}{% endblock %}</main>
+    <main class="{% block main_class %}{% endblock %}">{% block content %}{% endblock %}</main>
 
     {# Every page had its content simply stop, with the viewport below it left
        black. A footer is the cheapest thing that makes a page look finished,

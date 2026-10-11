@@ -214,14 +214,18 @@ def test_the_hero_shows_the_demo_site_when_it_has_traffic(client, db_session, ac
     assert showcase.PREVIEW_SITE in page
 
 
-def test_an_unseeded_install_falls_back_to_the_lighthouse(client, db_session):
-    """A fresh clone has no traffic, and a hero built on an empty chart is
-    worse than one built on a picture."""
+def test_an_unseeded_install_still_has_a_hero(client, db_session):
+    """A fresh clone has no traffic, and an empty chart is worse than none.
+
+    The dashboard card is simply absent in that case. The sky is not a
+    fallback for it -- it is the backdrop either way -- so the page still
+    opens on something rather than on a blank field where a chart failed.
+    """
     page = client.get("/").text
 
     assert showcase.preview(db_session, period=Period.LAST_30_DAYS) is None
     assert "live-hero" not in page
-    assert "hero-scene" in page
+    assert 'class="hero sky" data-sky' in page
 
 
 def test_a_registered_site_with_no_traffic_also_falls_back(db_session, account):

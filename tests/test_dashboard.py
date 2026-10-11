@@ -312,72 +312,41 @@ def test_the_stylesheet_can_highlight_every_tab():
     assert highest >= len(dashboard.PANELS)
 
 
-def test_the_landing_page_carries_the_animated_scene(client):
-    """The lighthouse on the cover, and the terms it exists under.
+def test_the_landing_page_carries_the_sky(client):
+    """The backdrop, and the terms it exists under.
 
-    It is decorative, so it must be hidden from screen readers; and it is
-    built from CSS transforms alone, because the content security policy
-    forbids outside libraries and the page promises to work without script.
+    It is decorative, so every layer is hidden from screen readers; the stars
+    are painted by repeating gradients rather than elements, so a field of
+    several hundred costs three layers and no DOM; and the page says all of
+    its words without the script that adds the parallax.
     """
     body = client.get("/").text
 
-    assert 'class="hero-scene" aria-hidden="true"' in body
-    # Four surfaces of revolution, 36 facets each: the rock it stands on, the
-    # tapered tower, the lantern glass, and the cone of the roof.
-    for surface in ("plinth-facet", "tower-facet", "lantern-facet", "roof-facet"):
-        assert body.count(f'class="{surface}"') == 36, surface
-    # Twelve uprights round the gallery, which is what crosses in front of and
-    # behind the lantern as the tower turns.
-    assert body.count('class="rail-post"') == 12
-    assert 'class="lamp"' in body
-    assert body.count('class="mote"') == 7
+    assert 'class="hero sky" data-sky' in body
+    for layer in ("sky-far", "sky-mid", "sky-near", "sky-glow"):
+        assert f'class="sky-layer {layer}" aria-hidden="true"' in body or (
+            f'class="{layer}" aria-hidden="true"' in body
+        ), layer
+    # No star is an element until a visitor makes one by clicking.
+    assert 'class="visit"' not in body
 
 
-def test_the_tapered_solids_are_built_as_frustums_not_cylinders():
-    """The difference between a cone and a cylinder wearing a hat.
+def test_the_sky_needs_no_script_to_say_anything(client):
+    """sky.js adds parallax and the click-to-add stars, and nothing else.
 
-    A tapered surface of revolution needs three things agreeing with each
-    other: a trapezoid clip, a facet height measured along the slant rather
-    than the vertical, and a rotateX of the slant angle. Getting the tilt
-    without the clip, or either without the other, is what makes a model read
-    as a drawing of itself -- the roof was a single flat triangle facing the
-    viewer before this.
-    """
-    css = (Path(__file__).parent.parent / "static" / "dashboard.css").read_text(encoding="utf-8")
-
-    for facet, tilt in (("tower-facet", "3.434deg"), ("roof-facet", "53.746deg"),
-                        ("plinth-facet", "10.305deg")):
-        rule = css[css.index(f".{facet} {{") :].split("}", 1)[0]
-        assert "clip-path: polygon(" in rule, f"{facet} tapers but is not clipped"
-        assert f"rotateX({tilt})" in rule, f"{facet} is not tilted to its slant"
-
-    # The lantern is the one straight cylinder, so it has neither.
-    lantern = css[css.index(".lantern-facet {") :].split("}", 1)[0]
-    assert "clip-path" not in lantern and "rotateX" not in lantern
-
-
-def test_the_cover_turns_the_light_and_not_the_tower(client):
-    """The reason this is a lighthouse rather than a product on a turntable.
-
-    A beacon is a light that goes round, so the one piece of motion on the page
-    describes what the thing is called after. A tower that spun would be a lie
-    about the object, so it only sways far enough to show it is round.
+    If the headline, the numbers or the integration snippet ever depended on
+    it, the page would go blank for the readers most likely to have scripting
+    off -- which, on a privacy product, is not the audience to lose.
     """
     body = client.get("/").text
-    css = (Path(__file__).parent.parent / "static" / "dashboard.css").read_text(encoding="utf-8")
+    without_scripts = re.sub(r"<script\b.*?</script>", "", body, flags=re.DOTALL)
 
-    assert body.count('class="beam"') + body.count('class="beam beam-back"') == 2
-
-    sway = css[css.index(".beacon-sway {") :].split("}", 1)[0]
-    assert "beacon-sway" in sway, "the tower should sway rather than turn"
-
-    turn = css[css.index("@keyframes beacon-sway") :].split("}\n}", 1)[0]
-    assert "360deg" not in turn, "the tower must not make a full revolution"
-    sweep = css[css.index("@keyframes beam-sweep") :].split("}\n}", 1)[0]
-    assert "360deg" in sweep, "the beam should be the thing that goes all the way round"
+    assert "Know what your visitors read" in without_scripts
+    assert "data-site-id" in without_scripts
+    assert "sky-far" in without_scripts
 
 
-def test_the_scene_stands_still_for_reduced_motion():
+def test_the_sky_stands_still_for_reduced_motion():
     """A spinning object is exactly what that preference exists to stop.
 
     This used to assert the block contained `.can-spin { animation: none;` and
@@ -396,10 +365,10 @@ def test_the_scene_stands_still_for_reduced_motion():
     assert "*::before" in reduced and "*::after" in reduced
     assert "animation-duration: 0.01ms !important" in reduced
     assert "animation-iteration-count: 1 !important" in reduced
-    # A collapsed animation still applies its first keyframe, and an animation
-    # outranks a normal declaration -- so a resting pose has to be important or
-    # the tower sits square-on and the beam parks pointing flat right.
-    assert "transform: rotateY(-9deg) !important" in reduced
+    # The lighthouse that needed two important resting poses is gone. The sky
+    # needs none: its layers drift by animating background-position, so a
+    # collapsed animation leaves them exactly where they started.
+    assert "transform: rotateY(-9deg) !important" not in reduced
 
 
 def test_reduced_motion_is_declared_after_the_animations_it_cancels():
