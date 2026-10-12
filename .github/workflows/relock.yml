@@ -102,11 +102,18 @@ jobs:
       - name: What moved
         run: |
           git --no-pager diff --stat requirements.txt
-          echo "--- versions ---"
           # Hash lines are indented, so matching a name at column 0 leaves just
-          # the pins. Nothing moving is a result, not a failure.
-          git --no-pager diff -U0 requirements.txt \
-            | grep -E "^[+-][A-Za-z0-9]" | sort || echo "nothing moved"
+          # the pins. Collected into a variable rather than piped straight to
+          # sort: the pipeline's status is sort's, which is always 0, so a
+          # trailing `|| echo` after it could never have fired. Nothing moving
+          # is a result and worth printing, not a failure and not silence.
+          moved=$(git --no-pager diff -U0 requirements.txt | grep -E "^[+-][A-Za-z0-9]" | sort || true)
+          if [ -z "$moved" ]; then
+            echo "nothing moved: the committed lock is already this resolution"
+          else
+            echo "--- versions ---"
+            echo "$moved"
+          fi
 
       - uses: actions/upload-artifact@v7
         with:
