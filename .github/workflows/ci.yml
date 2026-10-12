@@ -160,7 +160,21 @@ jobs:
       # containing uvloop -- it has no Windows build, so a developer cannot
       # otherwise run this locally at all.
       - name: Audit the locked tree
+        id: audit
         run: pip-audit --requirement requirements.txt --disable-pip --require-hashes
+
+      # An advisory against a pinned version is fixed by recompiling the lock,
+      # which cannot be done on the machine this project is developed on -- the
+      # resolution is Linux-only. That is not discoverable from a pip-audit
+      # table, and not knowing it is why four advisories sat unfixed for weeks.
+      - name: Say how to fix it
+        if: failure() && steps.audit.outcome == 'failure'
+        run: |
+          echo "::error title=The lock needs recompiling::Run the Relock workflow" \
+            "(Actions -> Relock -> Run workflow), download its requirements.txt" \
+            "artifact, and open a pull request with it. Pass the package names" \
+            "above as the input to move only those. Editing a pin by hand gives" \
+            "a lock that cannot install: a resolution is not a list of versions."
 
   docker:
     name: Docker image builds

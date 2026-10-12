@@ -27,9 +27,26 @@ updates:
     # became unresolvable, and it blocked the one pull request carrying four
     # advisory fixes. The same mismatch, arriving the other way round.
     #
-    # Grouping is what actually solves it: the parent and the child move
-    # together in one pull request, which is the only way either of them
-    # works.
+    # Grouping gets the parent and the child into one pull request, which is
+    # the only way either of them installs, and it is the right answer for
+    # psycopg: the two halves are released as a matched set, so there is always
+    # a parent to travel with.
+    #
+    # It does not close the window for pydantic, and the claim that it did was
+    # wrong. pydantic-core is published ahead of the pydantic that pins it --
+    # 2.49.0 on 9 September, the first pydantic wanting it on 8 October -- so
+    # for a month the group found a child to move and no parent, bumped
+    # pydantic-core alone, and produced a lock that cannot be installed. Five
+    # of six jobs on that pull request failed, including the one carrying the
+    # urllib3 advisory fixes.
+    #
+    # Ignoring pydantic-core is not the fix either; it only mirrors the break,
+    # leaving the child behind when the parent moves. Neither setting can help,
+    # because the premise is wrong: this file is a resolution, and a resolution
+    # cannot be edited one line at a time by anything. So Dependabot proposes
+    # here, and the lock is produced whole by the Relock workflow, on Linux,
+    # where it is actually installable. An incoherent proposal now fails with
+    # instructions rather than a pip resolution dump.
     groups:
       # One PR for the routine bumps; anything that needs reading arrives alone.
       minor-and-patch:

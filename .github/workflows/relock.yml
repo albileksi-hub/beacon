@@ -1,0 +1,98 @@
+name: Relock
+
+# The lock is a resolution, not a list of versions, and a resolution is only
+# valid for the platform it was solved on. Compiling it on Windows drops uvloop
+# -- there is no Windows wheel -- so the one machine this project is developed
+# on cannot produce a lock the image is able to install. `pip-tools` has been a
+# declared dev dependency described as "regenerates the lock from pyproject"
+# for months, with no way to run it.
+#
+# What that cost: four advisories against the locked runtime -- three in urllib3,
+# one in multidict -- sat unfixed for weeks with no route in. Dependabot can
+# patch single lines of the lock, and a single line is exactly what a resolution
+# cannot be patched by. It moved pydantic-core 2.46.5 -> 2.49.0 and left
+# pydantic at 2.13.5, which requires `pydantic-core==2.46.5` to the letter, so
+# the pull request carrying the urllib3 fix could not install at all. Grouping
+# the two does not close that window either: pydantic-core publishes ahead of
+# the pydantic that pins it -- 2.49.0 on 9 September, the first pydantic to want
+# it on 8 October -- so for a month there is no parent to group with.
+#
+# So the lock is compiled here, on the platform that consumes it: the test jobs,
+# the image and Render are all Linux. The result is verified to install and to
+# be free of advisories before it is offered, and it comes back as an artifact
+# rather than a commit -- this job has no write access to the repository, which
+# is the property worth having in the one place that rewrites the supply chain.
+# The diff lands through a normal pull request like everything else.
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Packages to upgrade, space separated. Empty upgrades everything."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  relock:
+    name: Recompile the lock on the platform that installs it
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The version the image ships and the lock header names. Resolving under
+      # another one quietly produces a different answer -- markers like
+      # `python_version < "3.13"` select different packages entirely.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install pip-tools
+        run: pip install "pip-tools>=7.6.1"
+
+      - name: Recompile
+        # Read from the environment rather than interpolated into the script. A
+        # workflow_dispatch input is text somebody typed, and text somebody
+        # typed does not belong inside a shell command.
+        env:
+          PACKAGES: ${{ inputs.packages }}
+        run: |
+          args=()
+          if [ -n "$PACKAGES" ]; then
+            for package in $PACKAGES; do args+=(--upgrade-package "$package"); done
+          else
+            args+=(--upgrade)
+          fi
+          # Same flags as the header the existing lock carries, so the diff is
+          # the versions that moved and nothing else.
+          pip-compile --generate-hashes --no-index \
+            --output-file=requirements.txt "${args[@]}" pyproject.toml
+
+      # Resolved, not merely downloaded. Without this the job would cheerfully
+      # offer a lock whose pins contradict each other, which is the exact
+      # failure it exists to prevent. --require-hashes additionally makes pip
+      # check every artifact it would have installed against the lock's hashes.
+      - name: It has to install as written
+        run: pip install --dry-run --require-hashes -r requirements.txt
+
+      - name: It has to carry no known advisories
+        run: |
+          pip install "pip-audit>=2.10.1"
+          pip-audit --requirement requirements.txt --disable-pip --require-hashes
+
+      - name: What moved
+        run: |
+          git --no-pager diff --stat requirements.txt
+          echo "--- versions ---"
+          # Hash lines are indented, so matching a name at column 0 leaves just
+          # the pins. Nothing moving is a result, not a failure.
+          git --no-pager diff -U0 requirements.txt \
+            | grep -E "^[+-][A-Za-z0-9]" | sort || echo "nothing moved"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: requirements.txt
+          path: requirements.txt
+          if-no-files-found: error
