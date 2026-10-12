@@ -124,3 +124,25 @@ def test_the_lock_is_internally_coherent():
                 )
 
     assert not incoherent, "the lock cannot install as written: " + "; ".join(incoherent)
+
+
+def test_the_design_notes_state_the_real_size_of_the_locked_tree():
+    """It said 45 packages and there are 48.
+
+    The number was right when it was written and went stale the first time a
+    dependency gained one of its own -- `fastapi` picked up `opentelemetry-api`
+    somewhere between 0.141 and 0.143, and nothing recalculated the sentence.
+    The project's rule about this is already written down twice in
+    test_readme.py: a number a person has to remember to update is a number
+    that will be wrong again. So it is read from the lock instead.
+    """
+    import re
+
+    notes = (ROOT / "docs" / "DESIGN.md").read_text(encoding="utf-8")
+    claimed = re.search(r"pins all (\d+) packages in the runtime tree", notes)
+    assert claimed is not None, "the design notes no longer state the size of the locked tree"
+
+    assert int(claimed.group(1)) == len(_pinned()), (
+        f"the design notes say {claimed.group(1)} packages, the lock pins {len(_pinned())}. "
+        "Update docs/DESIGN.md rather than this assertion."
+    )

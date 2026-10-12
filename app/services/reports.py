@@ -7,7 +7,6 @@ drift away from the truth unnoticed.
 """
 
 from collections import defaultdict
-from typing import Any
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
@@ -37,15 +36,19 @@ from app.services.timeranges import (
 live_visitors = stats.live_visitors
 
 
-def _scoped(
-    statement: Select[Any], site_id: str, time_range: TimeRange, dimension: str
-) -> Select[Any]:
+def _scoped[*Columns](
+    statement: Select[*Columns], site_id: str, time_range: TimeRange, dimension: str
+) -> Select[*Columns]:
     """Narrow to one site, one dimension, and one span of that site's days.
 
     The sibling of stats._scoped, which does the same for raw events. Three
     queries here spelled the same four predicates out by hand; a query that
     forgot one of the day bounds would read another period's numbers and look
     entirely plausible doing it.
+
+    Variadic over the columns for the reason given on that sibling: under
+    SQLAlchemy 2.1 `Select[Any]` describes a one-column select, which none of
+    these are.
     """
     first, last = time_range.days
     return statement.where(

@@ -1626,7 +1626,7 @@ afternoon -- and nobody was watching it: no lock, no audit, no Dependabot, so a
 compromised release upstream would have arrived on the next rebuild of every
 instance, silently.
 
-`requirements.txt` pins all 45 packages in the runtime tree with a hash for
+`requirements.txt` pins all 48 packages in the runtime tree with a hash for
 every artefact, and the image installs with `--require-hashes`, so the build
 fails rather than substitutes if any byte differs from what was locked.
 
@@ -1650,14 +1650,47 @@ dashboard stays green and the supply chain stops moving. Given a choice between
 a name that is definitely understood and one that might be, there was no
 argument for the second.
 
-`pip-audit` and `pip-tools` are dev dependencies now: one regenerates the lock
-from pyproject, the other checks the locked versions against the advisory
-database. The audit at the time of writing is clean -- the only findings in the
-tree were against `pip` itself, which is build tooling and not shipped.
+`pip-audit` and `pip-tools` are dev dependencies: one checks the locked
+versions against the advisory database, the other regenerates the lock from
+pyproject. The audit runs in CI now, as a job of its own, against the pins as
+written rather than a fresh resolution of them -- `--disable-pip` -- because
+that is the tree the image actually installs.
 
-Not yet done: running that audit in CI. It belongs in the workflow file, which
-needs a scope the tooling to hand does not have, so for now it is a command a
-person runs. That is weaker than a gate and is not being described as one.
+### Why nobody could fix an advisory
+
+Declaring `pip-tools` is not the same as being able to run it, and for months
+it was the former. The lock is a resolution, and a resolution is only valid for
+the platform it was solved on: compiling it on Windows drops `uvloop`, which
+has no Windows wheel, so the one machine this is developed on cannot produce a
+lock the image is able to install. The lock's own header made it worse by
+recording `pip-compile --generate-hashes --no-index`, where `--no-index` means
+*ignore the package index* rather than *leave the index URL out of the output* --
+anyone who copied that line got `DistributionNotFound` on the first package.
+
+The cost was four advisories -- three in `urllib3`, one in `multidict` --
+sitting against the locked runtime for weeks with no route in, and CI red the
+whole time. Dependabot could patch single lines of the lock, and a single line
+is exactly what a resolution cannot be patched by: it moved `pydantic-core` to
+2.49.0 and left `pydantic` at 2.13.5, which requires `pydantic-core==2.46.5` to
+the letter, so the pull request carrying the `urllib3` fixes could not install
+at all.
+
+Grouping the pair was recorded in `dependabot.yml` as the fix and is not one.
+`pydantic-core` is published ahead of the `pydantic` that pins it -- 2.49.0 on
+9 September, the first `pydantic` wanting it on 8 October -- so for a month the
+group finds a child to move and no parent. Ignoring it only mirrors the break,
+leaving the child behind when the parent moves. Neither setting can help,
+because the premise was wrong rather than the setting: this file is not a list
+of versions that can be edited one at a time.
+
+So the lock is compiled by a workflow, on Linux, where it is installable, and
+verified there before it is offered -- it has to resolve under
+`--require-hashes` and come back clean from `pip-audit`. It is returned as an
+artifact rather than a commit, so the job needs no write access to the
+repository, which is worth having in the one place that rewrites the supply
+chain; the diff lands through a pull request like anything else. A failing
+audit now prints how to do this, because it was not discoverable from a
+`pip-audit` table and not knowing it is what cost the weeks.
 
 ## Putting a version in the path while it is still free
 

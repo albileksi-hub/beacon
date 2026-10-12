@@ -15,10 +15,36 @@ Notable changes, newest first. Versions follow [semantic versioning](https://sem
   the built-in default alone missed every other placeholder, including the one
   this repository's own compose file used to substitute.
 
-- **Dependabot no longer bumps `pydantic-core` or `psycopg-binary` on their
-  own.** Their parents pin them with `==`, so moving one alone produces a lock
-  that cannot import the parent. A test now checks the lock is internally
-  coherent, so this is caught in seconds rather than after a Docker build.
+- **The lock can be regenerated.** It is a resolution, and a resolution is only
+  valid for the platform it was solved on -- compiling it on Windows drops
+  `uvloop`, which has no Windows wheel, so the machine this is developed on
+  could not produce a lock the image installs. `pip-tools` was a declared dev
+  dependency with no way to run it, and the lock's own header recorded
+  `pip-compile --no-index`, which means *ignore the package index* and fails on
+  the first package. A workflow now compiles it on Linux, proves it resolves
+  under `--require-hashes` and comes back clean from `pip-audit`, and returns it
+  as an artifact -- so the job needs no write access to the repository.
+
+- **Four advisories closed**: `urllib3` 2.7.0 to 2.8.0 (three) and `multidict`
+  6.7.1 to 7.1.0. They had sat unfixable for weeks, and CI red with them,
+  because there was no way to produce a lock that contained the fixes.
+
+- **The earlier answer to the `pydantic-core` problem was wrong, twice.**
+  Ignoring it left the child behind when the parent moved; grouping it with the
+  parent cannot help either, because `pydantic-core` is published ahead of the
+  `pydantic` that pins it -- 2.49.0 on 9 September, the first `pydantic` wanting
+  it on 8 October -- so for a month there is no parent to group with. Dependabot
+  bumped it alone and the pull request carrying the `urllib3` fixes could not
+  install. No setting fixes this: a resolution cannot be edited one line at a
+  time. Dependabot proposes, the workflow above produces.
+
+- **`Select` is annotated variadically.** SQLAlchemy 2.1 made it variadic, so
+  `Select[Any]` stopped meaning "a select of anything" and started meaning "a
+  select of exactly one column of type `Any`" -- which none of the callers are.
+  The query helpers are generic over their columns now, and that carried the
+  row shapes far enough for the type checker to find two places the old
+  annotation had been hiding. The declared floor is `>=2.1` to match: the code
+  runs on 2.0 but does not type-check there.
 
 - **The stats API is versioned.** `/api/v1/stats/{site}` is the documented
   surface; `/api/stats/{site}` still answers but is no longer advertised. Both

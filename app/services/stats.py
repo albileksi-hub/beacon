@@ -89,11 +89,22 @@ def pageview_count() -> Function[int]:
     return func.coalesce(func.sum(case((Event.name == visits.PAGEVIEW, 1), else_=0)), 0)
 
 
-def _scoped(statement: Select[Any], site_id: str, time_range: TimeRange) -> Select[Any]:
+def _scoped[*Columns](
+    statement: Select[*Columns], site_id: str, time_range: TimeRange
+) -> Select[*Columns]:
     """Narrow to one site and one span of that site's days.
 
     Compared on the stored local day, not on the timestamp: the range came from
     the site's own calendar, and a day there is not a day in UTC.
+
+    Generic over the columns rather than `Select[Any]`, because SQLAlchemy 2.1
+    made `Select` variadic: `Select[Any]` used to mean "a select of anything"
+    and now means "a select of exactly one column of type Any". Every caller
+    here passes three or four, so the old annotation stopped describing any of
+    them -- and because it erased the shape, the rows came back as `Row[Any]`
+    and unpacking them into four names became an error too. Carrying the
+    columns through says the true thing: this function adds predicates and
+    changes nothing about what is selected.
     """
     first, last = time_range.days
     return statement.where(Event.site_id == site_id, Event.day >= first, Event.day <= last)
@@ -131,7 +142,12 @@ def timeseries(db: Session, *, site_id: str, time_range: TimeRange) -> list[Time
     fmt = LABEL_FORMATS[time_range.interval]
 
     if time_range.interval is Interval.HOUR:
-        grouped = db.execute(
+        # Named apart from the daily rows below rather than reusing one name:
+        # the two branches select a different number of columns, so they are
+        # genuinely different types, and now that _scoped carries the columns
+        # through, mypy can say so. The single name was only ever tenable while
+        # the annotation erased the shape.
+        by_hour = db.execute(
             _scoped(
                 select(
                     Event.day,
@@ -145,10 +161,10 @@ def timeseries(db: Session, *, site_id: str, time_range: TimeRange) -> list[Time
         ).all()
         counted = {
             f"{row.day.isoformat()}T{row.hour:02d}:00:00": (row.visitors, row.pageviews)
-            for row in grouped
+            for row in by_hour
         }
     else:
-        grouped = db.execute(
+        by_day = db.execute(
             _scoped(
                 select(
                     Event.day,
@@ -161,7 +177,7 @@ def timeseries(db: Session, *, site_id: str, time_range: TimeRange) -> list[Time
         ).all()
 
         folded: dict[str, list[int]] = defaultdict(lambda: [0, 0])
-        for row in grouped:
+        for row in by_day:
             bucket = folded[row.day.strftime(fmt)]
             bucket[0] += row.visitors
             bucket[1] += row.pageviews
@@ -210,7 +226,12 @@ def breakdown(
     column = BREAKDOWN_COLUMNS[prop]
     visitors = visitor_count()
 
-    statement = (
+    # Spelled out because the first column cannot be inferred: BREAKDOWN_COLUMNS
+    # holds plain columns alongside a coalesce() over one, so the whitelist's
+    # value type is the join of those and the label over it lands as Any. The
+    # three counts after it are not Any, and saying so keeps the row unpacking
+    # below checked rather than waved through.
+    statement: Select[Any, int, int, int] = (
         _scoped(
             select(
                 column.label("value"),
