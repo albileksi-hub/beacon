@@ -65,9 +65,18 @@ jobs:
           else
             args+=(--upgrade)
           fi
-          # Same flags as the header the existing lock carries, so the diff is
-          # the versions that moved and nothing else.
-          pip-compile --generate-hashes --no-index \
+          # Not the command the lock's own header records. That one says
+          # --no-index, which in pip-compile does not mean "leave the index URL
+          # out of the output" -- it means "ignore the package index", and it
+          # fails immediately with
+          #
+          #   DistributionNotFound: No matching distribution found for fastapi>=0.115
+          #
+          # So the file has been documenting a regeneration command that cannot
+          # regenerate it, which is its own part of why nobody did.
+          # --no-emit-index-url is the flag that was meant: same output, minus
+          # an index line nobody needs, and it resolves.
+          pip-compile --generate-hashes --no-emit-index-url \
             --output-file=requirements.txt "${args[@]}" pyproject.toml
 
       # Resolved, not merely downloaded. Without this the job would cheerfully
