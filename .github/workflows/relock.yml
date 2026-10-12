@@ -49,8 +49,12 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Install pip-tools
-        run: pip install "pip-tools>=7.6.1"
+      # The dev extra rather than `pip install pip-tools`, so the versions this
+      # runs at are the ones pyproject declares. Spelling a floor here too
+      # would be two places to update and one of them would be wrong -- and the
+      # dev extra is where both tools this job needs are already declared.
+      - name: Install the dev tools
+        run: pip install ".[dev]"
 
       - name: Recompile
         # Read from the environment rather than interpolated into the script. A
@@ -83,13 +87,17 @@ jobs:
       # offer a lock whose pins contradict each other, which is the exact
       # failure it exists to prevent. --require-hashes additionally makes pip
       # check every artifact it would have installed against the lock's hashes.
+      # --ignore-installed because the step above put the runtime tree in this
+      # environment already, and pip answers "already satisfied" rather than
+      # resolving for anything it finds there -- which would quietly turn this
+      # into no check at all. Resolved from nothing, every pin has to agree with
+      # every other, and --require-hashes makes pip check each artifact it would
+      # have installed against the lock's own hashes.
       - name: It has to install as written
-        run: pip install --dry-run --require-hashes -r requirements.txt
+        run: pip install --dry-run --ignore-installed --require-hashes -r requirements.txt
 
       - name: It has to carry no known advisories
-        run: |
-          pip install "pip-audit>=2.10.1"
-          pip-audit --requirement requirements.txt --disable-pip --require-hashes
+        run: pip-audit --requirement requirements.txt --disable-pip --require-hashes
 
       - name: What moved
         run: |

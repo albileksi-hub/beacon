@@ -36,8 +36,8 @@ dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "httpx>=0.28.1",
-    "ruff>=0.16.6",
-    "mypy>=2.3.1",
+    "ruff>=0.17",
+    "mypy>=2.4.0",
     # Only for the test that parses docker-compose.yml. It was importable
     # anyway as somebody else's transitive dependency, which is not the same
     # as being available.
@@ -45,15 +45,18 @@ dev = [
     # Parsing the lock's requirement specifiers in test_supply_chain. Present
     # anyway as somebody else's transitive dependency, which is not the same as
     # being available -- the same reasoning as pyyaml above.
-    "packaging>=24",
+    "packaging>=26.3",
     # Property-based tests. The example-based ones were written by someone
     # imagining what an attacker might send; these put the same claims to a
     # generator that shares none of those assumptions.
-    "hypothesis>=6.167.1",
+    "hypothesis>=6.168.5",
     # Supply chain. pip-audit checks the locked versions against the advisory
-    # database; pip-tools regenerates the lock from pyproject.
+    # database; pip-tools regenerates the lock from pyproject -- though not from
+    # here, on Windows, where the resolution drops uvloop and cannot produce a
+    # lock the image installs. The Relock workflow does it on Linux. Declared
+    # anyway, because that workflow installs from this list.
     "pip-audit>=2.10.1",
-    "pip-tools>=7.6.1",
+    "pip-tools>=7.6.2",
 ]
 
 [tool.setuptools.packages.find]
