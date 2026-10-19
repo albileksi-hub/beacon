@@ -49,7 +49,7 @@ dev = [
     # Property-based tests. The example-based ones were written by someone
     # imagining what an attacker might send; these put the same claims to a
     # generator that shares none of those assumptions.
-    "hypothesis>=6.168.5",
+    "hypothesis>=6.170.0",
     # Supply chain. pip-audit checks the locked versions against the advisory
     # database; pip-tools regenerates the lock from pyproject -- though not from
     # here, on Windows, where the resolution drops uvloop and cannot produce a
